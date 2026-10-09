@@ -1,8 +1,16 @@
 ﻿@{
     ViewData["Title"] = "Home Page";
 }
-
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div>
+<h1>Bienvenido</h1>
+<img src="~/imagenes/Logo colores.png" alt="OSO" />
 </div>
+<div>
+<form action='@Url.Action("Login", "Home")' method="get">
+		<button type="submit">Iniciar Sesión</button>
+</form>
+<form action='@Url.Action("Registro", "Home")' method="get">
+        <button type="submit">Registrarse</button>
+</form>
+</div>
+

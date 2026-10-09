@@ -13,7 +13,25 @@ public class HomeController : Controller
         _logger = logger;
     }
 
+    BD bd = new BD();
+
     public IActionResult Index()
+    {
+        return View();
+    }
+
+    public IActionResult Registro()
+    {
+        return View();
+    }
+
+    public IActionResult Registrar(Usuario usuario)
+    {
+        bd.RegistrarUsuario(usuario);
+        return View();
+    }
+
+    public IActionResult Login()
     {
         return View();
     }
