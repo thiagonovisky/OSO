@@ -25,10 +25,21 @@ public class HomeController : Controller
         return View();
     }
 
-    public IActionResult Registrar(Usuario usuario)
+    public IActionResult Registrar(Usuario usuario, bool inquilino, bool propietario)
     {
-        bd.RegistrarUsuario(usuario);
-        return View();
+        bool esPropietario = false;
+
+        if (inquilino)
+        {
+            esPropietario = false;
+        }
+        else if (propietario)
+        {
+            esPropietario = true;
+        }
+
+        bd.RegistrarUsuario(usuario, esPropietario);
+        return View("Index");
     }
 
     public IActionResult Login()
