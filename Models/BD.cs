@@ -28,4 +28,14 @@ public class BD
             );
         }
     }
+
+     public Usuario verificarUsuario(Usuario usuario)
+    {
+        Usuario usuarioExistente = null;
+        using(SqlConnection connection = new SqlConnection(connectionString)){
+            string query = "SELECT * FROM Usuarios WHERE Correo = @pCorreo";
+            usuarioExistente = connection.QueryFirstOrDefault<Usuario>(query, new {pCorreo = usuario.Correo});
+        }
+        return usuarioExistente;
+    }
 }

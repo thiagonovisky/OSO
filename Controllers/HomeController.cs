@@ -25,24 +25,37 @@ public class HomeController : Controller
         return View();
     }
 
-    public IActionResult Registrar(Usuario usuario, bool inquilino, bool propietario)
+    [HttpPost]
+    public IActionResult Registrar(Usuario usuario, bool esPropietario)
     {
-        bool esPropietario = false;
-
-        if (inquilino)
-        {
-            esPropietario = false;
-        }
-        else if (propietario)
-        {
-            esPropietario = true;
-        }
+        // usar directamente el valor enviado por el formulario
+        Console.WriteLine(esPropietario);
 
         bd.RegistrarUsuario(usuario, esPropietario);
         return View("Index");
     }
 
     public IActionResult Login()
+    {
+        return View();
+    }
+
+    public IActionResult IniciarSesion(string correo, string contrasena){
+        Usuario usuario = bd.verificarUsuario(new Usuario { Correo = correo });
+        if (usuario != null && usuario.Contrasena == contrasena)
+        {
+            //HttpContext.Session.SetString("Usuario", usuario.correo);
+           // HttpContext.Session.SetString("ID", usuario.id.ToString());
+            return View("Bienvenida");
+        }
+        else
+        {
+            ViewBag.Error= "Nombre de usuario o contraseña incorrectos.";
+            return View("Login");
+        }
+    }
+
+       public IActionResult Propiedades()
     {
         return View();
     }
