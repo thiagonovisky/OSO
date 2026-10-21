@@ -22,7 +22,7 @@ public class BD
                     Correo = usuario.Correo,
                     Contrasena = usuario.Contrasena,
                     Telefono = usuario.Telefono,
-                    EsPropietario = esPropietario
+                    esPropietario = esPropietario
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -37,5 +37,14 @@ public class BD
             usuarioExistente = connection.QueryFirstOrDefault<Usuario>(query, new {pCorreo = usuario.Correo});
         }
         return usuarioExistente;
+    }
+
+    public List<Propiedades> ObtenerPropiedadesPorIdPropietario(int idPropietario)
+    {
+        using (SqlConnection connection = new SqlConnection(connectionString))
+        {
+            string query = "SELECT * FROM Propiedades WHERE IdPropietario = @pIdPropietario";
+            return connection.Query<Propiedades>(query, new { pIdPropietario = idPropietario }).AsList();
+        }
     }
 }

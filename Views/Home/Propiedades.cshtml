@@ -1,0 +1,24 @@
+@model List<OSO.Models.Propiedades>
+
+<h2>Mis propiedades</h2>
+
+@if (Model != null && Model.Any())
+{
+    <div class="row">
+        @foreach (var propiedad in Model)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="card-img-top" alt="@propiedad.Direccion" style="height: 220px; object-fit: cover;" />
+                    <div class="card-body">
+                        <h5 class="card-title">@propiedad.Direccion</h5>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <p>No hay propiedades para mostrar.</p>
+}

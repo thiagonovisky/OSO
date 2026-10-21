@@ -28,9 +28,7 @@ public class HomeController : Controller
     [HttpPost]
     public IActionResult Registrar(Usuario usuario, bool esPropietario)
     {
-        // usar directamente el valor enviado por el formulario
         Console.WriteLine(esPropietario);
-
         bd.RegistrarUsuario(usuario, esPropietario);
         return View("Index");
     }
@@ -40,24 +38,38 @@ public class HomeController : Controller
         return View();
     }
 
-    public IActionResult IniciarSesion(string correo, string contrasena){
+    public IActionResult IniciarSesion(string correo, string contrasena)
+    {
         Usuario usuario = bd.verificarUsuario(new Usuario { Correo = correo });
         if (usuario != null && usuario.Contrasena == contrasena)
         {
-            //HttpContext.Session.SetString("Usuario", usuario.correo);
-           // HttpContext.Session.SetString("ID", usuario.id.ToString());
-            return View("Bienvenida");
+            HttpContext.Session.SetInt32("IdUsuario", usuario.Id);
+            HttpContext.Session.SetInt32("IdPropietario", usuario.IdPropietario);
+            return RedirectToAction("Bienvenida");
         }
         else
         {
-            ViewBag.Error= "Nombre de usuario o contraseña incorrectos.";
+            ViewBag.Error = "Nombre de usuario o contraseña incorrectos.";
             return View("Login");
         }
     }
 
-       public IActionResult Propiedades()
+    public IActionResult Bienvenida()
     {
         return View();
+    }
+
+    public IActionResult Propiedades(int? idPropietario)
+    {
+        int? idActual = idPropietario ?? HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idActual.HasValue)
+        {
+            return View(new List<Propiedades>());
+        }
+
+        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idActual.Value);
+        return View(propiedades);
     }
 
     public IActionResult Privacy()
