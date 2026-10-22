@@ -2,6 +2,10 @@
 
 <h2>Mis propiedades</h2>
 
+<form action='@Url.Action("AgregarPropiedad", "Home")' method="get">
+    <button type="submit">Agregar Propiedad</button>
+</form>
+
 @if (Model != null && Model.Any())
 {
     <div class="row">
@@ -12,6 +16,9 @@
                     <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="card-img-top" alt="@propiedad.Direccion" style="height: 220px; object-fit: cover;" />
                     <div class="card-body">
                         <h5 class="card-title">@propiedad.Direccion</h5>
+                        <form action='@Url.Action("EditarPropiedad", "Home")' method="get">
+                            <button type="submit">Editar Propiedad</button>
+                        </form>
                     </div>
                 </div>
             </div>

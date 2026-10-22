@@ -72,6 +72,46 @@ public class HomeController : Controller
         return View(propiedades);
     }
 
+    public IActionResult AgregarPropiedad()
+    {
+        return View();
+    }
+
+    public IActionResult AgregarP(Propiedades propiedad, IFormFile foto)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (idPropietario.HasValue)
+        {
+            propiedad.IdPropietario = idPropietario.Value;
+        }
+
+        if (foto != null && foto.Length > 0)
+        {
+            var nombreArchivo = Path.GetFileName(foto.FileName);
+            var ruta = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "imagenes", nombreArchivo);
+
+            using (var stream = new FileStream(ruta, FileMode.Create))
+            {
+                foto.CopyTo(stream);
+            }
+
+            propiedad.Foto = nombreArchivo;
+        }
+        else
+        {
+            propiedad.Foto = "default.jpg";
+        }
+
+        bd.AgregarPropiedad(propiedad);
+        return RedirectToAction("Propiedades");
+    }
+
+    public IActionResult EditarPropiedad()
+    {
+        return View();
+    }
+
     public IActionResult Privacy()
     {
         return View();

@@ -47,4 +47,13 @@ public class BD
             return connection.Query<Propiedades>(query, new { pIdPropietario = idPropietario }).AsList();
         }
     }
+
+    public void AgregarPropiedad(Propiedades propiedad)
+    {
+        using (SqlConnection connection = new SqlConnection(connectionString))
+        {
+            string query = "INSERT INTO Propiedades (Direccion, Superficie, Ambientes, Foto, Estado, IdPropietario, FechaDeAlta) VALUES (@Direccion, @Superficie, @Ambientes, @Foto, @Estado, @IdPropietario, @FechaDeAlta)";
+            connection.Execute(query, propiedad);
+        }
+    }
 }

@@ -1,0 +1,38 @@
+<form class="auth-form" action='@Url.Action("AgregarP", "Home")' method="post" enctype="multipart/form-data">
+    <div class="form-row">
+        <label for="direccion">Direccion</label>
+        <input type="text" id="direccion" name="direccion" required />
+     </div>
+
+    <div class="form-row">
+        <label for="superficie">Superficie</label>
+        <input type="number" id="superficie" name="superficie" required />
+    </div>
+
+    <div class="form-row">
+        <label for="ambientes">Cantidad de Ambientes</label>
+        <input type="number" id="ambientes" name="ambientes" required />
+    </div>
+
+    <div class="form-group" style="margin-bottom: 1rem;">
+			<label for="foto">Foto</label>
+			<input type="file" id="foto" name="foto" accept="image/*" class="form-control" required />
+	</div>
+
+    <div class="form-row">
+        <label for="estado">Estado</label>
+        <select id="estado" name="estado" required>
+            <option value="Desocupado">Desocupado</option>
+            <option value="Ocupado">Ocupado</option>
+        </select>
+    </div>
+
+    <div class="form-row">
+        <label for="FechaDeAlta">Fecha de Alta</label>
+        <input type="date" id="FechaDeAlta" name="FechaDeAlta" required />
+    </div>
+
+    <div class="form-row">
+        <button type="submit">Agregar Propiedad</button>
+    </div>
+</form>

@@ -3,6 +3,7 @@ public class Propiedades
 {
     public int IdPropiedad { get; set; }
     public string Direccion { get; set; }
+    public int Superficie { get; set; }
     public string Ambientes { get; set; }
     public string Estado { get; set; }
     public DateTime FechaDeAlta { get; set; }
