@@ -56,4 +56,29 @@ public class BD
             connection.Execute(query, propiedad);
         }
     }
+
+    public Propiedades ObtenerPropiedadPorId(int idPropiedad)
+    {
+        using (SqlConnection connection = new SqlConnection(connectionString))
+        {
+            string query = "SELECT * FROM Propiedades WHERE IdPropiedad = @pIdPropiedad";
+            return connection.QueryFirstOrDefault<Propiedades>(query, new { pIdPropiedad = idPropiedad });
+        }
+    }
+
+    public void EditarPropiedad(Propiedades propiedad)
+    {
+        using (SqlConnection connection = new SqlConnection(connectionString))
+        {
+            string query = @"UPDATE Propiedades
+                             SET Direccion = @Direccion,
+                                 Superficie = @Superficie,
+                                 Ambientes = @Ambientes,
+                                 Estado = @Estado,
+                                 Foto = @Foto
+                             WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario";
+
+            connection.Execute(query, propiedad);
+        }
+    }
 }

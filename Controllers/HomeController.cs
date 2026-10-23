@@ -59,9 +59,9 @@ public class HomeController : Controller
         return View();
     }
 
-    public IActionResult Propiedades(int? idPropietario)
+    public IActionResult Propiedades()
     {
-        int? idActual = idPropietario ?? HttpContext.Session.GetInt32("IdPropietario");
+        int? idActual = HttpContext.Session.GetInt32("IdPropietario");
 
         if (!idActual.HasValue)
         {
@@ -109,7 +109,132 @@ public class HomeController : Controller
 
     public IActionResult EditarPropiedad()
     {
+        return RedirectToAction("Propiedades");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult EditarPropiedad(int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        return View(propiedad);
+    }
+
+    [HttpPost]
+    public IActionResult GuardarEdicionPropiedad(Propiedades propiedad, IFormFile? foto)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades propiedadActual = bd.ObtenerPropiedadPorId(propiedad.IdPropiedad);
+
+        if (propiedadActual == null || propiedadActual.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        propiedad.IdPropietario = idPropietario.Value;
+        propiedad.Foto = propiedadActual.Foto;
+
+        if (foto != null && foto.Length > 0)
+        {
+            var nombreArchivo = Path.GetFileName(foto.FileName);
+            var ruta = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "imagenes", nombreArchivo);
+
+            using (var stream = new FileStream(ruta, FileMode.Create))
+            {
+                foto.CopyTo(stream);
+            }
+
+            propiedad.Foto = nombreArchivo;
+        }
+
+        bd.EditarPropiedad(propiedad);
+        return RedirectToAction("Propiedades");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult InfoPropiedad(int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        return View(propiedad);
+    }
+
+    public IActionResult Expensas()
+    {
         return View();
+    }
+
+    public IActionResult AgregarExpensa()
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        ViewBag.Propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
+
+        return View(new Expensas
+        {
+            FechaAlta = DateTime.Today,
+            FechaVencimiento = DateTime.Today,
+            FechaPago = DateTime.Today
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AgregarExpensa(Expensas expensa, int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        TempData["Mensaje"] = "Expensa recibida correctamente.";
+        return RedirectToAction("Expensas");
     }
 
     public IActionResult Privacy()

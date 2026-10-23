@@ -1,0 +1,42 @@
+@model OSO.Models.Propiedades
+
+<h2>Editar propiedad</h2>
+
+<form asp-action="GuardarEdicionPropiedad" asp-controller="Home" method="post" enctype="multipart/form-data">
+	<input type="hidden" asp-for="IdPropiedad" />
+
+	<div class="mb-3">
+		<label asp-for="Direccion" class="form-label">Dirección</label>
+		<input asp-for="Direccion" class="form-control" />
+	</div>
+
+	<div class="mb-3">
+		<label asp-for="Superficie" class="form-label">Superficie</label>
+		<input asp-for="Superficie" type="number" class="form-control" />
+	</div>
+
+	<div class="mb-3">
+		<label asp-for="Ambientes" class="form-label">Ambientes</label>
+		<input asp-for="Ambientes" class="form-control" />
+	</div>
+
+	<div class="mb-3">
+		<label asp-for="Estado" class="form-label">Estado</label>
+		<input asp-for="Estado" class="form-control" />
+	</div>
+
+	<div class="mb-3">
+		<label class="form-label">Foto actual</label>
+		<div>
+			<img src="@Url.Content("~/imagenes/" + Model.Foto)" alt="Foto de la propiedad" style="max-width: 320px; height: auto;" />
+		</div>
+	</div>
+
+	<div class="mb-3">
+		<label class="form-label">Nueva foto (opcional)</label>
+		<input type="file" name="foto" class="form-control" />
+	</div>
+
+	<button type="submit" class="btn btn-primary">Guardar cambios</button>
+	<a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Cancelar</a>
+</form>

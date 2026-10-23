@@ -13,10 +13,18 @@
         {
             <div class="col-md-4 mb-4">
                 <div class="card h-100">
-                    <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="card-img-top" alt="@propiedad.Direccion" style="height: 220px; object-fit: cover;" />
+                    <form asp-action="InfoPropiedad" asp-controller="Home" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
+                        <button type="submit" style="border: none; background: none; padding: 0; width: 100%;">
+                            <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="card-img-top" alt="@propiedad.Direccion" style="height: 220px; object-fit: cover;" />
+                        </button>
+                    </form>
                     <div class="card-body">
                         <h5 class="card-title">@propiedad.Direccion</h5>
-                        <form action='@Url.Action("EditarPropiedad", "Home")' method="get">
+                        <form asp-action="EditarPropiedad" asp-controller="Home" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
                             <button type="submit">Editar Propiedad</button>
                         </form>
                     </div>

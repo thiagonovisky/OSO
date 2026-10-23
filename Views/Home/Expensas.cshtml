@@ -1,0 +1,10 @@
+<h2>Expensas</h2>
+
+@if (TempData["Mensaje"] != null)
+{
+    <p>@TempData["Mensaje"]</p>
+}
+
+<form action='@Url.Action("AgregarExpensa", "Home")' method="get">
+    <button type="submit">Agregar Expensa</button>
+</form>
