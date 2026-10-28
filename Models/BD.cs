@@ -66,6 +66,39 @@ public class BD
         }
     }
 
+    public void AgregarExpensa(Expensas expensa, int idPropiedad)
+    {
+        using (SqlConnection connection = new SqlConnection(connectionString))
+        {
+            string insertExpensa = @"INSERT INTO Expensas (Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago)
+                                    VALUES (@Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago);
+                                    SELECT CAST(SCOPE_IDENTITY() AS int);";
+
+            int idExpensa = connection.ExecuteScalar<int>(insertExpensa, expensa);
+
+            string updatePropiedad = @"UPDATE Propiedades
+                                      SET IdExpensas = @IdExpensa
+                                      WHERE IdPropiedad = @IdPropiedad";
+
+            connection.Execute(updatePropiedad, new { IdExpensa = idExpensa, IdPropiedad = idPropiedad });
+        }
+    }
+
+    public List<Expensas> ObtenerExpensasPorIdPropietario(int idPropietario)
+    {
+        using (SqlConnection connection = new SqlConnection(connectionString))
+        {
+            string query = @"SELECT e.IdExpensas, e.Monto, e.FechaVencimiento, e.FechaAlta, e.Estado, e.Comprobante, e.FechaPago,
+                                    p.Direccion AS NombrePropiedad
+                             FROM Expensas e
+                             INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
+                             WHERE p.IdPropietario = @pIdPropietario
+                             ORDER BY e.FechaAlta DESC";
+
+            return connection.Query<Expensas>(query, new { pIdPropietario = idPropietario }).AsList();
+        }
+    }
+
     public void EditarPropiedad(Propiedades propiedad)
     {
         using (SqlConnection connection = new SqlConnection(connectionString))

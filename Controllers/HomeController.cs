@@ -193,7 +193,15 @@ public class HomeController : Controller
 
     public IActionResult Expensas()
     {
-        return View();
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        List<Expensas> expensas = bd.ObtenerExpensasPorIdPropietario(idPropietario.Value);
+        return View(expensas);
     }
 
     public IActionResult AgregarExpensa()
@@ -233,6 +241,7 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
+        bd.AgregarExpensa(expensa, idPropiedad);
         TempData["Mensaje"] = "Expensa recibida correctamente.";
         return RedirectToAction("Expensas");
     }
