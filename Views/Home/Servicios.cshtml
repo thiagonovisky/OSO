@@ -1,0 +1,43 @@
+@model OSO.Models.Propiedades
+@{
+    var servicios = ViewBag.Servicios as IEnumerable<dynamic>;
+}
+
+<div class="services-page">
+    <h2 class="page-title">Servicios</h2>
+
+    <div class="service-actions-top">
+        <a asp-action="AgregarTipoGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Agregar tipo de gasto</a>
+    </div>
+
+    <div class="services-grid">
+        @if (servicios != null)
+        {
+            foreach (var servicio in servicios)
+            {
+                var nombre = servicio.Nombre;
+                var estado = servicio.Estado;
+                var estadoCss = estado == "Pendiente" ? "warn" : estado == "Sin registros" ? "muted" : "ok";
+
+                <div class="service-card">
+                    <div class="service-header">@nombre</div>
+                    <div class="service-body">
+                        <span class="service-status @estadoCss">@estado</span>
+
+                        <div class="service-actions">
+                            <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-primary">Ver detalle</a>
+
+                            <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-secondary">Agregar gasto</a>
+
+                            <form asp-action="EliminarTipoGasto" asp-controller="Home" method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar este tipo de gasto y sus registros asociados en esta propiedad?');">
+                                <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+                                <input type="hidden" name="idGasto" value="@servicio.IdGasto" />
+                                <button type="submit" class="btn btn-danger">Eliminar tipo</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>

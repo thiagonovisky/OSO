@@ -1,0 +1,57 @@
+@model OSO.Models.GastoXTipo
+@{
+    var propiedad = ViewBag.Propiedad as OSO.Models.Propiedades;
+    var tipo = ViewBag.Tipo as string;
+    var tipos = ViewBag.Tipos as List<OSO.Models.Gastos> ?? new List<OSO.Models.Gastos>();
+    var idGasto = tipos.FirstOrDefault(t => t.TipoGasto == tipo)?.IdGasto ?? 0;
+}
+
+<h2>Agregar gasto para @tipo</h2>
+
+@if (propiedad != null)
+{
+    <p>Propiedad: @propiedad.Direccion</p>
+}
+
+<form asp-action="GuardarGasto" asp-controller="Home" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
+    <input type="hidden" name="idGasto" value="@idGasto" />
+    <input type="hidden" name="tipo" value="@tipo" />
+
+    <div>
+        <label>Tipo de gasto</label>
+        <input type="text" value="@tipo" disabled class="form-control" />
+    </div>
+
+    <div>
+        <label>Mes</label>
+        <input type="date" name="mes" value="@DateTime.Today.ToString("yyyy-MM-dd")" required class="form-control" />
+    </div>
+
+    <div>
+        <label>Monto</label>
+        <input type="number" name="monto" step="0.01" min="0" required class="form-control" />
+    </div>
+
+    <div>
+        <label>Fecha de vencimiento</label>
+        <input type="date" name="fechaVencimiento" value="@DateTime.Today.AddDays(15).ToString("yyyy-MM-dd")" required class="form-control" />
+    </div>
+
+    <div>
+        <label>Estado</label>
+        <select name="estado" class="form-control">
+            <option value="A pagar">A pagar</option>
+            <option value="Pagado">Pagado</option>
+        </select>
+    </div>
+
+    <div>
+        <label>Comprobante</label>
+        <input type="text" name="comprobante" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Guardar gasto</button>
+    <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-secondary">Cancelar</a>
+</form>

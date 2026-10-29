@@ -8,30 +8,56 @@
 
 @if (Model != null && Model.Any())
 {
-    <div class="row">
-        @foreach (var propiedad in Model)
-        {
-            <div class="col-md-4 mb-4">
-                <div class="card h-100">
-                    <form asp-action="InfoPropiedad" asp-controller="Home" method="post">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
-                        <button type="submit" style="border: none; background: none; padding: 0; width: 100%;">
-                            <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="card-img-top" alt="@propiedad.Direccion" style="height: 220px; object-fit: cover;" />
-                        </button>
-                    </form>
-                    <div class="card-body">
-                        <h5 class="card-title">@propiedad.Direccion</h5>
-                        <form asp-action="EditarPropiedad" asp-controller="Home" method="post">
+    foreach (var propiedad in Model)
+    {
+        <div class="resumen-propiedad-box">
+            <div class="summary-card">
+                <div class="summary-header">
+                    <h3>Propiedad</h3>
+                    <div class="summary-actions">
+                        <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn">Servicios</a>
+                    </div>
+                </div>
+
+                <div class="summary-detail">
+                    <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="summary-image" alt="@propiedad.Direccion" />
+
+                    <div class="summary-info">
+                        <div class="summary-info-row">
+                            <span class="label">Nombre:</span>
+                            <span class="value">@propiedad.Direccion</span>
+                        </div>
+                        <div class="summary-info-row">
+                            <span class="label">Dirección:</span>
+                            <span class="value">@propiedad.Direccion</span>
+                        </div>
+                        <div class="summary-info-row">
+                            <span class="label">Superficie:</span>
+                            <span class="value">@propiedad.Superficie m²</span>
+                        </div>
+                        <div class="summary-info-row">
+                            <span class="label">Ambientes:</span>
+                            <span class="value">@propiedad.Ambientes</span>
+                        </div>
+                        <div class="summary-info-row">
+                            <span class="label">Estado:</span>
+                            <span class="summary-estado @(propiedad.Estado == "Ocupada" ? "al-dia" : "pendiente")">
+                                @(propiedad.Estado == "Ocupada" ? "✓ Ocupada" : "○ No ocupada")
+                            </span>
+                        </div>
+
+                        <a asp-action="EditarPropiedad" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn-secondary">Editar</a>
+
+                        <form asp-action="EliminarPropiedad" asp-controller="Home" method="post" style="display:inline;">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
-                            <button type="submit">Editar Propiedad</button>
+                            <button type="submit" class="btn btn-danger" onclick="return confirm('¿Seguro que querés eliminar esta propiedad y todos sus registros asociados?');">Eliminar</button>
                         </form>
                     </div>
                 </div>
             </div>
-        }
-    </div>
+        </div>
+    }
 }
 else
 {

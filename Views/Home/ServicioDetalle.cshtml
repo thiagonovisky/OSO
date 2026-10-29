@@ -1,0 +1,51 @@
+@model OSO.Models.Propiedades
+@{
+    var tipo = ViewBag.Tipo as string;
+    var gastos = ViewBag.Gastos as IEnumerable<OSO.Models.GastoXTipo>;
+}
+
+<div class="service-detail-page">
+    <h2 class="page-title">@tipo</h2>
+
+    <div class="service-detail-panel">
+        <div class="service-header-row">
+            <h3>Gastos registrados</h3>
+            <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-primary">Agregar gasto</a>
+        </div>
+
+        @if (gastos != null && gastos.Any())
+        {
+            <div class="months-grid">
+                @foreach (var gasto in gastos)
+                {
+                    var estadoActual = gasto.Estado;
+                    var nuevoEstado = estadoActual == "Pagado" ? "A pagar" : "Pagado";
+
+                    <div class="month-item">
+                        <div class="month-name">@gasto.Mes.ToString("MMMM yyyy")</div>
+                        <div class="month-meta">
+                            <span>Monto: $@gasto.Monto</span>
+                            <span>Vto: @gasto.FechaVencimiento.ToString("dd/MM/yyyy")</span>
+                        </div>
+
+                        <form asp-action="GuardarEstadoGasto" asp-controller="Home" method="post" class="month-form">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+                            <input type="hidden" name="idGastoXTipo" value="@gasto.IdGastoXTipo" />
+                            <input type="hidden" name="tipo" value="@tipo" />
+                            <input type="hidden" name="estado" value="@nuevoEstado" />
+
+                            <button type="submit" class="month-status @(estadoActual == "Pagado" ? "pending" : "paid")">
+                                @(estadoActual == "Pagado" ? "Marcar como A pagar" : "Marcar como Pagado")
+                            </button>
+                        </form>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <p>No hay gastos cargados para este servicio todavía.</p>
+        }
+    </div>
+</div>

@@ -1,0 +1,24 @@
+@model dynamic
+@{
+    var propiedad = ViewBag.Propiedad as OSO.Models.Propiedades;
+}
+
+<h2>Agregar tipo de gasto</h2>
+
+@if (propiedad != null)
+{
+    <p>Propiedad: @propiedad.Direccion</p>
+}
+
+<form asp-action="GuardarTipoGasto" asp-controller="Home" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
+
+    <div>
+        <label>Nombre del tipo de gasto</label>
+        <input type="text" name="nombreTipo" class="form-control" placeholder="Ej: Internet, Mantenimiento, Seguro" required />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Guardar tipo</button>
+    <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" class="btn btn-secondary">Cancelar</a>
+</form>

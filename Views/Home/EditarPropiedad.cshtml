@@ -22,7 +22,10 @@
 
 	<div class="mb-3">
 		<label asp-for="Estado" class="form-label">Estado</label>
-		<input asp-for="Estado" class="form-control" />
+		<select asp-for="Estado" class="form-control">
+			<option value="Desocupado">Desocupado</option>
+			<option value="Ocupada">Ocupada</option>
+		</select>
 	</div>
 
 	<div class="mb-3">
