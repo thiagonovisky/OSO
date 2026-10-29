@@ -13,4 +13,5 @@ public class Propiedades
     public int? IdInquilino { get; set; }
     public int? ResumenPropiedad { get; set; }
     public int? IdExpensas { get; set; }
+    public int Alquiler { get; set; }
 }

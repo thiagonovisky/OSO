@@ -1,5 +1,6 @@
 <h1>Inicia Sesión</h1>
 <form action='@Url.Action("IniciarSesion", "Home")' method="post">
+    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
     <div>
         <label for="correo">Correo electrónico:</label>
         <input type="email" id="correo" name="correo" required />

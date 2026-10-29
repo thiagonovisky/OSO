@@ -45,8 +45,8 @@ public class BD
         using var transaction = connection.BeginTransaction();
 
         int idPropiedad = connection.ExecuteScalar<int>(
-            @"INSERT INTO Propiedades (Direccion, Superficie, Ambientes, Foto, Estado, IdPropietario, FechaDeAlta, ResumenPropiedad)
-              VALUES (@Direccion, @Superficie, @Ambientes, @Foto, @Estado, @IdPropietario, @FechaDeAlta, @ResumenPropiedad);
+            @"INSERT INTO Propiedades (Direccion, Superficie, Ambientes, Foto, Estado, IdPropietario, FechaDeAlta, ResumenPropiedad, Alquiler)
+              VALUES (@Direccion, @Superficie, @Ambientes, @Foto, @Estado, @IdPropietario, @FechaDeAlta, @ResumenPropiedad, @Alquiler);
               SELECT CAST(SCOPE_IDENTITY() AS int);",
             propiedad,
             transaction: transaction);
@@ -110,7 +110,8 @@ public class BD
                                    Superficie = @Superficie,
                                    Ambientes = @Ambientes,
                                    Estado = @Estado,
-                                   Foto = @Foto
+                                   Foto = @Foto,
+                                   Alquiler = @Alquiler
                                WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario";
 
         connection.Execute(query, propiedad);
@@ -423,5 +424,38 @@ public class BD
         connection.Execute(
             "DELETE FROM GastoXTipo WHERE IdGasto = @IdGasto AND IdServicios = @IdServicios",
             new { IdGasto = idGasto, IdServicios = idServicio.Value });
+    }
+
+    public Usuario? ObtenerUsuarioPorId(int idUsuario)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = "SELECT * FROM Usuarios WHERE IdUsuario = @pIdUsuario";
+        return connection.QueryFirstOrDefault<Usuario>(query, new { pIdUsuario = idUsuario });
+    }
+
+    public bool VincularInquilinoAPropiedad(int idPropiedad, int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+
+        int filasAfectadas = connection.Execute(
+            @"UPDATE Propiedades
+              SET IdInquilino = @IdInquilino,
+                  Estado = 'Ocupada'
+              WHERE IdPropiedad = @IdPropiedad
+                AND IdInquilino IS NULL",
+            new { IdPropiedad = idPropiedad, IdInquilino = idInquilino });
+
+        return filasAfectadas > 0;
+    }
+
+    public void QuitarInquilinoDePropiedad(int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute(
+            @"UPDATE Propiedades
+              SET IdInquilino = NULL,
+                  Estado = 'Disponible'
+              WHERE IdPropiedad = @IdPropiedad",
+            new { IdPropiedad = idPropiedad });
     }
 }

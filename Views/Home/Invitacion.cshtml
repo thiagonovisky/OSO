@@ -1,0 +1,18 @@
+@model OSO.Models.Propiedades
+
+<h2>Invitación a la propiedad</h2>
+
+@if (Model != null)
+{
+    <p>Te invitamos a entrar a la propiedad ubicada en: <strong>@Model.Direccion</strong>.</p>
+    <p>Para continuar, podés iniciar sesión o registrarte como inquilino.</p>
+
+    var returnUrl = Url.Action("Invitacion", "Home", new { idPropiedad = Model.IdPropiedad });
+
+    <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión</a>
+    <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Registrarme como inquilino</a>
+}
+else
+{
+    <p>No se encontró la propiedad.</p>
+}

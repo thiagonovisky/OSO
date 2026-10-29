@@ -6,6 +6,11 @@
     <button type="submit">Agregar Propiedad</button>
 </form>
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
 @if (Model != null && Model.Any())
 {
     foreach (var propiedad in Model)
@@ -45,8 +50,33 @@
                                 @(propiedad.Estado == "Ocupada" ? "✓ Ocupada" : "○ No ocupada")
                             </span>
                         </div>
+                        <div class="summary-info-row">
+                            <span class="label">Alquiler:</span>
+                            <span class="value">@string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", propiedad.Alquiler)</span>
+                        </div>
+                        <div class="summary-info-row">
+                            <span class="label">Link de invitación:</span>
+                            @if (propiedad.IdInquilino.HasValue)
+                            {
+                                <span class="value">No disponible. Ya hay inquilino asociado.</span>
+                            }
+                            else
+                            {
+                                var inviteUrl = Url.Action("Invitacion", "Home", new { idPropiedad = propiedad.IdPropiedad }, Context.Request.Scheme, Context.Request.Host.ToString());
+                                <a href="@inviteUrl" target="_blank">@inviteUrl</a>
+                            }
+                        </div>
 
                         <a asp-action="EditarPropiedad" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn-secondary">Editar</a>
+
+                        @if (propiedad.IdInquilino.HasValue)
+                        {
+                            <form asp-action="QuitarInquilino" asp-controller="Home" method="post" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
+                                <button type="submit" class="btn btn-warning" onclick="return confirm('¿Seguro que querés quitar al inquilino de esta propiedad?');">Quitar inquilino</button>
+                            </form>
+                        }
 
                         <form asp-action="EliminarPropiedad" asp-controller="Home" method="post" style="display:inline;">
                             @Html.AntiForgeryToken()

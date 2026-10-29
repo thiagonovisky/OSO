@@ -20,30 +20,94 @@ public class HomeController : Controller
         return View();
     }
 
-    public IActionResult Registro()
+    public IActionResult Registro(string? returnUrl)
     {
+        ViewBag.ReturnUrl = returnUrl;
         return View();
     }
 
     [HttpPost]
-    public IActionResult Registrar(Usuario usuario, bool esPropietario)
+    public IActionResult Registrar(Usuario usuario, bool esPropietario, string? returnUrl)
     {
         bd.RegistrarUsuario(usuario, esPropietario);
-        return RedirectToAction("Index");
+
+        Usuario? usuarioCreado = bd.verificarUsuario(new Usuario { Correo = usuario.Correo });
+        if (usuarioCreado != null && usuarioCreado.Contrasena == usuario.Contrasena)
+        {
+            HttpContext.Session.SetInt32("IdUsuario", usuarioCreado.Id);
+
+            if (usuarioCreado.IdPropietario > 0)
+            {
+                HttpContext.Session.SetInt32("IdPropietario", usuarioCreado.IdPropietario);
+                HttpContext.Session.SetString("EsPropietario", "true");
+            }
+            else
+            {
+                HttpContext.Session.Remove("IdPropietario");
+                HttpContext.Session.SetString("EsPropietario", "false");
+            }
+
+            if (usuarioCreado.IdInquilino > 0)
+            {
+                HttpContext.Session.SetInt32("IdInquilino", usuarioCreado.IdInquilino);
+            }
+            else
+            {
+                HttpContext.Session.Remove("IdInquilino");
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && !esPropietario && usuarioCreado.IdInquilino > 0)
+            {
+                return Redirect(returnUrl);
+            }
+        }
+
+        return RedirectToAction("Bienvenida");
     }
 
-    public IActionResult Login()
+    public IActionResult Login(string? returnUrl)
     {
+        ViewBag.ReturnUrl = returnUrl;
         return View();
     }
 
-    public IActionResult IniciarSesion(string correo, string contrasena)
+    public IActionResult IniciarSesion(string correo, string contrasena, string? returnUrl)
     {
         Usuario? usuario = bd.verificarUsuario(new Usuario { Correo = correo });
         if (usuario != null && usuario.Contrasena == contrasena)
         {
             HttpContext.Session.SetInt32("IdUsuario", usuario.Id);
-            HttpContext.Session.SetInt32("IdPropietario", usuario.IdPropietario);
+
+            if (usuario.IdPropietario > 0)
+            {
+                HttpContext.Session.SetInt32("IdPropietario", usuario.IdPropietario);
+                HttpContext.Session.SetString("EsPropietario", "true");
+            }
+            else
+            {
+                HttpContext.Session.Remove("IdPropietario");
+                HttpContext.Session.SetString("EsPropietario", "false");
+            }
+
+            if (usuario.IdInquilino > 0)
+            {
+                HttpContext.Session.SetInt32("IdInquilino", usuario.IdInquilino);
+            }
+            else
+            {
+                HttpContext.Session.Remove("IdInquilino");
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnUrl))
+            {
+                if (usuario.IdInquilino > 0)
+                {
+                    return Redirect(returnUrl);
+                }
+
+                return RedirectToAction("Registro", new { returnUrl });
+            }
+
             return RedirectToAction("Bienvenida");
         }
 
@@ -56,6 +120,61 @@ public class HomeController : Controller
         return View();
     }
 
+    [HttpGet]
+    public IActionResult Invitacion(int idPropiedad)
+    {
+        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Bienvenida");
+        }
+
+        if (propiedad.IdInquilino.HasValue)
+        {
+            TempData["Error"] = "Esta propiedad ya tiene un inquilino asignado y el link ya no está disponible.";
+            return RedirectToAction("Login");
+        }
+
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        if (idInquilino.HasValue)
+        {
+            bool vinculada = bd.VincularInquilinoAPropiedad(idPropiedad, idInquilino.Value);
+            if (!vinculada)
+            {
+                TempData["Error"] = "La propiedad ya tiene un inquilino asociado.";
+                return RedirectToAction("Bienvenida");
+            }
+
+            ViewBag.Propiedad = propiedad;
+            return View(propiedad);
+        }
+
+        ViewBag.Propiedad = propiedad;
+        ViewBag.ReturnUrl = Url.Action("Invitacion", "Home", new { idPropiedad }, Request.Scheme, Request.Host.ToString());
+        return View(propiedad);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult QuitarInquilino(int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        bd.QuitarInquilinoDePropiedad(idPropiedad);
+        return RedirectToAction("Propiedades");
+    }
+
     public IActionResult Propiedades()
     {
         int? idActual = HttpContext.Session.GetInt32("IdPropietario");
@@ -66,6 +185,14 @@ public class HomeController : Controller
         }
 
         return View(bd.ObtenerPropiedadesPorIdPropietario(idActual.Value));
+    }
+
+    public IActionResult Expensas(){
+        return View();
+    }
+
+    public IActionResult AgregarExpensa(){
+        return View();
     }
 
     public IActionResult AgregarPropiedad()

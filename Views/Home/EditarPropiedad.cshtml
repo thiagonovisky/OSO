@@ -21,6 +21,11 @@
 	</div>
 
 	<div class="mb-3">
+		<label asp-for="Alquiler" class="form-label">Alquiler</label>
+		<input asp-for="Alquiler" type="number" min="0" step="0.01" class="form-control" />
+	</div>
+
+	<div class="mb-3">
 		<label asp-for="Estado" class="form-label">Estado</label>
 		<select asp-for="Estado" class="form-control">
 			<option value="Desocupado">Desocupado</option>
