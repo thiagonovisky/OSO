@@ -1,0 +1,34 @@
+@model OSO.Models.Propiedades
+@{
+    var contrato = ViewBag.Contrato as OSO.Models.Contratos;
+}
+
+<h2>Contrato</h2>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+
+@if (contrato != null)
+{
+    <div class="card p-3 mb-3">
+        <p><strong>Propiedad:</strong> @Model.Direccion</p>
+        <p><strong>Inquilino:</strong> @contrato.IdInquilino</p>
+        <p><strong>Fecha inicio:</strong> @contrato.FechaInicio.ToString("dd/MM/yyyy")</p>
+        <p><strong>Fecha fin:</strong> @contrato.FechaFin.ToString("dd/MM/yyyy")</p>
+        <p><strong>Alquiler:</strong> @string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", contrato.MontoAlquiler)</p>
+    </div>
+}
+else
+{
+    <div class="alert alert-warning">No hay un contrato activo para esta propiedad.</div>
+    <a asp-action="CrearContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Crear contrato</a>
+}
+
+<a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Volver</a>

@@ -758,6 +758,48 @@ a[href^="#"] {
   color: #1f9d55;
 }
 
+.property-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: nowrap;
+  margin-top: 8px;
+}
+
+.property-action-form {
+  display: inline-flex;
+  margin: 0;
+}
+
+.property-action-btn {
+  min-width: 140px;
+  width: 140px;
+  height: 42px;
+  padding: 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  margin: 0;
+  flex: 0 0 140px;
+}
+
+.btn-danger.property-action-btn {
+  background: #d9534f;
+  border: 1px solid #c9302c;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.btn-danger.property-action-btn:hover {
+  background: #c9302c;
+}
+
+.btn-secondary.property-action-btn {
+  min-width: 140px;
+  width: 140px;
+}
+
 @media (max-width: 900px) {
   header {
     min-height: auto;
@@ -791,6 +833,10 @@ a[href^="#"] {
   .col-md-4 {
     flex: 0 0 100%;
     max-width: 100%;
+  }
+
+  .property-actions {
+    flex-wrap: wrap;
   }
 }
 

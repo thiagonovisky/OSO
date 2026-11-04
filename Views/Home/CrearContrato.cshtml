@@ -1,0 +1,45 @@
+@model OSO.Models.Propiedades
+@{
+    var inquilinos = ViewBag.Inquilinos as List<OSO.Models.Usuario> ?? new List<OSO.Models.Usuario>();
+}
+
+<h2>Crear contrato</h2>
+
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+<form asp-action="GuardarContrato" asp-controller="Home" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+
+    <div class="form-group mb-3">
+        <label for="idInquilino">Inquilino</label>
+        <select name="idInquilino" id="idInquilino" class="form-control" required>
+            <option value="">Seleccione un inquilino</option>
+            @foreach (var inquilino in inquilinos)
+            {
+                <option value="@inquilino.IdInquilino">@inquilino.Nombre @inquilino.Apellido</option>
+            }
+        </select>
+    </div>
+
+    <div class="form-group mb-3">
+        <label for="fechaInicio">Fecha inicio</label>
+        <input type="date" name="fechaInicio" id="fechaInicio" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+    </div>
+
+    <div class="form-group mb-3">
+        <label for="fechaFin">Fecha fin</label>
+        <input type="date" name="fechaFin" id="fechaFin" class="form-control" value="@DateTime.Today.AddMonths(12).ToString("yyyy-MM-dd")" required />
+    </div>
+
+    <div class="form-group mb-3">
+        <label for="montoAlquiler">Monto alquiler</label>
+        <input type="number" step="0.01" min="0" name="montoAlquiler" id="montoAlquiler" class="form-control" value="@Model.Alquiler" required />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Guardar contrato</button>
+    <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Cancelar</a>
+</form>

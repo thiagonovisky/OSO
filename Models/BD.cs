@@ -76,6 +76,128 @@ public class BD
         return connection.QueryFirstOrDefault<Propiedades>(query, new { pIdPropiedad = idPropiedad });
     }
 
+    public Contratos? ObtenerContratoActivoPorPropiedad(int idPropiedad, DateTime? fechaReferencia = null)
+    {
+        using SqlConnection connection = new(connectionString);
+        var fecha = fechaReferencia ?? DateTime.Today;
+
+        const string query = @"SELECT *
+                              FROM Contratos
+                              WHERE IdPropiedad = @IdPropiedad
+                                AND FechaInicio <= @FechaReferencia
+                                AND FechaFin >= @FechaReferencia
+                              ORDER BY FechaInicio DESC";
+
+        return connection.QueryFirstOrDefault<Contratos>(query, new
+        {
+            IdPropiedad = idPropiedad,
+            FechaReferencia = fecha.Date
+        });
+    }
+
+    public bool ExisteContratoActivoParaPropiedad(int idPropiedad, DateTime? fechaReferencia = null)
+    {
+        return ObtenerContratoActivoPorPropiedad(idPropiedad, fechaReferencia) != null;
+    }
+
+    public void CrearContrato(Contratos contrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        int contratoActivo = connection.QuerySingleOrDefault<int>(
+            @"SELECT COUNT(*)
+              FROM Contratos
+              WHERE IdPropiedad = @IdPropiedad
+                AND FechaInicio <= @FechaReferencia
+                AND FechaFin >= @FechaReferencia",
+            new
+            {
+                IdPropiedad = contrato.IdPropiedad,
+                FechaReferencia = DateTime.Today.Date
+            },
+            transaction: transaction);
+
+        if (contratoActivo > 0)
+        {
+            throw new InvalidOperationException("Ya existe un contrato activo para esta propiedad.");
+        }
+
+        connection.Execute(
+            @"INSERT INTO Contratos (IdPropiedad, IdInquilino, FechaInicio, FechaFin, MontoAlquiler)
+              VALUES (@IdPropiedad, @IdInquilino, @FechaInicio, @FechaFin, @MontoAlquiler)",
+            new
+            {
+                IdPropiedad = contrato.IdPropiedad,
+                IdInquilino = contrato.IdInquilino,
+                FechaInicio = contrato.FechaInicio.Date,
+                FechaFin = contrato.FechaFin.Date,
+                MontoAlquiler = contrato.MontoAlquiler
+            },
+            transaction: transaction);
+
+        connection.Execute(
+            @"UPDATE Propiedades
+              SET IdInquilino = @IdInquilino,
+                  Estado = 'Ocupada'
+              WHERE IdPropiedad = @IdPropiedad",
+            new
+            {
+                IdInquilino = contrato.IdInquilino,
+                IdPropiedad = contrato.IdPropiedad
+            },
+            transaction: transaction);
+
+        transaction.Commit();
+    }
+
+    public List<Contratos> ObtenerContratosPorPropiedad(int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT *
+                              FROM Contratos
+                              WHERE IdPropiedad = @IdPropiedad
+                              ORDER BY FechaInicio DESC";
+
+        return connection.Query<Contratos>(query, new { IdPropiedad = idPropiedad }).AsList();
+    }
+
+    public void EliminarContrato(int idContrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute("DELETE FROM Contratos WHERE IdContrato = @IdContrato", new { IdContrato = idContrato });
+    }
+
+    public Usuario? ObtenerInquilinoPorId(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = "SELECT * FROM Usuarios WHERE IdUsuario = @IdUsuario";
+        return connection.QueryFirstOrDefault<Usuario>(query, new { IdUsuario = idInquilino });
+    }
+
+    public List<Usuario> ObtenerInquilinosDisponibles()
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = "SELECT * FROM Usuarios WHERE IdInquilino IS NOT NULL ORDER BY Apellido, Nombre";
+        return connection.Query<Usuario>(query).AsList();
+    }
+
+    public void EditarPropiedad(Propiedades propiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"UPDATE Propiedades
+                               SET Direccion = @Direccion,
+                                   Superficie = @Superficie,
+                                   Ambientes = @Ambientes,
+                                   Estado = @Estado,
+                                   Foto = @Foto,
+                                   Alquiler = @Alquiler
+                               WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario";
+
+        connection.Execute(query, propiedad);
+    }
+
     public void AgregarExpensa(Expensas expensa, int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
@@ -100,21 +222,6 @@ public class BD
                               ORDER BY e.FechaAlta DESC";
 
         return connection.Query<Expensas>(query, new { pIdPropietario = idPropietario }).AsList();
-    }
-
-    public void EditarPropiedad(Propiedades propiedad)
-    {
-        using SqlConnection connection = new(connectionString);
-        const string query = @"UPDATE Propiedades
-                               SET Direccion = @Direccion,
-                                   Superficie = @Superficie,
-                                   Ambientes = @Ambientes,
-                                   Estado = @Estado,
-                                   Foto = @Foto,
-                                   Alquiler = @Alquiler
-                               WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario";
-
-        connection.Execute(query, propiedad);
     }
 
     public List<Gastos> ObtenerTiposGasto()

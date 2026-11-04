@@ -19,9 +19,6 @@
             <div class="summary-card">
                 <div class="summary-header">
                     <h3>Propiedad</h3>
-                    <div class="summary-actions">
-                        <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn">Servicios</a>
-                    </div>
                 </div>
 
                 <div class="summary-detail">
@@ -67,22 +64,17 @@
                             }
                         </div>
 
-                        <a asp-action="EditarPropiedad" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn-secondary">Editar</a>
+                        <div class="property-actions">
+                            <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Servicios</a>
+                            <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Contrato</a>
+                            <a asp-action="EditarPropiedad" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn-secondary property-action-btn">Editar</a>
 
-                        @if (propiedad.IdInquilino.HasValue)
-                        {
-                            <form asp-action="QuitarInquilino" asp-controller="Home" method="post" style="display:inline;">
+                            <form asp-action="EliminarPropiedad" asp-controller="Home" method="post" class="property-action-form">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
-                                <button type="submit" class="btn btn-warning" onclick="return confirm('¿Seguro que querés quitar al inquilino de esta propiedad?');">Quitar inquilino</button>
+                                <button type="submit" class="btn btn-danger property-action-btn" onclick="return confirm('¿Seguro que querés eliminar esta propiedad y todos sus registros asociados?');">Eliminar</button>
                             </form>
-                        }
-
-                        <form asp-action="EliminarPropiedad" asp-controller="Home" method="post" style="display:inline;">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
-                            <button type="submit" class="btn btn-danger" onclick="return confirm('¿Seguro que querés eliminar esta propiedad y todos sus registros asociados?');">Eliminar</button>
-                        </form>
+                        </div>
                     </div>
                 </div>
             </div>

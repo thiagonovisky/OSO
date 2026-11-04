@@ -312,6 +312,115 @@ public class HomeController : Controller
     }
 
     [HttpGet]
+    public IActionResult Contrato(int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        Contratos? contrato = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
+        ViewBag.Propiedad = propiedad;
+        ViewBag.Contrato = contrato;
+
+        return View(propiedad);
+    }
+
+    [HttpGet]
+    public IActionResult CrearContrato(int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        if (bd.ObtenerContratoActivoPorPropiedad(idPropiedad) != null)
+        {
+            return RedirectToAction("Contrato", new { idPropiedad });
+        }
+
+        ViewBag.Propiedad = propiedad;
+        ViewBag.Inquilinos = bd.ObtenerInquilinosDisponibles();
+        return View(propiedad);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult GuardarContrato(int idPropiedad, int idInquilino, DateTime fechaInicio, DateTime fechaFin, decimal montoAlquiler)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        if (propiedad.IdInquilino.HasValue && idInquilino <= 0)
+        {
+            idInquilino = propiedad.IdInquilino.Value;
+        }
+
+        if (idInquilino <= 0)
+        {
+            TempData["Error"] = "Debe seleccionar un inquilino para crear el contrato.";
+            return RedirectToAction("CrearContrato", new { idPropiedad });
+        }
+
+        if (fechaFin < fechaInicio)
+        {
+            TempData["Error"] = "La fecha de fin no puede ser anterior a la de inicio.";
+            return RedirectToAction("CrearContrato", new { idPropiedad });
+        }
+
+        var contrato = new Contratos
+        {
+            IdPropiedad = idPropiedad,
+            IdInquilino = idInquilino,
+            FechaInicio = fechaInicio,
+            FechaFin = fechaFin,
+            MontoAlquiler = montoAlquiler <= 0 ? propiedad.Alquiler : montoAlquiler
+        };
+
+        try
+        {
+            bd.CrearContrato(contrato);
+            TempData["Success"] = "Contrato creado con éxito.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction("CrearContrato", new { idPropiedad });
+        }
+
+        return RedirectToAction("Contrato", new { idPropiedad });
+    }
+
+    [HttpGet]
     public IActionResult Servicios(int idPropiedad)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
