@@ -1,12 +1,52 @@
-<div>
-<h1>Bienvenido</h1>
-<img src="~/imagenes/Logo colores.png" alt="OSO" />
-</div>
+<div class="bienvenida">
+    <div class="bienvenida__header">
+        <h1>Bienvenido</h1>
+        <img src="~/imagenes/Logo colores.png" alt="OSO" />
+    </div>
 
-<div>
-<a href="@Url.Action("Propiedades", "Home")" class="btn btn-primary">Propiedades</a>
-<a href="@Url.Action("Expensas", "Home")" class="btn btn-primary">Expensas</a>
-<a href="@Url.Action("Mensajeria", "Home")" class="btn btn-primary">Mensajeria</a>
-<a href="@Url.Action("Calendario", "Home")" class="btn btn-primary">Calendario</a>
+    <div class="bienvenida__grid">
+        <a href="@Url.Action("Propiedades", "Home")" class="bienvenida__card">
+            <span class="bienvenida__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 10.5L12 3L21 10.5V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V10.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9 21V12H15V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="bienvenida__label">Propiedades</span>
+        </a>
 
+        <a href="@Url.Action("Expensas", "Home")" class="bienvenida__card">
+            <span class="bienvenida__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M7 4H14L18 8V20C18 20.5523 17.5523 21 17 21H7C6.44772 21 6 20.5523 6 20V5C6 4.44772 6.44772 4 7 4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M14 4V8H18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9 12H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M9 16H13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </span>
+            <span class="bienvenida__label">Expensas</span>
+        </a>
+
+        <a href="@Url.Action("Mensajeria", "Home")" class="bienvenida__card">
+            <span class="bienvenida__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 18L3 20V6C3 5.44772 3.44772 5 4 5H20C20.5523 5 21 5.44772 21 6V16C21 16.5523 20.5523 17 20 17H6Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M7 9H17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M7 13H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+            </span>
+            <span class="bienvenida__label">Mensajeria</span>
+        </a>
+
+        <a href="@Url.Action("Calendario", "Home")" class="bienvenida__card">
+            <span class="bienvenida__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                    <path d="M8 3V7M16 3V7M3 10H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M8 14H8.01M12 14H12.01M16 14H16.01M8 18H8.01M12 18H12.01M16 18H16.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </span>
+            <span class="bienvenida__label">Calendario</span>
+        </a>
+    </div>
 </div>

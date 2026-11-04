@@ -10,22 +10,43 @@
     <link rel="stylesheet" href="~/OSO.styles.css" asp-append-version="true" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Bienvenida">OSO</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
+    <header class="oso-header">
+        <div class="oso-header__inner">
+            <a class="oso-brand" asp-area="" asp-controller="Home" asp-action="Bienvenida" aria-label="Inicio">O.S.O</a>
+
+            @if (!(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ||
+                   ViewContext.RouteData.Values["action"]?.ToString() == "Login" ||
+                   ViewContext.RouteData.Values["action"]?.ToString() == "Registro"))
+            {
+                <nav class="oso-nav" aria-label="Navegación principal">
+                    <a class="oso-nav__item" asp-area="" asp-controller="Home" asp-action="Calendario">Calendario</a>
+                    <a class="oso-nav__item active" asp-area="" asp-controller="Home" asp-action="Propiedades">Propiedades</a>
+                    <a class="oso-nav__item" asp-area="" asp-controller="Home" asp-action="Mensajeria">Mensajería</a>
+                </nav>
+            }
+
+            <div class="oso-actions" aria-label="Acciones del usuario">
+                <a class="oso-icon oso-icon--user" href="#" aria-label="Perfil">
+                    <svg viewBox="0 0 64 64" aria-hidden="true">
+                        <circle cx="32" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="4" />
+                        <path d="M15 52c3.5-8.5 11.2-13 17-13s13.5 4.5 17 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    </svg>
+                </a>
+
+                <a class="oso-icon oso-icon--notification" href="#" aria-label="Notificaciones">
+                    <svg viewBox="0 0 64 64" aria-hidden="true">
+                        <path d="M22 48h20l-3-18c-1-11-6-16-14-16s-13 5-14 16l-3 18h14z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+                        <path d="M28 54c1.5 3 3 4 4 4s2.5-1 4-4" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                    </svg>
+                </a>
+
+                <button class="oso-menu" type="button" aria-label="Menú">
+                    <span></span>
+                    <span></span>
+                    <span></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Bienvenida">Inicio</a>
-                        </li>
-                    </ul>
-                </div>
             </div>
-        </nav>
+        </div>
     </header>
     <div class="container">
         <main role="main" class="pb-3">
