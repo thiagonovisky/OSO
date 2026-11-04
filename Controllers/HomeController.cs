@@ -617,17 +617,7 @@ public class HomeController : Controller
 
         if (tipoExistente == null)
         {
-            using var connection = new Microsoft.Data.SqlClient.SqlConnection("Server=localhost;Database=OSO;Integrated Security=true;TrustServerCertificate=True;");
-            connection.Open();
-
-            var nuevoId = connection.ExecuteScalar<int>(
-                "INSERT INTO Gastos (TipoGasto, Descripcion) VALUES (@TipoGasto, @Descripcion); SELECT CAST(SCOPE_IDENTITY() AS int);",
-                new
-                {
-                    TipoGasto = nombreLimpio,
-                    Descripcion = "Gasto adicional"
-                });
-
+            int nuevoId = bd.CrearTipoGasto(nombreLimpio);
             bd.RegistrarTipoGastoEnPropiedad(idPropiedad, nuevoId);
         }
 

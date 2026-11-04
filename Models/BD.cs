@@ -230,6 +230,20 @@ public class BD
         return connection.Query<Gastos>("SELECT * FROM Gastos ORDER BY TipoGasto").AsList();
     }
 
+    public int CrearTipoGasto(string nombreTipo)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"INSERT INTO Gastos (TipoGasto, Descripcion)
+                              VALUES (@TipoGasto, @Descripcion);
+                              SELECT CAST(SCOPE_IDENTITY() AS int);";
+
+        return connection.ExecuteScalar<int>(query, new
+        {
+            TipoGasto = nombreTipo.Trim(),
+            Descripcion = "Gasto adicional"
+        });
+    }
+
     public Gastos? ObtenerTipoGastoPorId(int idGasto)
     {
         using SqlConnection connection = new(connectionString);
