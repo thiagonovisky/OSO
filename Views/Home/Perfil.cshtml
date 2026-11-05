@@ -1,0 +1,63 @@
+@model OSO.Models.Usuario
+@{
+    ViewData["Title"] = "Perfil";
+    var fotoPerfil = !string.IsNullOrWhiteSpace(Model.FotoPerfil)
+        ? Url.Content("~/imagenes/" + Model.FotoPerfil)
+        : "https://placehold.co/200x200/CFD8DC/607D8B?text=Perfil";
+}
+
+<div class="perfil-page">
+    <div class="perfil-card">
+        <div class="perfil-header-row">
+            <div class="perfil-avatar-wrap">
+                <img src="@fotoPerfil" alt="Foto de perfil" class="perfil-avatar" />
+            </div>
+
+            <div class="perfil-fields">
+                <div class="perfil-field">
+                    <label>Nombre</label>
+                    <div class="perfil-value">@Model.Nombre @Model.Apellido</div>
+                </div>
+
+                <div class="perfil-field">
+                    <label>Tipo de usuario</label>
+                    <div class="perfil-value">@(Model.IdPropietario > 0 ? "Propietario" : "Inquilino")</div>
+                </div>
+
+                <div class="perfil-field">
+                    <label>Usuario desde</label>
+                    <div class="perfil-value">@Model.FechaAlta.ToString("dd/MM/yyyy")</div>
+                </div>
+            </div>
+
+            <form asp-controller="Home" asp-action="CerrarSesion" method="post" class="perfil-logout-form">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="perfil-logout-btn">CERRAR SESIÓN</button>
+            </form>
+        </div>
+
+        <div class="perfil-contact-card">
+            <div class="perfil-section-title">
+                <span class="perfil-section-icon">👤</span>
+                <span>Información de contacto</span>
+            </div>
+
+            <div class="perfil-contact-grid">
+                <div class="perfil-contact-item">
+                    <label>Nombre</label>
+                    <div>@Model.Nombre @Model.Apellido</div>
+                </div>
+
+                <div class="perfil-contact-item">
+                    <label>Teléfono</label>
+                    <div>@Model.Telefono</div>
+                </div>
+
+                <div class="perfil-contact-item">
+                    <label>Email</label>
+                    <div>@Model.Correo</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

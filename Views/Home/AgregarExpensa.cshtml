@@ -5,7 +5,7 @@
 
 <h2>Agregar Expensa</h2>
 
-<form asp-action="AgregarExpensa" asp-controller="Home" method="post">
+<form asp-action="AgregarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data">
 	@Html.AntiForgeryToken()
 
 	<div class="mb-3">
@@ -28,28 +28,18 @@
 	</div>
 
 	<div class="mb-3">
-		<label asp-for="FechaVencimiento" class="form-label">Fecha de vencimiento</label>
-		<input asp-for="FechaVencimiento" type="date" class="form-control" required />
-	</div>
-
-	<div class="mb-3">
 		<label asp-for="FechaAlta" class="form-label">Fecha de alta</label>
 		<input asp-for="FechaAlta" type="date" class="form-control" required />
 	</div>
 
 	<div class="mb-3">
-		<label asp-for="Estado" class="form-label">Estado</label>
-		<input asp-for="Estado" class="form-control" required />
+		<label asp-for="FechaVencimiento" class="form-label">Fecha de vencimiento</label>
+		<input asp-for="FechaVencimiento" type="date" class="form-control" required />
 	</div>
 
 	<div class="mb-3">
-		<label asp-for="Comprobante" class="form-label">Comprobante</label>
-		<input asp-for="Comprobante" class="form-control" required />
-	</div>
-
-	<div class="mb-3">
-		<label asp-for="FechaPago" class="form-label">Fecha de pago</label>
-		<input asp-for="FechaPago" type="date" class="form-control" required />
+		<label asp-for="Aclaracion" class="form-label">Aclaración</label>
+		<textarea asp-for="Aclaracion" class="form-control" rows="3"></textarea>
 	</div>
 
 	<button type="submit" class="btn btn-primary">Guardar Expensa</button>

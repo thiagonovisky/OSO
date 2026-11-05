@@ -26,11 +26,18 @@
             }
 
             <div class="oso-actions" aria-label="Acciones del usuario">
-                <a class="oso-icon oso-icon--user" href="#" aria-label="Perfil">
-                    <svg viewBox="0 0 64 64" aria-hidden="true">
-                        <circle cx="32" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="4" />
-                        <path d="M15 52c3.5-8.5 11.2-13 17-13s13.5 4.5 17 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                    </svg>
+                <a class="oso-icon oso-icon--user" asp-area="" asp-controller="Home" asp-action="Perfil" aria-label="Perfil">
+                    @if (!string.IsNullOrWhiteSpace(Context.Session.GetString("FotoPerfil")))
+                    {
+                        <img src="@Url.Content("~/imagenes/" + Context.Session.GetString("FotoPerfil"))" alt="Foto de perfil" class="oso-header-avatar" />
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 64 64" aria-hidden="true">
+                            <circle cx="32" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="4" />
+                            <path d="M15 52c3.5-8.5 11.2-13 17-13s13.5 4.5 17 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                        </svg>
+                    }
                 </a>
 
                 <a class="oso-icon oso-icon--notification" href="#" aria-label="Notificaciones">

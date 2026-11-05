@@ -15,4 +15,6 @@ public class Usuario
     public string Correo { get; set; }
     public string Contrasena { get; set; }
     public int Telefono { get; set; }
+    public DateTime FechaAlta { get; set; } = DateTime.Now;
+    public string? FotoPerfil { get; set; } = null;
 }

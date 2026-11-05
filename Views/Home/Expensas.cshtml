@@ -20,6 +20,9 @@
                 <th>Estado</th>
                 <th>Fecha de vencimiento</th>
                 <th>Monto</th>
+                <th>Aclaración</th>
+                <th>Fecha de pago</th>
+                <th>Acción</th>
             </tr>
         </thead>
         <tbody>
@@ -30,6 +33,23 @@
                     <td>@expensa.Estado</td>
                     <td>@expensa.FechaVencimiento.ToString("dd/MM/yyyy")</td>
                     <td>$@expensa.Monto</td>
+                    <td>@(string.IsNullOrWhiteSpace(expensa.Aclaracion) ? "-" : expensa.Aclaracion)</td>
+                    <td>@(expensa.FechaPago.HasValue ? expensa.FechaPago.Value.ToString("dd/MM/yyyy") : "-")</td>
+                    <td>
+                        @if (!string.Equals(expensa.Estado, "Pagado", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <form asp-action="PagarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="idExpensa" value="@expensa.IdExpensa" />
+                                <input type="file" name="comprobanteArchivo" class="form-control form-control-sm" required />
+                                <button type="submit" class="btn btn-success btn-sm">Confirmar pago</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>

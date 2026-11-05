@@ -1,5 +1,5 @@
 <h1>Registrate</h1>
-<form action='@Url.Action("Registrar", "Home")' method="post">
+<form action='@Url.Action("Registrar", "Home")' method="post" enctype="multipart/form-data">
     <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
     <div>
         <label for="nombre">Nombre:</label>
@@ -24,6 +24,10 @@
     <div>
         <label for="confirmarContrasena">Confirmar Contraseña:</label>
         <input type="password" id="confirmarContrasena" name="confirmarContrasena" required />
+    </div>
+    <div>
+        <label for="fotoPerfil">Foto de perfil:</label>
+        <input type="file" id="fotoPerfil" name="fotoPerfil" accept="image/*" />
     </div>
     <div>
         <input type="radio" id="inquilino" name="esPropietario" value="false" checked />

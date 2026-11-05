@@ -27,14 +27,38 @@ public class HomeController : Controller
     }
 
     [HttpPost]
-    public IActionResult Registrar(Usuario usuario, bool esPropietario, string? returnUrl)
+    public IActionResult Registrar(Usuario usuario, bool esPropietario, string? returnUrl, IFormFile? fotoPerfil)
     {
+        if (fotoPerfil != null && fotoPerfil.Length > 0)
+        {
+            string fotosPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "imagenes");
+            Directory.CreateDirectory(fotosPath);
+
+            string extension = Path.GetExtension(fotoPerfil.FileName);
+            string nombreArchivo = $"perfil_{usuario.Correo}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
+            string rutaArchivo = Path.Combine(fotosPath, nombreArchivo);
+
+            using (var stream = new FileStream(rutaArchivo, FileMode.Create))
+            {
+                fotoPerfil.CopyTo(stream);
+            }
+
+            usuario.FotoPerfil = nombreArchivo;
+        }
+        else
+        {
+            usuario.FotoPerfil = null;
+        }
+
+        string contrasenaPlana = usuario.Contrasena;
+        usuario.Contrasena = PasswordHashService.HashPassword(contrasenaPlana);
         bd.RegistrarUsuario(usuario, esPropietario);
 
         Usuario? usuarioCreado = bd.verificarUsuario(new Usuario { Correo = usuario.Correo });
-        if (usuarioCreado != null && usuarioCreado.Contrasena == usuario.Contrasena)
+        if (usuarioCreado != null && PasswordHashService.VerifyPassword(contrasenaPlana, usuarioCreado.Contrasena))
         {
             HttpContext.Session.SetInt32("IdUsuario", usuarioCreado.Id);
+            HttpContext.Session.SetString("FotoPerfil", usuarioCreado.FotoPerfil ?? string.Empty);
 
             if (usuarioCreado.IdPropietario > 0)
             {
@@ -71,53 +95,92 @@ public class HomeController : Controller
         return View();
     }
 
+    [HttpPost]
     public IActionResult IniciarSesion(string correo, string contrasena, string? returnUrl)
     {
-        Usuario? usuario = bd.verificarUsuario(new Usuario { Correo = correo });
-        if (usuario != null && usuario.Contrasena == contrasena)
+        if (string.IsNullOrWhiteSpace(correo) || string.IsNullOrWhiteSpace(contrasena))
         {
-            HttpContext.Session.SetInt32("IdUsuario", usuario.Id);
-
-            if (usuario.IdPropietario > 0)
-            {
-                HttpContext.Session.SetInt32("IdPropietario", usuario.IdPropietario);
-                HttpContext.Session.SetString("EsPropietario", "true");
-            }
-            else
-            {
-                HttpContext.Session.Remove("IdPropietario");
-                HttpContext.Session.SetString("EsPropietario", "false");
-            }
-
-            if (usuario.IdInquilino > 0)
-            {
-                HttpContext.Session.SetInt32("IdInquilino", usuario.IdInquilino);
-            }
-            else
-            {
-                HttpContext.Session.Remove("IdInquilino");
-            }
-
-            if (!string.IsNullOrWhiteSpace(returnUrl))
-            {
-                if (usuario.IdInquilino > 0)
-                {
-                    return Redirect(returnUrl);
-                }
-
-                return RedirectToAction("Registro", new { returnUrl });
-            }
-
-            return RedirectToAction("Bienvenida");
+            ViewBag.Error = "Debe completar correo y contraseña.";
+            return View("Login");
         }
 
-        ViewBag.Error = "Nombre de usuario o contraseña incorrectos.";
-        return View("Login");
+        Usuario? usuario = bd.verificarUsuario(new Usuario { Correo = correo.Trim() });
+        if (usuario == null)
+        {
+            ViewBag.Error = "Nombre de usuario o contraseña incorrectos.";
+            return View("Login");
+        }
+
+        if (!PasswordHashService.VerifyPassword(contrasena, usuario.Contrasena))
+        {
+            ViewBag.Error = "Nombre de usuario o contraseña incorrectos.";
+            return View("Login");
+        }
+
+        HttpContext.Session.Clear();
+        HttpContext.Session.SetInt32("IdUsuario", usuario.Id);
+        HttpContext.Session.SetString("FotoPerfil", usuario.FotoPerfil ?? string.Empty);
+
+        if (usuario.IdPropietario > 0)
+        {
+            HttpContext.Session.SetInt32("IdPropietario", usuario.IdPropietario);
+            HttpContext.Session.SetString("EsPropietario", "true");
+        }
+        else
+        {
+            HttpContext.Session.Remove("IdPropietario");
+            HttpContext.Session.SetString("EsPropietario", "false");
+        }
+
+        if (usuario.IdInquilino > 0)
+        {
+            HttpContext.Session.SetInt32("IdInquilino", usuario.IdInquilino);
+        }
+        else
+        {
+            HttpContext.Session.Remove("IdInquilino");
+        }
+
+        if (!string.IsNullOrWhiteSpace(returnUrl))
+        {
+            return Redirect(returnUrl);
+        }
+
+        return RedirectToAction("Bienvenida");
     }
 
     public IActionResult Bienvenida()
     {
         return View();
+    }
+
+    [HttpGet]
+    public IActionResult Perfil()
+    {
+        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
+
+        if (!idUsuario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Usuario? usuario = bd.ObtenerUsuarioPorId(idUsuario.Value);
+
+        if (usuario == null)
+        {
+            HttpContext.Session.Clear();
+            return RedirectToAction("Login");
+        }
+
+        return View(usuario);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult CerrarSesion()
+    {
+        HttpContext.Session.Clear();
+        return RedirectToAction("Login");
     }
 
     [HttpGet]
@@ -188,11 +251,89 @@ public class HomeController : Controller
     }
 
     public IActionResult Expensas(){
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        List<Expensas> expensas = bd.ObtenerExpensasPorIdPropietario(idPropietario.Value);
+        return View(expensas);
+    }
+
+    [HttpGet]
+    public IActionResult AgregarExpensa(){
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        ViewBag.Propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
         return View();
     }
 
-    public IActionResult AgregarExpensa(){
-        return View();
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AgregarExpensa(Expensas expensa, int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        expensa.Comprobante = string.Empty;
+        expensa.Estado = "Pendiente";
+        expensa.FechaPago = null;
+        expensa.FechaAlta = expensa.FechaAlta == default ? DateTime.Today : expensa.FechaAlta.Date;
+        expensa.FechaVencimiento = expensa.FechaVencimiento.Date;
+
+        bd.AgregarExpensa(expensa, idPropiedad);
+        return RedirectToAction("Expensas");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult PagarExpensa(int idExpensa, IFormFile? comprobanteArchivo)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        if (comprobanteArchivo == null || comprobanteArchivo.Length == 0)
+        {
+            TempData["Mensaje"] = "Debe adjuntar un comprobante para confirmar el pago.";
+            return RedirectToAction("Expensas");
+        }
+
+        string comprobantesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "comprobantes");
+        Directory.CreateDirectory(comprobantesPath);
+
+        string extension = Path.GetExtension(comprobanteArchivo.FileName);
+        string nombreArchivo = $"pago_expensa_{idExpensa}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
+        string rutaArchivo = Path.Combine(comprobantesPath, nombreArchivo);
+
+        using (var stream = new FileStream(rutaArchivo, FileMode.Create))
+        {
+            comprobanteArchivo.CopyTo(stream);
+        }
+
+        bd.MarcarExpensaComoPagada(idExpensa, idPropietario.Value, nombreArchivo);
+        TempData["Mensaje"] = "Pago confirmado correctamente.";
+        return RedirectToAction("Expensas");
     }
 
     public IActionResult AgregarPropiedad()

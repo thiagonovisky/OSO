@@ -19,6 +19,8 @@ public class BD
                 Correo = usuario.Correo,
                 Contrasena = usuario.Contrasena,
                 Telefono = usuario.Telefono,
+                FechaAlta = usuario.FechaAlta == default ? DateTime.Now : usuario.FechaAlta,
+                FotoPerfil = usuario.FotoPerfil,
                 esPropietario = esPropietario
             },
             commandType: CommandType.StoredProcedure);
@@ -201,9 +203,14 @@ public class BD
     public void AgregarExpensa(Expensas expensa, int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
-        const string insertExpensa = @"INSERT INTO Expensas (Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago)
-                                        VALUES (@Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago);
-                                        SELECT CAST(SCOPE_IDENTITY() AS int);";
+        bool tieneAclaracion = TieneColumnaAclaracionEnExpensas(connection);
+        string insertExpensa = tieneAclaracion
+            ? @"INSERT INTO Expensas (Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago, Aclaracion)
+                VALUES (@Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago, @Aclaracion);
+                SELECT CAST(SCOPE_IDENTITY() AS int);"
+            : @"INSERT INTO Expensas (Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago)
+                VALUES (@Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago);
+                SELECT CAST(SCOPE_IDENTITY() AS int);";
 
         int idExpensa = connection.ExecuteScalar<int>(insertExpensa, expensa);
 
@@ -214,14 +221,56 @@ public class BD
     public List<Expensas> ObtenerExpensasPorIdPropietario(int idPropietario)
     {
         using SqlConnection connection = new(connectionString);
-        const string query = @"SELECT e.IdExpensas, e.Monto, e.FechaVencimiento, e.FechaAlta, e.Estado, e.Comprobante, e.FechaPago,
-                                        p.Direccion AS NombrePropiedad
-                              FROM Expensas e
-                              INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
-                              WHERE p.IdPropietario = @pIdPropietario
-                              ORDER BY e.FechaAlta DESC";
+        bool tieneAclaracion = TieneColumnaAclaracionEnExpensas(connection);
+        string query = tieneAclaracion
+            ? @"SELECT e.IdExpensas AS IdExpensa, e.Monto, e.FechaVencimiento, e.FechaAlta, e.Estado, e.Comprobante, e.FechaPago,
+                        e.Aclaracion, p.Direccion AS NombrePropiedad
+                FROM Expensas e
+                INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
+                WHERE p.IdPropietario = @pIdPropietario
+                ORDER BY e.FechaAlta DESC"
+            : @"SELECT e.IdExpensas AS IdExpensa, e.Monto, e.FechaVencimiento, e.FechaAlta, e.Estado, e.Comprobante, e.FechaPago,
+                        CAST(NULL AS varchar(255)) AS Aclaracion, p.Direccion AS NombrePropiedad
+                FROM Expensas e
+                INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
+                WHERE p.IdPropietario = @pIdPropietario
+                ORDER BY e.FechaAlta DESC";
 
         return connection.Query<Expensas>(query, new { pIdPropietario = idPropietario }).AsList();
+    }
+
+    private bool TieneColumnaAclaracionEnExpensas(SqlConnection connection)
+    {
+        const string query = @"SELECT COUNT(*)
+                               FROM INFORMATION_SCHEMA.COLUMNS
+                               WHERE TABLE_NAME = 'Expensas'
+                                 AND COLUMN_NAME = 'Aclaracion'";
+
+        return connection.ExecuteScalar<int>(query) > 0;
+    }
+
+    public bool MarcarExpensaComoPagada(int idExpensa, int idPropietario, string comprobante)
+    {
+        using SqlConnection connection = new(connectionString);
+        int filas = connection.Execute(
+            @"UPDATE e
+              SET e.Estado = 'Pagado',
+                  e.FechaPago = @FechaPago,
+                  e.Comprobante = @Comprobante
+              FROM Expensas e
+              INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
+              WHERE e.IdExpensas = @IdExpensa
+                AND p.IdPropietario = @IdPropietario
+                AND (e.Estado IS NULL OR e.Estado <> 'Pagado')",
+            new
+            {
+                IdExpensa = idExpensa,
+                IdPropietario = idPropietario,
+                FechaPago = DateTime.Today,
+                Comprobante = comprobante
+            });
+
+        return filas > 0;
     }
 
     public List<Gastos> ObtenerTiposGasto()
