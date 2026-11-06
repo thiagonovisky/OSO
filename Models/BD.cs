@@ -47,8 +47,8 @@ public class BD
         using var transaction = connection.BeginTransaction();
 
         int idPropiedad = connection.ExecuteScalar<int>(
-            @"INSERT INTO Propiedades (Direccion, Superficie, Ambientes, Foto, Estado, IdPropietario, FechaDeAlta, ResumenPropiedad, Alquiler)
-              VALUES (@Direccion, @Superficie, @Ambientes, @Foto, @Estado, @IdPropietario, @FechaDeAlta, @ResumenPropiedad, @Alquiler);
+            @"INSERT INTO Propiedades (Direccion, Superficie, Ambientes, Foto, Estado, IdPropietario, FechaDeAlta, IdResumenPropiedad, Alquiler)
+              VALUES (@Direccion, @Superficie, @Ambientes, @Foto, @Estado, @IdPropietario, @FechaDeAlta, @IdResumenPropiedad, @Alquiler);
               SELECT CAST(SCOPE_IDENTITY() AS int);",
             propiedad,
             transaction: transaction);
@@ -63,7 +63,7 @@ public class BD
             transaction: transaction);
 
         connection.Execute(
-            "UPDATE Propiedades SET ResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad",
+            "UPDATE Propiedades SET IdResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad",
             new { IdResumen = idResumen, IdPropiedad = idPropiedad },
             transaction: transaction);
 
@@ -313,7 +313,7 @@ public class BD
     public int? ObtenerIdResumenPropiedad(int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
-        return connection.QuerySingleOrDefault<int?>("SELECT ResumenPropiedad FROM Propiedades WHERE IdPropiedad = @IdPropiedad", new { IdPropiedad = idPropiedad });
+        return connection.QuerySingleOrDefault<int?>("SELECT IdResumenPropiedad FROM Propiedades WHERE IdPropiedad = @IdPropiedad", new { IdPropiedad = idPropiedad });
     }
 
     public int ObtenerIdServicioDePropiedad(int idPropiedad)
@@ -322,7 +322,7 @@ public class BD
         int? idServicio = connection.QuerySingleOrDefault<int?>(
             @"SELECT rp.IdServicios
               FROM Propiedades p
-              LEFT JOIN ResumenPropiedad rp ON rp.IdResumenPropiedad = p.ResumenPropiedad
+              LEFT JOIN ResumenPropiedad rp ON rp.IdResumenPropiedad = p.IdResumenPropiedad
               WHERE p.IdPropiedad = @IdPropiedad",
             new { IdPropiedad = idPropiedad });
 
@@ -337,7 +337,7 @@ public class BD
             new { IdServicios = nuevoServicioId });
 
         connection.Execute(
-            "UPDATE Propiedades SET ResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad",
+            "UPDATE Propiedades SET IdResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad",
             new { IdResumen = nuevoResumenId, IdPropiedad = idPropiedad });
 
         return nuevoServicioId;
@@ -359,7 +359,7 @@ public class BD
         if (!idResumen.HasValue)
         {
             int idNuevoResumen = connection.ExecuteScalar<int>("INSERT INTO ResumenPropiedad (IdServicios) VALUES (@IdServicios); SELECT CAST(SCOPE_IDENTITY() AS int);", new { IdServicios = idNuevoServicio });
-            connection.Execute("UPDATE Propiedades SET ResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad", new { IdResumen = idNuevoResumen, IdPropiedad = idPropiedad });
+            connection.Execute("UPDATE Propiedades SET IdResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad", new { IdResumen = idNuevoResumen, IdPropiedad = idPropiedad });
             return idNuevoServicio;
         }
 
@@ -489,11 +489,11 @@ public class BD
                 transaction: transaction);
         }
 
-        if (propiedad.ResumenPropiedad.HasValue)
+        if (propiedad.IdResumenPropiedad.HasValue)
         {
             var resumen = connection.QueryFirstOrDefault<ResumenPropiedad>(
                 "SELECT * FROM ResumenPropiedad WHERE IdResumenPropiedad = @IdResumenPropiedad",
-                new { IdResumenPropiedad = propiedad.ResumenPropiedad.Value },
+                new { IdResumenPropiedad = propiedad.IdResumenPropiedad.Value },
                 transaction: transaction);
 
             if (resumen != null && resumen.IdServicios.HasValue)
@@ -511,7 +511,7 @@ public class BD
 
             connection.Execute(
                 "DELETE FROM ResumenPropiedad WHERE IdResumenPropiedad = @IdResumenPropiedad",
-                new { IdResumenPropiedad = propiedad.ResumenPropiedad.Value },
+                new { IdResumenPropiedad = propiedad.IdResumenPropiedad.Value },
                 transaction: transaction);
         }
 
@@ -603,6 +603,13 @@ public class BD
         return connection.QueryFirstOrDefault<Usuario>(query, new { pIdUsuario = idUsuario });
     }
 
+    public Usuario? ObtenerUsuarioPorIdInquilino(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = "SELECT * FROM Usuarios WHERE IdInquilino = @IdInquilino";
+        return connection.QueryFirstOrDefault<Usuario>(query, new { IdInquilino = idInquilino });
+    }
+
     public bool VincularInquilinoAPropiedad(int idPropiedad, int idInquilino)
     {
         using SqlConnection connection = new(connectionString);
@@ -627,5 +634,36 @@ public class BD
                   Estado = 'Disponible'
               WHERE IdPropiedad = @IdPropiedad",
             new { IdPropiedad = idPropiedad });
+    }
+
+    public List<Evento> ObtenerEventosPorPropietario(int idPropietario, DateTime desde, DateTime hasta)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT e.*, p.Direccion AS NombrePropiedad
+                               FROM Eventos e
+                               LEFT JOIN Propiedades p ON p.IdPropiedad = e.IdPropiedad
+                               WHERE e.IdPropietario = @IdPropietario AND e.Fecha >= @Desde AND e.Fecha < @Hasta
+                               ORDER BY e.Fecha, e.HoraInicio";
+        return connection.Query<Evento>(query, new { IdPropietario = idPropietario, Desde = desde.Date, Hasta = hasta.Date }).AsList();
+    }
+
+    public List<Evento> ObtenerProximosEventos(int idPropietario, DateTime desde, int cantidad)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT TOP (@Cantidad) e.*, p.Direccion AS NombrePropiedad
+                               FROM Eventos e
+                               LEFT JOIN Propiedades p ON p.IdPropiedad = e.IdPropiedad
+                               WHERE e.IdPropietario = @IdPropietario AND e.Fecha >= @Desde
+                               ORDER BY e.Fecha, e.HoraInicio";
+        return connection.Query<Evento>(query, new { IdPropietario = idPropietario, Desde = desde.Date, Cantidad = cantidad }).AsList();
+    }
+
+    public void AgregarEvento(Evento evento)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute(
+            @"INSERT INTO Eventos (IdPropietario, IdPropiedad, Titulo, Fecha, HoraInicio, HoraFin, Ubicacion, Invitado, Descripcion)
+              VALUES (@IdPropietario, @IdPropiedad, @Titulo, @Fecha, @HoraInicio, @HoraFin, @Ubicacion, @Invitado, @Descripcion)",
+            evento);
     }
 }

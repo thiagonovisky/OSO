@@ -1,4 +1,8 @@
 @model List<OSO.Models.Propiedades>
+@{
+    var linksInvitacion = ViewBag.LinksInvitacion as Dictionary<int, string> ?? new Dictionary<int, string>();
+    var inquilinosPorPropiedad = ViewBag.InquilinosPorPropiedad as Dictionary<int, OSO.Models.Usuario?> ?? new Dictionary<int, OSO.Models.Usuario?>();
+}
 
 <h2>Mis propiedades</h2>
 
@@ -51,18 +55,27 @@
                             <span class="label">Alquiler:</span>
                             <span class="value">@string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", propiedad.Alquiler)</span>
                         </div>
-                        <div class="summary-info-row">
-                            <span class="label">Link de invitación:</span>
-                            @if (propiedad.IdInquilino.HasValue)
-                            {
-                                <span class="value">No disponible. Ya hay inquilino asociado.</span>
-                            }
-                            else
-                            {
-                                var inviteUrl = Url.Action("Invitacion", "Home", new { idPropiedad = propiedad.IdPropiedad }, Context.Request.Scheme, Context.Request.Host.ToString());
-                                <a href="@inviteUrl" target="_blank">@inviteUrl</a>
-                            }
-                        </div>
+                        @if (propiedad.IdInquilino.HasValue)
+                        {
+                            var inquilino = inquilinosPorPropiedad.GetValueOrDefault(propiedad.IdPropiedad);
+                            <div class="summary-info-row">
+                                <span class="label">Inquilino:</span>
+                                <span class="value">@(inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido} ({inquilino.Correo})" : "Inquilino asignado")</span>
+                                <form asp-action="QuitarInquilino" asp-controller="Home" method="post" class="property-action-form">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
+                                    <button type="submit" class="btn-secondary" onclick="return confirm('¿Desvincular al inquilino de esta propiedad?');">Quitar inquilino</button>
+                                </form>
+                            </div>
+                        }
+                        else if (linksInvitacion.TryGetValue(propiedad.IdPropiedad, out var inviteUrl))
+                        {
+                            <div class="summary-info-row">
+                                <span class="label">Link de invitación:</span>
+                                <input type="text" class="value" id="invite-@propiedad.IdPropiedad" value="@inviteUrl" readonly onclick="this.select()" />
+                                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('invite-@propiedad.IdPropiedad').value).then(() => { this.textContent = '¡Copiado!'; })">Copiar</button>
+                            </div>
+                        }
 
                         <div class="property-actions">
                             <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Servicios</a>

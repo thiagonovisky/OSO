@@ -1,4 +1,14 @@
 <h1>Inicia Sesión</h1>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
 <form action='@Url.Action("IniciarSesion", "Home")' method="post">
     <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
     <div>
@@ -12,3 +22,5 @@
     <button type="submit">Iniciar Sesión</button>
     <button type="reset">Limpiar</button>
 </form>
+
+<p>¿No tenés cuenta? <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Registrate</a></p>

@@ -1,18 +1,50 @@
-@model OSO.Models.Propiedades
+@model OSO.Models.Propiedades?
+@{
+    string estado = ViewBag.Estado as string ?? "invalido";
+    string? returnUrl = ViewBag.ReturnUrl as string;
+}
 
 <h2>Invitación a la propiedad</h2>
 
-@if (Model != null)
+@switch (estado)
 {
-    <p>Te invitamos a entrar a la propiedad ubicada en: <strong>@Model.Direccion</strong>.</p>
-    <p>Para continuar, podés iniciar sesión o registrarte como inquilino.</p>
+    case "invalido":
+        <div class="alert alert-danger">El link de invitación no es válido o la propiedad ya no existe.</div>
+        break;
 
-    var returnUrl = Url.Action("Invitacion", "Home", new { idPropiedad = Model.IdPropiedad });
+    case "ocupada":
+        <div class="alert alert-danger">
+            Esta propiedad ya tiene un inquilino asignado. El link de invitación ya no está disponible.
+        </div>
+        break;
 
-    <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión</a>
-    <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Registrarme como inquilino</a>
-}
-else
-{
-    <p>No se encontró la propiedad.</p>
+    case "yaVinculado":
+        <div class="alert alert-success">
+            Ya estás vinculado como inquilino de <strong>@Model?.Direccion</strong>.
+        </div>
+        <a asp-action="Bienvenida" asp-controller="Home" class="btn btn-primary">Ir al inicio</a>
+        break;
+
+    case "vinculado":
+        <div class="alert alert-success">
+            ¡Listo! Quedaste vinculado como inquilino de <strong>@Model?.Direccion</strong>.
+        </div>
+        <a asp-action="Bienvenida" asp-controller="Home" class="btn btn-primary">Ir al inicio</a>
+        break;
+
+    case "noEsInquilino":
+        <p>Te invitaron a la propiedad ubicada en <strong>@Model?.Direccion</strong>.</p>
+        <div class="alert alert-warning">
+            Tenés la sesión iniciada con una cuenta de propietario. Para aceptar la invitación, iniciá sesión o registrate con una cuenta de inquilino.
+        </div>
+        <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión como inquilino</a>
+        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Registrarme como inquilino</a>
+        break;
+
+    default: // sinSesion
+        <p>Te invitaron a la propiedad ubicada en <strong>@Model?.Direccion</strong>.</p>
+        <p>Para aceptar, iniciá sesión o registrate como inquilino. Vas a quedar vinculado automáticamente.</p>
+        <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión</a>
+        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Registrarme como inquilino</a>
+        break;
 }

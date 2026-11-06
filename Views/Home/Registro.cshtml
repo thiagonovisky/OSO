@@ -1,4 +1,13 @@
+@{
+    bool desdeInvitacion = !string.IsNullOrWhiteSpace(ViewBag.ReturnUrl as string);
+}
 <h1>Registrate</h1>
+
+@if (ViewBag.Error != null)
+{
+    <div class="alert alert-danger">@ViewBag.Error</div>
+}
+
 <form action='@Url.Action("Registrar", "Home")' method="post" enctype="multipart/form-data">
     <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
     <div>
@@ -29,13 +38,23 @@
         <label for="fotoPerfil">Foto de perfil:</label>
         <input type="file" id="fotoPerfil" name="fotoPerfil" accept="image/*" />
     </div>
-    <div>
-        <input type="radio" id="inquilino" name="esPropietario" value="false" checked />
-        <label for="inquilino">Soy inquilino</label>
+    @if (desdeInvitacion)
+    {
+        <input type="hidden" name="esPropietario" value="false" />
+        <p>Te vas a registrar como <strong>inquilino</strong> de la propiedad a la que te invitaron.</p>
+    }
+    else
+    {
+        <div>
+            <input type="radio" id="inquilino" name="esPropietario" value="false" checked />
+            <label for="inquilino">Soy inquilino</label>
 
-        <input type="radio" id="propietario" name="esPropietario" value="true" />
-        <label for="propietario">Soy propietario</label>
-    </div>
+            <input type="radio" id="propietario" name="esPropietario" value="true" />
+            <label for="propietario">Soy propietario</label>
+        </div>
+    }
     <button type="submit">Registrarse</button>
     <button type="reset">Limpiar</button>
 </form>
+
+<p>¿Ya tenés cuenta? <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Iniciá sesión</a></p>

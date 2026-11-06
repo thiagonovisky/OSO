@@ -1287,3 +1287,49 @@ a[href^="#"] {
   }
 }
 
+
+/* ===== Calendario ===== */
+/* Los selectores van prefijados con .cal-page / .evt-page para ganarle a las reglas
+   "body > div:first-of-type ..." de la pagina de inicio, que se filtran a todas las vistas. */
+.cal-page { width: 100%; max-width: 1500px; margin: 0 auto; padding: 24px 24px 48px; }
+.cal-page .cal-title { margin: 0 0 24px; padding: 0; text-align: center; color: var(--blue-main); font-size: 2.5rem; font-weight: 400; letter-spacing: 0; line-height: 1.2; }
+.cal-page .cal-layout { display: grid; grid-template-columns: 200px minmax(0, 1fr) 320px; gap: 32px; align-items: start; }
+.cal-page .cal-months { display: flex; flex-direction: column; gap: 14px; }
+.cal-page .cal-months__current { margin: 0 0 2px; font-size: 1.25rem; color: #000; }
+.cal-page a.cal-month-btn { display: block; width: 100%; height: auto; min-width: 0; padding: 12px 16px; border: 2px solid var(--blue-main); border-radius: 7px; background: #fff; box-shadow: none; color: var(--blue-main); font-size: 1rem; font-weight: 400; text-align: center; }
+.cal-page a.cal-month-btn:hover { background: rgba(125, 167, 198, 0.2); }
+.cal-page a.cal-month-btn.is-active { background: rgba(255, 255, 255, 0.8); border-color: var(--blue-dark); color: var(--blue-dark); }
+.cal-page .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.cal-page .cal-grid--head { margin-bottom: 10px; text-align: center; font-size: 1.25rem; color: #000; }
+.cal-page a.cal-cell { position: relative; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; aspect-ratio: 1 / 1; width: auto; height: auto; min-width: 0; padding: 8px; border-radius: 0; background: rgba(125, 167, 198, 0.31); box-shadow: none; color: #000; font-weight: 400; overflow: hidden; }
+.cal-page a.cal-cell:hover { background: rgba(125, 167, 198, 0.5); }
+.cal-page div.cal-cell--empty { aspect-ratio: 1 / 1; background: transparent; }
+.cal-page .cal-cell__day { font-size: 1.25rem; line-height: 1; }
+.cal-page .cal-chip { max-width: 100%; padding: 4px 10px; border: 1px solid var(--blue-soft); border-radius: 30px; background: rgba(255, 255, 255, 0.31); font-size: 0.85rem; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-page .cal-events h2 { margin: 0 0 20px; text-align: center; font-weight: 400; font-size: 2rem; color: var(--blue-main); }
+.cal-page .cal-event { margin: 0 0 20px; padding: 18px 24px; border-radius: 30px; background: rgba(125, 167, 198, 0.31); text-align: center; font-size: 1.25rem; color: #000; }
+
+@media (max-width: 1100px) {
+  .cal-page .cal-layout { grid-template-columns: 1fr; }
+  .cal-page .cal-months { flex-direction: row; flex-wrap: wrap; }
+  .cal-page a.cal-month-btn { flex: 1 1 120px; width: auto; }
+}
+
+/* ===== Agregar evento ===== */
+.evt-page { width: 100%; max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; text-align: center; }
+.evt-page .evt-title { margin: 0 0 4px; padding: 0; text-align: center; color: var(--blue-main); font-size: 2.5rem; font-weight: 400; letter-spacing: 0; line-height: 1.2; }
+.evt-page .evt-date { margin: 0 0 20px; font-size: 2rem; color: var(--blue-soft); }
+.evt-page .evt-form { max-width: none; margin: 0; padding: 0; }
+.evt-page .evt-card { display: flex; flex-direction: column; gap: 6px; max-width: 420px; margin: 0 auto; padding: 28px 32px; border-radius: 14px; background: var(--blue-soft); text-align: left; }
+.evt-page .evt-label { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; font-size: 1.25rem; font-weight: 400; color: #000; }
+.evt-page .evt-label img { flex: 0 0 24px; width: 24px; height: 24px; margin: 0; }
+.evt-page .evt-input { width: 100%; min-height: 44px; padding: 8px 16px; border: 1px solid #9ca3af; border-radius: 7px; background: #fff; color: #374151; font-size: 1rem; }
+.evt-page .evt-input-icon { position: relative; }
+.evt-page .evt-input-icon .evt-input { padding-right: 44px; }
+.evt-page .evt-input-icon input[type="time"] { cursor: pointer; }
+.evt-page .evt-input-icon input[type="time"]::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+.evt-page .evt-input-icon img { position: absolute; top: 10px; right: 12px; width: 24px; height: 24px; margin: 0; pointer-events: none; }
+.evt-page .evt-actions { display: flex; justify-content: center; gap: 24px; margin-top: 28px; }
+.evt-page .evt-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 109px; height: 41px; padding: 0 27px; border: 0; border-radius: 7px; background: var(--blue-main); box-shadow: none; color: #fff; font-size: 1rem; font-weight: 400; cursor: pointer; }
+.evt-page .evt-btn:hover { background: var(--blue-dark); color: #fff; }
+.evt-page .evt-alert { max-width: 420px; margin: 0 auto 16px; }

@@ -11,7 +11,7 @@ public class Propiedades
     public string Foto { get; set; } = string.Empty;
     public int IdPropietario { get; set; }
     public int? IdInquilino { get; set; }
-    public int? ResumenPropiedad { get; set; }
+    public int? IdResumenPropiedad { get; set; }
     public int? IdExpensas { get; set; }
     public int Alquiler { get; set; }
 }

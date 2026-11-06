@@ -1,0 +1,84 @@
+@model OSO.Models.Evento
+@{
+    ViewData["Title"] = "Agregar evento";
+    var propiedades = ViewBag.Propiedades as List<OSO.Models.Propiedades> ?? new List<OSO.Models.Propiedades>();
+}
+
+<div class="evt-page">
+    <h1 class="evt-title">AGREGAR EVENTO</h1>
+    <p class="evt-date">@Model.Fecha.ToString("dd/MM/yyyy")</p>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger evt-alert">@TempData["Error"]</div>
+    }
+
+    <form asp-action="GuardarEvento" asp-controller="Home" method="post" class="evt-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="Fecha" value="@Model.Fecha.ToString("yyyy-MM-dd")" />
+
+        <div class="evt-card">
+            <label for="Titulo" class="evt-label">Añade un título</label>
+            <input id="Titulo" name="Titulo" type="text" class="evt-input" maxlength="100" required placeholder="Visita plomero" />
+
+            <label for="HoraInicio" class="evt-label evt-label--icon">
+                <img src="~/img/evento/alarma.svg" alt="" />Añade una hora de inicio
+            </label>
+            <div class="evt-input-icon">
+                <input id="HoraInicio" name="HoraInicio" type="time" class="evt-input" value="@Model.HoraInicio.ToString(@"hh\:mm")" required />
+                <img src="~/img/evento/alarma-campo.svg" alt="" />
+            </div>
+
+            <label for="HoraFin" class="evt-label evt-label--icon">
+                <img src="~/img/evento/alarma.svg" alt="" />Añade una hora de fin
+            </label>
+            <div class="evt-input-icon">
+                <input id="HoraFin" name="HoraFin" type="time" class="evt-input" value="@Model.HoraFin.ToString(@"hh\:mm")" required />
+                <img src="~/img/evento/alarma-campo.svg" alt="" />
+            </div>
+
+            <label for="Ubicacion" class="evt-label evt-label--icon">
+                <img src="~/img/evento/ubicacion.svg" alt="" />Ubicación
+            </label>
+            <input id="Ubicacion" name="Ubicacion" type="text" class="evt-input" maxlength="150" placeholder="Av. Callao 921" />
+
+            <label for="IdPropiedad" class="evt-label">Propiedad (opcional)</label>
+            <select id="IdPropiedad" name="IdPropiedad" class="evt-input">
+                <option value="">Ninguna</option>
+                @foreach (var p in propiedades)
+                {
+                    <option value="@p.IdPropiedad">@p.Direccion</option>
+                }
+            </select>
+
+            <label for="Invitado" class="evt-label evt-label--icon">
+                <img src="~/img/evento/invitado.svg" alt="" />Añadir invitado
+            </label>
+            <select id="Invitado" name="Invitado" class="evt-input">
+                <option value="No">No</option>
+                <option value="Inquilino">Inquilino de la propiedad</option>
+            </select>
+
+            <label for="Descripcion" class="evt-label">Descripción... (opcional)</label>
+            <input id="Descripcion" name="Descripcion" type="text" class="evt-input" maxlength="300" placeholder="Arreglo en cañerías de la cocina" />
+        </div>
+
+        <div class="evt-actions">
+            <button type="submit" class="evt-btn">Guardar</button>
+            <a asp-action="Calendario" class="evt-btn">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        // Abre el selector de hora al hacer click en cualquier parte del campo
+        document.querySelectorAll('.evt-input-icon input[type="time"]').forEach(function (input) {
+            input.addEventListener('click', function () {
+                if (typeof input.showPicker === 'function') {
+                    try { input.showPicker(); } catch (e) { }
+                }
+            });
+        });
+    </script>
+}
