@@ -53,7 +53,7 @@
                         </div>
                         <div class="summary-info-row">
                             <span class="label">Alquiler:</span>
-                            <span class="value">@string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", propiedad.Alquiler)</span>
+                            <span class="value">@(propiedad.AlquilerActual.HasValue ? string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", propiedad.AlquilerActual.Value) : "-")</span>
                         </div>
                         @if (propiedad.IdInquilino.HasValue)
                         {

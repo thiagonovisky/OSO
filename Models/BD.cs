@@ -36,45 +36,36 @@ public class BD
     public List<Propiedades> ObtenerPropiedadesPorIdPropietario(int idPropietario)
     {
         using SqlConnection connection = new(connectionString);
-        const string query = "SELECT * FROM Propiedades WHERE IdPropietario = @pIdPropietario";
+        const string query = @"SELECT p.*,
+                                      (SELECT TOP 1 c.MontoAlquiler FROM Contratos c
+                                       WHERE c.IdPropiedad = p.IdPropiedad
+                                         AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
+                                       ORDER BY c.FechaInicio DESC) AS AlquilerActual
+                               FROM Propiedades p
+                               WHERE p.IdPropietario = @pIdPropietario";
         return connection.Query<Propiedades>(query, new { pIdPropietario = idPropietario }).AsList();
     }
 
     public int AgregarPropiedad(Propiedades propiedad)
     {
         using SqlConnection connection = new(connectionString);
-        connection.Open();
-        using var transaction = connection.BeginTransaction();
-
-        int idPropiedad = connection.ExecuteScalar<int>(
-            @"INSERT INTO Propiedades (Direccion, Superficie, Ambientes, Foto, Estado, IdPropietario, FechaDeAlta, IdResumenPropiedad, Alquiler)
-              VALUES (@Direccion, @Superficie, @Ambientes, @Foto, @Estado, @IdPropietario, @FechaDeAlta, @IdResumenPropiedad, @Alquiler);
+        return connection.ExecuteScalar<int>(
+            @"INSERT INTO Propiedades (Direccion, Superficie, Ambientes, Foto, Estado, IdPropietario, FechaDeAlta)
+              VALUES (@Direccion, @Superficie, @Ambientes, @Foto, @Estado, @IdPropietario, @FechaDeAlta);
               SELECT CAST(SCOPE_IDENTITY() AS int);",
-            propiedad,
-            transaction: transaction);
-
-        int idServicio = connection.ExecuteScalar<int>(
-            "INSERT INTO Servicios DEFAULT VALUES; SELECT CAST(SCOPE_IDENTITY() AS int);",
-            transaction: transaction);
-
-        int idResumen = connection.ExecuteScalar<int>(
-            "INSERT INTO ResumenPropiedad (IdServicios) VALUES (@IdServicios); SELECT CAST(SCOPE_IDENTITY() AS int);",
-            new { IdServicios = idServicio },
-            transaction: transaction);
-
-        connection.Execute(
-            "UPDATE Propiedades SET IdResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad",
-            new { IdResumen = idResumen, IdPropiedad = idPropiedad },
-            transaction: transaction);
-
-        transaction.Commit();
-        return idPropiedad;
+            propiedad);
     }
 
     public Propiedades? ObtenerPropiedadPorId(int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
-        const string query = "SELECT * FROM Propiedades WHERE IdPropiedad = @pIdPropiedad";
+        const string query = @"SELECT p.*,
+                                      (SELECT TOP 1 c.MontoAlquiler FROM Contratos c
+                                       WHERE c.IdPropiedad = p.IdPropiedad
+                                         AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
+                                       ORDER BY c.FechaInicio DESC) AS AlquilerActual
+                               FROM Propiedades p
+                               WHERE p.IdPropiedad = @pIdPropiedad";
         return connection.QueryFirstOrDefault<Propiedades>(query, new { pIdPropiedad = idPropiedad });
     }
 
@@ -193,84 +184,147 @@ public class BD
                                    Superficie = @Superficie,
                                    Ambientes = @Ambientes,
                                    Estado = @Estado,
-                                   Foto = @Foto,
-                                   Alquiler = @Alquiler
+                                   Foto = @Foto
                                WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario";
 
         connection.Execute(query, propiedad);
     }
 
-    public void AgregarExpensa(Expensas expensa, int idPropiedad)
+    // ---------------------------------------------------------------------
+    // Gastos y expensas
+    // Un gasto (GastosPropiedad) cuelga directo de la propiedad. Quien paga se
+    // define en GastoResponsables (por ahora solo el propietario) y los pagos
+    // viven en Pagos. El estado se deduce de los pagos, no se guarda.
+    // ---------------------------------------------------------------------
+
+    private const string TipoExpensas = "Expensas";
+
+    // Un gasto con la parte del propietario y lo que ya pagó.
+    private const string SelectGastoPropietario = @"
+        SELECT gp.*, g.TipoGasto, p.Direccion AS NombrePropiedad,
+               gr.IdGastoResponsable, gr.Monto AS MontoResponsable,
+               ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0) AS MontoPagado,
+               (SELECT MAX(pg.Fecha) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable) AS FechaPago,
+               (SELECT TOP 1 pg.Comprobante FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable ORDER BY pg.Fecha DESC, pg.IdPago DESC) AS Comprobante
+        FROM GastosPropiedad gp
+        INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
+        INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+        INNER JOIN GastoResponsables gr ON gr.IdGastoPropiedad = gp.IdGastoPropiedad AND gr.Responsable = 'Propietario'";
+
+    private static DateTime PrimerDiaDelMes(DateTime fecha) => new(fecha.Year, fecha.Month, 1);
+
+    // Crea o actualiza el gasto del período y deja al propietario como responsable del total.
+    private static int GuardarGastoPropiedad(SqlConnection connection, SqlTransaction transaction, int idPropiedad, int idGasto, GastoPropiedad gasto)
     {
-        using SqlConnection connection = new(connectionString);
-        bool tieneAclaracion = TieneColumnaAclaracionEnExpensas(connection);
-        string insertExpensa = tieneAclaracion
-            ? @"INSERT INTO Expensas (Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago, Aclaracion)
-                VALUES (@Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago, @Aclaracion);
-                SELECT CAST(SCOPE_IDENTITY() AS int);"
-            : @"INSERT INTO Expensas (Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago)
-                VALUES (@Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago);
-                SELECT CAST(SCOPE_IDENTITY() AS int);";
+        DateTime periodo = PrimerDiaDelMes(gasto.Periodo);
 
-        int idExpensa = connection.ExecuteScalar<int>(insertExpensa, expensa);
+        connection.Execute(
+            "IF NOT EXISTS (SELECT 1 FROM PropiedadTipoGasto WHERE IdPropiedad = @IdPropiedad AND IdGasto = @IdGasto) INSERT INTO PropiedadTipoGasto (IdPropiedad, IdGasto) VALUES (@IdPropiedad, @IdGasto)",
+            new { IdPropiedad = idPropiedad, IdGasto = idGasto },
+            transaction);
 
-        const string updatePropiedad = @"UPDATE Propiedades SET IdExpensas = @IdExpensa WHERE IdPropiedad = @IdPropiedad";
-        connection.Execute(updatePropiedad, new { IdExpensa = idExpensa, IdPropiedad = idPropiedad });
+        int? existente = connection.QuerySingleOrDefault<int?>(
+            "SELECT IdGastoPropiedad FROM GastosPropiedad WHERE IdPropiedad = @IdPropiedad AND IdGasto = @IdGasto AND Periodo = @Periodo",
+            new { IdPropiedad = idPropiedad, IdGasto = idGasto, Periodo = periodo },
+            transaction);
+
+        int idGastoPropiedad;
+        if (existente.HasValue)
+        {
+            idGastoPropiedad = existente.Value;
+            connection.Execute(
+                @"UPDATE GastosPropiedad
+                  SET Monto = @Monto, FechaVencimiento = @FechaVencimiento, FechaAlta = @FechaAlta, Aclaracion = @Aclaracion
+                  WHERE IdGastoPropiedad = @IdGastoPropiedad",
+                new { gasto.Monto, gasto.FechaVencimiento, gasto.FechaAlta, gasto.Aclaracion, IdGastoPropiedad = idGastoPropiedad },
+                transaction);
+        }
+        else
+        {
+            idGastoPropiedad = connection.ExecuteScalar<int>(
+                @"INSERT INTO GastosPropiedad (IdPropiedad, IdGasto, Periodo, Monto, FechaVencimiento, FechaAlta, Aclaracion)
+                  VALUES (@IdPropiedad, @IdGasto, @Periodo, @Monto, @FechaVencimiento, @FechaAlta, @Aclaracion);
+                  SELECT CAST(SCOPE_IDENTITY() AS int);",
+                new { IdPropiedad = idPropiedad, IdGasto = idGasto, Periodo = periodo, gasto.Monto, gasto.FechaVencimiento, gasto.FechaAlta, gasto.Aclaracion },
+                transaction);
+        }
+
+        // Por ahora el propietario paga el 100%. Cuando haya reparto/IA, acá se escriben las demás partes.
+        connection.Execute(
+            @"MERGE GastoResponsables AS destino
+              USING (SELECT @IdGastoPropiedad AS IdGastoPropiedad) AS origen
+                 ON destino.IdGastoPropiedad = origen.IdGastoPropiedad AND destino.Responsable = 'Propietario'
+              WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = 100
+              WHEN NOT MATCHED THEN INSERT (IdGastoPropiedad, Responsable, Monto, Porcentaje, Origen)
+                   VALUES (@IdGastoPropiedad, 'Propietario', @Monto, 100, 'Manual');",
+            new { IdGastoPropiedad = idGastoPropiedad, gasto.Monto },
+            transaction);
+
+        return idGastoPropiedad;
     }
 
-    public List<Expensas> ObtenerExpensasPorIdPropietario(int idPropietario)
+    // Registra un pago por lo que falta de la parte del propietario. Devuelve false si no corresponde.
+    private static bool PagarParteDelPropietario(SqlConnection connection, SqlTransaction transaction, int idGastoResponsable, string? comprobante)
     {
-        using SqlConnection connection = new(connectionString);
-        bool tieneAclaracion = TieneColumnaAclaracionEnExpensas(connection);
-        string query = tieneAclaracion
-            ? @"SELECT e.IdExpensas AS IdExpensa, e.Monto, e.FechaVencimiento, e.FechaAlta, e.Estado, e.Comprobante, e.FechaPago,
-                        e.Aclaracion, p.Direccion AS NombrePropiedad
-                FROM Expensas e
-                INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
-                WHERE p.IdPropietario = @pIdPropietario
-                ORDER BY e.FechaAlta DESC"
-            : @"SELECT e.IdExpensas AS IdExpensa, e.Monto, e.FechaVencimiento, e.FechaAlta, e.Estado, e.Comprobante, e.FechaPago,
-                        CAST(NULL AS varchar(255)) AS Aclaracion, p.Direccion AS NombrePropiedad
-                FROM Expensas e
-                INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
-                WHERE p.IdPropietario = @pIdPropietario
-                ORDER BY e.FechaAlta DESC";
-
-        return connection.Query<Expensas>(query, new { pIdPropietario = idPropietario }).AsList();
-    }
-
-    private bool TieneColumnaAclaracionEnExpensas(SqlConnection connection)
-    {
-        const string query = @"SELECT COUNT(*)
-                               FROM INFORMATION_SCHEMA.COLUMNS
-                               WHERE TABLE_NAME = 'Expensas'
-                                 AND COLUMN_NAME = 'Aclaracion'";
-
-        return connection.ExecuteScalar<int>(query) > 0;
-    }
-
-    public bool MarcarExpensaComoPagada(int idExpensa, int idPropietario, string comprobante)
-    {
-        using SqlConnection connection = new(connectionString);
         int filas = connection.Execute(
-            @"UPDATE e
-              SET e.Estado = 'Pagado',
-                  e.FechaPago = @FechaPago,
-                  e.Comprobante = @Comprobante
-              FROM Expensas e
-              INNER JOIN Propiedades p ON p.IdExpensas = e.IdExpensas
-              WHERE e.IdExpensas = @IdExpensa
-                AND p.IdPropietario = @IdPropietario
-                AND (e.Estado IS NULL OR e.Estado <> 'Pagado')",
-            new
-            {
-                IdExpensa = idExpensa,
-                IdPropietario = idPropietario,
-                FechaPago = DateTime.Today,
-                Comprobante = comprobante
-            });
+            @"INSERT INTO Pagos (IdGastoResponsable, Fecha, Monto, Concepto, Comprobante)
+              SELECT gr.IdGastoResponsable, @Fecha,
+                     gr.Monto - ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0),
+                     LEFT(g.TipoGasto, 50), @Comprobante
+              FROM GastoResponsables gr
+              INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+              INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
+              WHERE gr.IdGastoResponsable = @IdGastoResponsable
+                AND gr.Responsable = 'Propietario'
+                AND gr.Monto > ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0)",
+            new { IdGastoResponsable = idGastoResponsable, Fecha = DateTime.Today, Comprobante = comprobante },
+            transaction);
 
         return filas > 0;
+    }
+
+    public void AgregarExpensa(GastoPropiedad expensa, int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        int idGasto = ObtenerOCrearTipoGasto(connection, transaction, TipoExpensas, "Expensas de la propiedad");
+        expensa.Periodo = PrimerDiaDelMes(expensa.FechaVencimiento);
+        GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, expensa);
+
+        transaction.Commit();
+    }
+
+    public List<GastoPropiedad> ObtenerExpensasPorIdPropietario(int idPropietario)
+    {
+        using SqlConnection connection = new(connectionString);
+        string query = SelectGastoPropietario + @"
+            WHERE p.IdPropietario = @IdPropietario AND g.TipoGasto = @TipoGasto
+            ORDER BY gp.FechaAlta DESC, gp.IdGastoPropiedad DESC";
+
+        return connection.Query<GastoPropiedad>(query, new { IdPropietario = idPropietario, TipoGasto = TipoExpensas }).AsList();
+    }
+
+    // Paga la parte del propietario de un gasto (expensa), validando que la propiedad sea suya.
+    public bool MarcarExpensaComoPagada(int idGastoResponsable, int idPropietario, string comprobante)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        bool esDelPropietario = connection.ExecuteScalar<int>(
+            @"SELECT COUNT(*)
+              FROM GastoResponsables gr
+              INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+              INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+              WHERE gr.IdGastoResponsable = @IdGastoResponsable AND p.IdPropietario = @IdPropietario",
+            new { IdGastoResponsable = idGastoResponsable, IdPropietario = idPropietario },
+            transaction) > 0;
+
+        bool pagado = esDelPropietario && PagarParteDelPropietario(connection, transaction, idGastoResponsable, comprobante);
+        transaction.Commit();
+        return pagado;
     }
 
     public List<Gastos> ObtenerTiposGasto()
@@ -279,18 +333,31 @@ public class BD
         return connection.Query<Gastos>("SELECT * FROM Gastos ORDER BY TipoGasto").AsList();
     }
 
+    private static int ObtenerOCrearTipoGasto(SqlConnection connection, SqlTransaction? transaction, string nombreTipo, string descripcion)
+    {
+        string nombre = nombreTipo.Trim();
+        int? existente = connection.QueryFirstOrDefault<int?>(
+            "SELECT TOP 1 IdGasto FROM Gastos WHERE TipoGasto = @TipoGasto",
+            new { TipoGasto = nombre },
+            transaction);
+
+        if (existente.HasValue)
+        {
+            return existente.Value;
+        }
+
+        return connection.ExecuteScalar<int>(
+            @"INSERT INTO Gastos (TipoGasto, Descripcion)
+              VALUES (@TipoGasto, @Descripcion);
+              SELECT CAST(SCOPE_IDENTITY() AS int);",
+            new { TipoGasto = nombre, Descripcion = descripcion },
+            transaction);
+    }
+
     public int CrearTipoGasto(string nombreTipo)
     {
         using SqlConnection connection = new(connectionString);
-        const string query = @"INSERT INTO Gastos (TipoGasto, Descripcion)
-                              VALUES (@TipoGasto, @Descripcion);
-                              SELECT CAST(SCOPE_IDENTITY() AS int);";
-
-        return connection.ExecuteScalar<int>(query, new
-        {
-            TipoGasto = nombreTipo.Trim(),
-            Descripcion = "Gasto adicional"
-        });
+        return ObtenerOCrearTipoGasto(connection, null, nombreTipo, "Gasto adicional");
     }
 
     public Gastos? ObtenerTipoGastoPorId(int idGasto)
@@ -300,168 +367,74 @@ public class BD
         return connection.QueryFirstOrDefault<Gastos>(query, new { IdGasto = idGasto });
     }
 
-    public GastoXTipo? ObtenerGastoPorId(int idGastoXTipo)
+    // Crea (o actualiza) el gasto del mes. Si se indica que está pagado, registra el pago.
+    public void AgregarGasto(int idPropiedad, int idGasto, GastoPropiedad gasto, bool pagado, string? comprobante)
     {
         using SqlConnection connection = new(connectionString);
-        const string query = @"SELECT gxt.*, g.TipoGasto
-                              FROM GastoXTipo gxt
-                              INNER JOIN Gastos g ON g.IdGasto = gxt.IdGasto
-                              WHERE gxt.IdGastoXTipo = @IdGastoXTipo";
-        return connection.QueryFirstOrDefault<GastoXTipo>(query, new { IdGastoXTipo = idGastoXTipo });
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto);
+        FijarEstadoPagado(connection, transaction, idGastoPropiedad, pagado, comprobante);
+
+        transaction.Commit();
     }
 
-    public int? ObtenerIdResumenPropiedad(int idPropiedad)
+    public List<GastoPropiedad> ObtenerGastosPorServicioYTipo(int idPropiedad, string tipoGasto)
     {
         using SqlConnection connection = new(connectionString);
-        return connection.QuerySingleOrDefault<int?>("SELECT IdResumenPropiedad FROM Propiedades WHERE IdPropiedad = @IdPropiedad", new { IdPropiedad = idPropiedad });
+        string query = SelectGastoPropietario + @"
+            WHERE gp.IdPropiedad = @IdPropiedad AND g.TipoGasto = @TipoGasto
+            ORDER BY gp.Periodo DESC";
+
+        return connection.Query<GastoPropiedad>(query, new { IdPropiedad = idPropiedad, TipoGasto = tipoGasto }).AsList();
     }
 
-    public int ObtenerIdServicioDePropiedad(int idPropiedad)
+    public List<GastoPropiedad> ObtenerGastosPorServicio(int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
-        int? idServicio = connection.QuerySingleOrDefault<int?>(
-            @"SELECT rp.IdServicios
-              FROM Propiedades p
-              LEFT JOIN ResumenPropiedad rp ON rp.IdResumenPropiedad = p.IdResumenPropiedad
-              WHERE p.IdPropiedad = @IdPropiedad",
-            new { IdPropiedad = idPropiedad });
+        string query = SelectGastoPropietario + @"
+            WHERE gp.IdPropiedad = @IdPropiedad
+            ORDER BY gp.Periodo DESC";
 
-        if (idServicio.HasValue)
+        return connection.Query<GastoPropiedad>(query, new { IdPropiedad = idPropiedad }).AsList();
+    }
+
+    // Pagado: registra el pago de lo que falta. A pagar: anula los pagos de la parte del propietario.
+    public void ActualizarEstadoGasto(int idPropiedad, int idGastoPropiedad, bool pagado)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        bool perteneceAPropiedad = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM GastosPropiedad WHERE IdGastoPropiedad = @IdGastoPropiedad AND IdPropiedad = @IdPropiedad",
+            new { IdGastoPropiedad = idGastoPropiedad, IdPropiedad = idPropiedad },
+            transaction) > 0;
+
+        if (perteneceAPropiedad)
         {
-            return idServicio.Value;
+            FijarEstadoPagado(connection, transaction, idGastoPropiedad, pagado, null);
         }
 
-        int nuevoServicioId = connection.ExecuteScalar<int>("INSERT INTO Servicios DEFAULT VALUES; SELECT CAST(SCOPE_IDENTITY() AS int);");
-        int nuevoResumenId = connection.ExecuteScalar<int>(
-            "INSERT INTO ResumenPropiedad (IdServicios) VALUES (@IdServicios); SELECT CAST(SCOPE_IDENTITY() AS int);",
-            new { IdServicios = nuevoServicioId });
-
-        connection.Execute(
-            "UPDATE Propiedades SET IdResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad",
-            new { IdResumen = nuevoResumenId, IdPropiedad = idPropiedad });
-
-        return nuevoServicioId;
+        transaction.Commit();
     }
 
-    public int CrearServicioSiNoExiste(int idPropiedad)
+    private static void FijarEstadoPagado(SqlConnection connection, SqlTransaction transaction, int idGastoPropiedad, bool pagado, string? comprobante)
     {
-        using SqlConnection connection = new(connectionString);
+        int idGastoResponsable = connection.ExecuteScalar<int>(
+            "SELECT IdGastoResponsable FROM GastoResponsables WHERE IdGastoPropiedad = @IdGastoPropiedad AND Responsable = 'Propietario'",
+            new { IdGastoPropiedad = idGastoPropiedad },
+            transaction);
 
-        int? idServicio = ObtenerIdServicioDePropiedad(idPropiedad);
-        if (idServicio.HasValue)
+        if (pagado)
         {
-            return idServicio.Value;
+            PagarParteDelPropietario(connection, transaction, idGastoResponsable, string.IsNullOrWhiteSpace(comprobante) ? null : comprobante);
         }
-
-        int idNuevoServicio = connection.ExecuteScalar<int>("INSERT INTO Servicios DEFAULT VALUES; SELECT CAST(SCOPE_IDENTITY() AS int); ");
-        int? idResumen = ObtenerIdResumenPropiedad(idPropiedad);
-
-        if (!idResumen.HasValue)
+        else
         {
-            int idNuevoResumen = connection.ExecuteScalar<int>("INSERT INTO ResumenPropiedad (IdServicios) VALUES (@IdServicios); SELECT CAST(SCOPE_IDENTITY() AS int);", new { IdServicios = idNuevoServicio });
-            connection.Execute("UPDATE Propiedades SET IdResumenPropiedad = @IdResumen WHERE IdPropiedad = @IdPropiedad", new { IdResumen = idNuevoResumen, IdPropiedad = idPropiedad });
-            return idNuevoServicio;
+            connection.Execute("DELETE FROM Pagos WHERE IdGastoResponsable = @IdGastoResponsable", new { IdGastoResponsable = idGastoResponsable }, transaction);
         }
-
-        connection.Execute("UPDATE ResumenPropiedad SET IdServicios = @IdServicios WHERE IdResumenPropiedad = @IdResumenPropiedad", new { IdServicios = idNuevoServicio, IdResumenPropiedad = idResumen.Value });
-        return idNuevoServicio;
-    }
-
-    public void AgregarGasto(int idPropiedad, GastoXTipo gasto)
-    {
-        using SqlConnection connection = new(connectionString);
-        int idServicio = CrearServicioSiNoExiste(idPropiedad);
-
-        var existente = connection.QuerySingleOrDefault<int?>(
-            @"SELECT IdGastoXTipo
-              FROM GastoXTipo
-              WHERE IdGasto = @IdGasto AND IdServicios = @IdServicios AND CAST(Mes AS date) = CAST(@Mes AS date)",
-            new
-            {
-                IdGasto = gasto.IdGasto,
-                IdServicios = idServicio,
-                Mes = gasto.Mes
-            });
-
-        if (existente.HasValue)
-        {
-            connection.Execute(
-                @"UPDATE GastoXTipo
-                  SET Monto = @Monto,
-                      FechaVencimiento = @FechaVencimiento,
-                      FechaAlta = @FechaAlta,
-                      Estado = @Estado,
-                      Comprobante = @Comprobante,
-                      FechaPago = @FechaPago
-                  WHERE IdGastoXTipo = @IdGastoXTipo",
-                new
-                {
-                    Monto = gasto.Monto,
-                    FechaVencimiento = gasto.FechaVencimiento,
-                    FechaAlta = gasto.FechaAlta,
-                    Estado = gasto.Estado,
-                    Comprobante = gasto.Comprobante,
-                    FechaPago = gasto.FechaPago,
-                    IdGastoXTipo = existente.Value
-                });
-            return;
-        }
-
-        const string query = @"INSERT INTO GastoXTipo (IdGasto, IdServicios, Mes, Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago)
-                               VALUES (@IdGasto, @IdServicios, @Mes, @Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago)";
-
-        connection.Execute(query, new
-        {
-            IdGasto = gasto.IdGasto,
-            IdServicios = idServicio,
-            Mes = gasto.Mes,
-            Monto = gasto.Monto,
-            FechaVencimiento = gasto.FechaVencimiento,
-            FechaAlta = gasto.FechaAlta,
-            Estado = gasto.Estado,
-            Comprobante = gasto.Comprobante,
-            FechaPago = gasto.FechaPago
-        });
-    }
-
-    public List<GastoXTipo> ObtenerGastosPorServicioYTipo(int idPropiedad, string tipoGasto)
-    {
-        using SqlConnection connection = new(connectionString);
-        const string query = @"SELECT gxt.*, g.TipoGasto
-                              FROM GastoXTipo gxt
-                              INNER JOIN Gastos g ON g.IdGasto = gxt.IdGasto
-                              INNER JOIN ResumenPropiedad rp ON rp.IdResumenPropiedad = @IdPropiedad
-                              INNER JOIN Servicios s ON s.IdServicios = rp.IdServicios
-                              WHERE gxt.IdServicios = s.IdServicios
-                                AND g.TipoGasto = @TipoGasto
-                              ORDER BY gxt.Mes DESC";
-
-        return connection.Query<GastoXTipo>(query, new { IdPropiedad = idPropiedad, TipoGasto = tipoGasto }).AsList();
-    }
-
-    public List<GastoXTipo> ObtenerGastosPorServicio(int idPropiedad)
-    {
-        using SqlConnection connection = new(connectionString);
-        const string query = @"SELECT gxt.*, g.TipoGasto
-                              FROM GastoXTipo gxt
-                              INNER JOIN Gastos g ON g.IdGasto = gxt.IdGasto
-                              INNER JOIN ResumenPropiedad rp ON rp.IdResumenPropiedad = @IdPropiedad
-                              INNER JOIN Servicios s ON s.IdServicios = rp.IdServicios
-                              WHERE gxt.IdServicios = s.IdServicios
-                              ORDER BY gxt.Mes DESC";
-
-        return connection.Query<GastoXTipo>(query, new { IdPropiedad = idPropiedad }).AsList();
-    }
-
-    public void ActualizarEstadoGasto(int idGastoXTipo, string estado, DateTime? fechaPago)
-    {
-        using SqlConnection connection = new(connectionString);
-        const string query = @"UPDATE GastoXTipo
-                               SET Estado = @Estado,
-                                   FechaPago = @FechaPago
-                               WHERE IdGastoXTipo = @IdGastoXTipo";
-
-        connection.Execute(query, new { Estado = estado, FechaPago = fechaPago, IdGastoXTipo = idGastoXTipo });
     }
 
     public void EliminarPropiedad(int idPropiedad, int idPropietario)
@@ -481,39 +454,12 @@ public class BD
             return;
         }
 
-        if (propiedad.IdExpensas.HasValue)
-        {
-            connection.Execute(
-                "DELETE FROM Expensas WHERE IdExpensas = @IdExpensas",
-                new { IdExpensas = propiedad.IdExpensas.Value },
-                transaction: transaction);
-        }
+        BorrarGastosDePropiedad(connection, transaction, idPropiedad, null);
 
-        if (propiedad.IdResumenPropiedad.HasValue)
-        {
-            var resumen = connection.QueryFirstOrDefault<ResumenPropiedad>(
-                "SELECT * FROM ResumenPropiedad WHERE IdResumenPropiedad = @IdResumenPropiedad",
-                new { IdResumenPropiedad = propiedad.IdResumenPropiedad.Value },
-                transaction: transaction);
-
-            if (resumen != null && resumen.IdServicios.HasValue)
-            {
-                connection.Execute(
-                    "DELETE FROM GastoXTipo WHERE IdServicios = @IdServicios",
-                    new { IdServicios = resumen.IdServicios.Value },
-                    transaction: transaction);
-
-                connection.Execute(
-                    "DELETE FROM Servicios WHERE IdServicios = @IdServicios",
-                    new { IdServicios = resumen.IdServicios.Value },
-                    transaction: transaction);
-            }
-
-            connection.Execute(
-                "DELETE FROM ResumenPropiedad WHERE IdResumenPropiedad = @IdResumenPropiedad",
-                new { IdResumenPropiedad = propiedad.IdResumenPropiedad.Value },
-                transaction: transaction);
-        }
+        connection.Execute(
+            "DELETE FROM PropiedadTipoGasto WHERE IdPropiedad = @IdPropiedad",
+            new { IdPropiedad = idPropiedad },
+            transaction: transaction);
 
         connection.Execute(
             "DELETE FROM Propiedades WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario",
@@ -523,77 +469,61 @@ public class BD
         transaction.Commit();
     }
 
+    // Borra pagos, responsables y gastos de la propiedad (de un tipo, o de todos si idGasto es null).
+    private static void BorrarGastosDePropiedad(SqlConnection connection, SqlTransaction transaction, int idPropiedad, int? idGasto)
+    {
+        var parametros = new { IdPropiedad = idPropiedad, IdGasto = idGasto };
+        const string filtro = "gp.IdPropiedad = @IdPropiedad AND (@IdGasto IS NULL OR gp.IdGasto = @IdGasto)";
+
+        connection.Execute(
+            $@"DELETE pg FROM Pagos pg
+               INNER JOIN GastoResponsables gr ON gr.IdGastoResponsable = pg.IdGastoResponsable
+               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+               WHERE {filtro}", parametros, transaction);
+
+        connection.Execute(
+            $@"DELETE gr FROM GastoResponsables gr
+               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+               WHERE {filtro}", parametros, transaction);
+
+        connection.Execute($"DELETE gp FROM GastosPropiedad gp WHERE {filtro}", parametros, transaction);
+    }
+
     public List<Gastos> ObtenerTiposGastoPorPropiedad(int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
-        int idServicio = ObtenerIdServicioDePropiedad(idPropiedad);
-
-        const string query = @"SELECT DISTINCT g.*
-                              FROM GastoXTipo gxt
-                              INNER JOIN Gastos g ON g.IdGasto = gxt.IdGasto
-                              WHERE gxt.IdServicios = @IdServicio
-                              UNION
-                              SELECT g.*
+        const string query = @"SELECT g.*
                               FROM Gastos g
-                              WHERE g.IdGasto IN (
-                                  SELECT IdGasto FROM GastoXTipo WHERE IdServicios = @IdServicio
-                              )
-                              ORDER BY TipoGasto";
+                              INNER JOIN PropiedadTipoGasto ptg ON ptg.IdGasto = g.IdGasto
+                              WHERE ptg.IdPropiedad = @IdPropiedad
+                              ORDER BY g.TipoGasto";
 
-        return connection.Query<Gastos>(query, new { IdServicio = idServicio }).AsList();
+        return connection.Query<Gastos>(query, new { IdPropiedad = idPropiedad }).AsList();
     }
 
     public void RegistrarTipoGastoEnPropiedad(int idPropiedad, int idGasto)
     {
         using SqlConnection connection = new(connectionString);
-        int? idServicio = ObtenerIdServicioDePropiedad(idPropiedad);
-        if (!idServicio.HasValue)
-        {
-            idServicio = CrearServicioSiNoExiste(idPropiedad);
-        }
-
-        int existe = connection.QuerySingleOrDefault<int>(
-            @"SELECT COUNT(*)
-              FROM GastoXTipo
-              WHERE IdGasto = @IdGasto AND IdServicios = @IdServicios AND Comprobante = '__TIPO__'",
-            new { IdGasto = idGasto, IdServicios = idServicio.Value });
-
-        if (existe > 0)
-        {
-            return;
-        }
-
-        const string query = @"INSERT INTO GastoXTipo (IdGasto, IdServicios, Mes, Monto, FechaVencimiento, FechaAlta, Estado, Comprobante, FechaPago)
-                               VALUES (@IdGasto, @IdServicios, @Mes, @Monto, @FechaVencimiento, @FechaAlta, @Estado, @Comprobante, @FechaPago)";
-
-        connection.Execute(query, new
-        {
-            IdGasto = idGasto,
-            IdServicios = idServicio.Value,
-            Mes = new DateTime(1900, 1, 1),
-            Monto = 0m,
-            FechaVencimiento = new DateTime(1900, 1, 1),
-            FechaAlta = DateTime.Today,
-            Estado = "A pagar",
-            Comprobante = "__TIPO__",
-            FechaPago = (DateTime?)null
-        });
+        connection.Execute(
+            @"IF NOT EXISTS (SELECT 1 FROM PropiedadTipoGasto WHERE IdPropiedad = @IdPropiedad AND IdGasto = @IdGasto)
+                  INSERT INTO PropiedadTipoGasto (IdPropiedad, IdGasto) VALUES (@IdPropiedad, @IdGasto)",
+            new { IdPropiedad = idPropiedad, IdGasto = idGasto });
     }
 
     public void EliminarTipoGastoDePropiedad(int idPropiedad, int idGasto)
     {
         using SqlConnection connection = new(connectionString);
         connection.Open();
-        int? idServicio = ObtenerIdServicioDePropiedad(idPropiedad);
+        using var transaction = connection.BeginTransaction();
 
-        if (!idServicio.HasValue)
-        {
-            return;
-        }
+        BorrarGastosDePropiedad(connection, transaction, idPropiedad, idGasto);
 
         connection.Execute(
-            "DELETE FROM GastoXTipo WHERE IdGasto = @IdGasto AND IdServicios = @IdServicios",
-            new { IdGasto = idGasto, IdServicios = idServicio.Value });
+            "DELETE FROM PropiedadTipoGasto WHERE IdPropiedad = @IdPropiedad AND IdGasto = @IdGasto",
+            new { IdPropiedad = idPropiedad, IdGasto = idGasto },
+            transaction: transaction);
+
+        transaction.Commit();
     }
 
     public Usuario? ObtenerUsuarioPorId(int idUsuario)
@@ -666,4 +596,4 @@ public class BD
               VALUES (@IdPropietario, @IdPropiedad, @Titulo, @Fecha, @HoraInicio, @HoraFin, @Ubicacion, @Invitado, @Descripcion)",
             evento);
     }
-}
+}

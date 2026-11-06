@@ -366,7 +366,7 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        List<Expensas> expensas = bd.ObtenerExpensasPorIdPropietario(idPropietario.Value);
+        List<GastoPropiedad> expensas = bd.ObtenerExpensasPorIdPropietario(idPropietario.Value);
         return View(expensas);
     }
 
@@ -385,7 +385,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult AgregarExpensa(Expensas expensa, int idPropiedad)
+    public IActionResult AgregarExpensa(GastoPropiedad expensa, int idPropiedad)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -400,9 +400,6 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        expensa.Comprobante = string.Empty;
-        expensa.Estado = "Pendiente";
-        expensa.FechaPago = null;
         expensa.FechaAlta = expensa.FechaAlta == default ? DateTime.Today : expensa.FechaAlta.Date;
         expensa.FechaVencimiento = expensa.FechaVencimiento.Date;
 
@@ -412,7 +409,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult PagarExpensa(int idExpensa, IFormFile? comprobanteArchivo)
+    public IActionResult PagarExpensa(int idGastoResponsable, IFormFile? comprobanteArchivo)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -431,7 +428,7 @@ public class HomeController : Controller
         Directory.CreateDirectory(comprobantesPath);
 
         string extension = Path.GetExtension(comprobanteArchivo.FileName);
-        string nombreArchivo = $"pago_expensa_{idExpensa}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
+        string nombreArchivo = $"pago_expensa_{idGastoResponsable}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
         string rutaArchivo = Path.Combine(comprobantesPath, nombreArchivo);
 
         using (var stream = new FileStream(rutaArchivo, FileMode.Create))
@@ -439,7 +436,7 @@ public class HomeController : Controller
             comprobanteArchivo.CopyTo(stream);
         }
 
-        bd.MarcarExpensaComoPagada(idExpensa, idPropietario.Value, nombreArchivo);
+        bd.MarcarExpensaComoPagada(idGastoResponsable, idPropietario.Value, nombreArchivo);
         TempData["Mensaje"] = "Pago confirmado correctamente.";
         return RedirectToAction("Expensas");
     }
@@ -652,6 +649,12 @@ public class HomeController : Controller
             return RedirectToAction("CrearContrato", new { idPropiedad });
         }
 
+        if (montoAlquiler <= 0)
+        {
+            TempData["Error"] = "El monto del alquiler debe ser mayor a cero.";
+            return RedirectToAction("CrearContrato", new { idPropiedad });
+        }
+
         if (fechaFin < fechaInicio)
         {
             TempData["Error"] = "La fecha de fin no puede ser anterior a la de inicio.";
@@ -664,7 +667,7 @@ public class HomeController : Controller
             IdInquilino = idInquilino,
             FechaInicio = fechaInicio,
             FechaFin = fechaFin,
-            MontoAlquiler = montoAlquiler <= 0 ? propiedad.Alquiler : montoAlquiler
+            MontoAlquiler = montoAlquiler
         };
 
         try
@@ -728,7 +731,7 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        List<GastoXTipo> gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
+        List<GastoPropiedad> gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
 
         ViewBag.Tipo = tipo;
         ViewBag.IdPropiedad = idPropiedad;
@@ -757,10 +760,9 @@ public class HomeController : Controller
         ViewBag.Propiedad = propiedad;
         ViewBag.Tipo = tipo;
         ViewBag.Tipos = bd.ObtenerTiposGastoPorPropiedad(idPropiedad);
-        return View(new GastoXTipo
+        return View(new GastoPropiedad
         {
             FechaAlta = DateTime.Today,
-            Estado = "A pagar",
             FechaVencimiento = DateTime.Today.AddDays(15)
         });
     }
@@ -813,26 +815,23 @@ public class HomeController : Controller
             return RedirectToAction("Servicios", new { idPropiedad });
         }
 
-        var gasto = new GastoXTipo
+        var gasto = new GastoPropiedad
         {
             IdGasto = idGasto,
-            Mes = mes,
+            Periodo = mes,
             Monto = monto,
             FechaVencimiento = fechaVencimiento,
-            FechaAlta = DateTime.Today,
-            Estado = estado,
-            Comprobante = comprobante,
-            FechaPago = estado == "Pagado" ? DateTime.Today : null
+            FechaAlta = DateTime.Today
         };
 
-        bd.AgregarGasto(idPropiedad, gasto);
+        bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante);
         string? tipo = bd.ObtenerTipoGastoPorId(idGasto)?.TipoGasto;
         return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult GuardarEstadoGasto(int idPropiedad, int idGastoXTipo, string tipo, string estado)
+    public IActionResult GuardarEstadoGasto(int idPropiedad, int idGastoPropiedad, string tipo, string estado)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -847,7 +846,7 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        bd.ActualizarEstadoGasto(idGastoXTipo, estado, estado == "Pagado" ? DateTime.Today : null);
+        bd.ActualizarEstadoGasto(idPropiedad, idGastoPropiedad, estado == "Pagado");
         return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo });
     }
 
@@ -923,11 +922,11 @@ public class HomeController : Controller
 
     private string ObtenerEstadoServicio(int idPropiedad, string tipo)
     {
-        List<GastoXTipo> gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
+        List<GastoPropiedad> gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
         return gastos.Any(g => g.Estado == "A pagar") ? "Pendiente" : (gastos.Any() ? "Al día" : "Sin registros");
     }
 
-    private List<GastoXTipo> ObtenerUltimosGastos(int idPropiedad, string tipo)
+    private List<GastoPropiedad> ObtenerUltimosGastos(int idPropiedad, string tipo)
     {
         return bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo).Take(3).ToList();
     }

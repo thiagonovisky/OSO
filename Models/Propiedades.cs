@@ -11,7 +11,7 @@ public class Propiedades
     public string Foto { get; set; } = string.Empty;
     public int IdPropietario { get; set; }
     public int? IdInquilino { get; set; }
-    public int? IdResumenPropiedad { get; set; }
-    public int? IdExpensas { get; set; }
-    public int Alquiler { get; set; }
+
+    // No se guarda en Propiedades: es el MontoAlquiler del contrato activo (se carga en las consultas)
+    public decimal? AlquilerActual { get; set; }
 }

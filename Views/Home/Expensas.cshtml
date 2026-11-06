@@ -1,4 +1,4 @@
-@model List<OSO.Models.Expensas>
+@model List<OSO.Models.GastoPropiedad>
 
 <h2>Expensas</h2>
 
@@ -40,7 +40,7 @@
                         {
                             <form asp-action="PagarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
                                 @Html.AntiForgeryToken()
-                                <input type="hidden" name="idExpensa" value="@expensa.IdExpensa" />
+                                <input type="hidden" name="idGastoResponsable" value="@expensa.IdGastoResponsable" />
                                 <input type="file" name="comprobanteArchivo" class="form-control form-control-sm" required />
                                 <button type="submit" class="btn btn-success btn-sm">Confirmar pago</button>
                             </form>
