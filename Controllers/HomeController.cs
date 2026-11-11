@@ -275,7 +275,9 @@ public class HomeController : Controller
 
         if (!idActual.HasValue)
         {
-            return View(new List<Propiedades>());
+            int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+            ViewBag.EsInquilino = idInquilino.HasValue;
+            return View(idInquilino.HasValue ? bd.ObtenerPropiedadesPorIdInquilino(idInquilino.Value) : new List<Propiedades>());
         }
 
         List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idActual.Value);
@@ -303,15 +305,25 @@ public class HomeController : Controller
     public IActionResult Calendario(int? anio, int? mes)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        if (!idPropietario.HasValue)
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        if (!idPropietario.HasValue && !idInquilino.HasValue)
         {
             return RedirectToAction("Login");
         }
 
         DateTime hoy = DateTime.Today;
         DateTime primerDia = new(anio ?? hoy.Year, mes ?? hoy.Month, 1);
-
         ViewBag.Mes = primerDia;
+
+        // El inquilino ve el calendario en modo lectura: sin agregar ni modificar eventos.
+        if (!idPropietario.HasValue)
+        {
+            ViewBag.SoloLectura = true;
+            ViewBag.Proximos = bd.ObtenerProximosEventosInquilino(idInquilino!.Value, hoy, 5);
+            return View(bd.ObtenerEventosPorInquilino(idInquilino.Value, primerDia, primerDia.AddMonths(1)));
+        }
+
+        ViewBag.SoloLectura = false;
         ViewBag.Proximos = bd.ObtenerProximosEventos(idPropietario.Value, hoy, 5);
         return View(bd.ObtenerEventosPorPropietario(idPropietario.Value, primerDia, primerDia.AddMonths(1)));
     }
@@ -322,7 +334,7 @@ public class HomeController : Controller
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
         if (!idPropietario.HasValue)
         {
-            return RedirectToAction("Login");
+            return RedirectToAction("Calendario");
         }
 
         ViewBag.Propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
@@ -336,7 +348,7 @@ public class HomeController : Controller
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
         if (!idPropietario.HasValue)
         {
-            return RedirectToAction("Login");
+            return RedirectToAction("Calendario");
         }
 
         if (string.IsNullOrWhiteSpace(evento.Titulo) || evento.HoraFin <= evento.HoraInicio)
@@ -356,6 +368,62 @@ public class HomeController : Controller
         evento.IdPropietario = idPropietario.Value;
         bd.AgregarEvento(evento);
         return RedirectToAction("Calendario", new { anio = evento.Fecha.Year, mes = evento.Fecha.Month });
+    }
+
+    [HttpGet]
+    public IActionResult Mensajeria(int? con)
+    {
+        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
+        if (!idUsuario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        List<Contacto> contactos = bd.ObtenerContactos(
+            idUsuario.Value,
+            HttpContext.Session.GetInt32("IdPropietario"),
+            HttpContext.Session.GetInt32("IdInquilino"));
+
+        ViewBag.IdUsuario = idUsuario.Value;
+        ViewBag.EsPropietario = HttpContext.Session.GetString("EsPropietario") == "true";
+
+        // Sólo se puede abrir el chat con alguien que esté en la lista de contactos.
+        Contacto? activo = con.HasValue ? contactos.FirstOrDefault(c => c.IdUsuario == con.Value) : null;
+        ViewBag.Activo = activo;
+
+        if (activo != null)
+        {
+            bd.MarcarMensajesComoLeidos(idUsuario.Value, activo.IdUsuario);
+            activo.NoLeidos = 0;
+            ViewBag.Mensajes = bd.ObtenerConversacion(idUsuario.Value, activo.IdUsuario);
+        }
+
+        return View(contactos);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult EnviarMensaje(int idReceptor, string? texto)
+    {
+        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
+        if (!idUsuario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        texto = texto?.Trim();
+        bool esContacto = bd.ObtenerContactos(
+                idUsuario.Value,
+                HttpContext.Session.GetInt32("IdPropietario"),
+                HttpContext.Session.GetInt32("IdInquilino"))
+            .Any(c => c.IdUsuario == idReceptor);
+
+        if (esContacto && !string.IsNullOrEmpty(texto))
+        {
+            bd.EnviarMensaje(idUsuario.Value, idReceptor, texto.Length > 1000 ? texto[..1000] : texto);
+        }
+
+        return RedirectToAction("Mensajeria", new { con = idReceptor });
     }
 
     public IActionResult Expensas(){

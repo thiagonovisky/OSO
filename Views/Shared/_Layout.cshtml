@@ -14,9 +14,12 @@
         <div class="oso-header__inner">
             <a class="oso-brand" asp-area="" asp-controller="Home" asp-action="Bienvenida" aria-label="Inicio">O.S.O</a>
 
-            @if (!(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ||
-                   ViewContext.RouteData.Values["action"]?.ToString() == "Login" ||
-                   ViewContext.RouteData.Values["action"]?.ToString() == "Registro"))
+            @{
+                string? accionActual = ViewContext.RouteData.Values["action"]?.ToString();
+                bool esPaginaPublica = accionActual == "Index" || accionActual == "Login" || accionActual == "Registro";
+            }
+
+            @if (!esPaginaPublica)
             {
                 <nav class="oso-nav" aria-label="Navegación principal">
                     <a class="oso-nav__item" asp-area="" asp-controller="Home" asp-action="Calendario">Calendario</a>
@@ -25,6 +28,8 @@
                 </nav>
             }
 
+            @if (!esPaginaPublica)
+            {
             <div class="oso-actions" aria-label="Acciones del usuario">
                 <a class="oso-icon oso-icon--user" asp-area="" asp-controller="Home" asp-action="Perfil" aria-label="Perfil">
                     @if (!string.IsNullOrWhiteSpace(Context.Session.GetString("FotoPerfil")))
@@ -42,8 +47,9 @@
 
                 <a class="oso-icon oso-icon--notification" href="#" aria-label="Notificaciones">
                     <svg viewBox="0 0 64 64" aria-hidden="true">
-                        <path d="M22 48h20l-3-18c-1-11-6-16-14-16s-13 5-14 16l-3 18h14z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
-                        <path d="M28 54c1.5 3 3 4 4 4s2.5-1 4-4" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                        <path d="M32 10v3" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                        <path d="M20 42V30a12 12 0 0 1 24 0v12l4 5H16z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+                        <path d="M27 52a5 5 0 0 0 10 0" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
                     </svg>
                 </a>
 
@@ -53,6 +59,7 @@
                     <span></span>
                 </button>
             </div>
+            }
         </div>
     </header>
     <div class="container">

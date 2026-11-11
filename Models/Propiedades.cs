@@ -14,4 +14,10 @@ public class Propiedades
 
     // No se guarda en Propiedades: es el MontoAlquiler del contrato activo (se carga en las consultas)
     public decimal? AlquilerActual { get; set; }
+
+    // Datos del dueño: sólo se cargan en la vista del inquilino.
+    public string? NombrePropietario { get; set; }
+    public string? CorreoPropietario { get; set; }
+    public string? TelefonoPropietario { get; set; }
+    public DateTime? FinContrato { get; set; }
 }

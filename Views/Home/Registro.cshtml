@@ -1,6 +1,7 @@
 @{
     bool desdeInvitacion = !string.IsNullOrWhiteSpace(ViewBag.ReturnUrl as string);
 }
+<div class="auth-page">
 <h1>Registrate</h1>
 
 @if (ViewBag.Error != null)
@@ -45,7 +46,7 @@
     }
     else
     {
-        <div>
+        <div class="auth-roles">
             <input type="radio" id="inquilino" name="esPropietario" value="false" checked />
             <label for="inquilino">Soy inquilino</label>
 
@@ -53,8 +54,11 @@
             <label for="propietario">Soy propietario</label>
         </div>
     }
-    <button type="submit">Registrarse</button>
-    <button type="reset">Limpiar</button>
+    <div class="auth-actions">
+        <button type="submit">Registrarse</button>
+        <button type="reset">Limpiar</button>
+    </div>
 </form>
 
-<p>¿Ya tenés cuenta? <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Iniciá sesión</a></p>
+<p class="auth-switch">¿Ya tenés cuenta? <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Iniciá sesión</a></p>
+</div>

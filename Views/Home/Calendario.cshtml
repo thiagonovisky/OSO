@@ -5,6 +5,7 @@
     var es = new CultureInfo("es-AR");
     var mes = (DateTime)ViewBag.Mes;
     var proximos = (List<OSO.Models.Evento>)ViewBag.Proximos;
+    bool soloLectura = ViewBag.SoloLectura == true;
     string NombreMes(DateTime d) => es.TextInfo.ToTitleCase(d.ToString("MMMM", es));
     string[] dias = { "Lun", "Mar", "Mier", "Jue", "Vie", "Sab", "Dom" };
     int offset = ((int)mes.DayOfWeek + 6) % 7; // lunes = 0
@@ -41,17 +42,28 @@
                 @for (int dia = 1; dia <= diasMes; dia++)
                 {
                     var fecha = new DateTime(mes.Year, mes.Month, dia);
-                    <a class="cal-cell" asp-action="AgregarEvento" asp-route-fecha="@fecha.ToString("yyyy-MM-dd")"
-                       title="Agregar evento el @fecha.ToString("dd/MM/yyyy")">
-                        <span class="cal-cell__day">@dia</span>
-                        @if (porDia.TryGetValue(dia, out var eventosDia))
-                        {
-                            foreach (var ev in eventosDia)
+                    porDia.TryGetValue(dia, out var eventosDia);
+                    if (soloLectura)
+                    {
+                        <div class="cal-cell cal-cell--readonly">
+                            <span class="cal-cell__day">@dia</span>
+                            @foreach (var ev in eventosDia ?? new List<OSO.Models.Evento>())
+                            {
+                                <span class="cal-chip" title="@($"{ev.Titulo} ({ev.HoraInicio:hh\\:mm}–{ev.HoraFin:hh\\:mm})")">@ev.Titulo</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <a class="cal-cell" asp-action="AgregarEvento" asp-route-fecha="@fecha.ToString("yyyy-MM-dd")"
+                           title="Agregar evento el @fecha.ToString("dd/MM/yyyy")">
+                            <span class="cal-cell__day">@dia</span>
+                            @foreach (var ev in eventosDia ?? new List<OSO.Models.Evento>())
                             {
                                 <span class="cal-chip" title="@ev.Titulo">@(ev.NombrePropiedad ?? ev.Titulo)</span>
                             }
-                        }
-                    </a>
+                        </a>
+                    }
                 }
             </div>
         </section>

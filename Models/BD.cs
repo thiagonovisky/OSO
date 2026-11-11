@@ -46,6 +46,25 @@ public class BD
         return connection.Query<Propiedades>(query, new { pIdPropietario = idPropietario }).AsList();
     }
 
+    public List<Propiedades> ObtenerPropiedadesPorIdInquilino(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT p.*,
+                                      contrato.MontoAlquiler AS AlquilerActual,
+                                      contrato.FechaFin AS FinContrato,
+                                      LTRIM(RTRIM(CONCAT(u.Nombre, ' ', u.Apellido))) AS NombrePropietario,
+                                      u.Correo AS CorreoPropietario,
+                                      u.Telefono AS TelefonoPropietario
+                               FROM Propiedades p
+                               LEFT JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
+                               OUTER APPLY (SELECT TOP 1 c.MontoAlquiler, c.FechaFin FROM Contratos c
+                                            WHERE c.IdPropiedad = p.IdPropiedad
+                                              AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
+                                            ORDER BY c.FechaInicio DESC) contrato
+                               WHERE p.IdInquilino = @IdInquilino";
+        return connection.Query<Propiedades>(query, new { IdInquilino = idInquilino }).AsList();
+    }
+
     public int AgregarPropiedad(Propiedades propiedad)
     {
         using SqlConnection connection = new(connectionString);
@@ -588,6 +607,30 @@ public class BD
         return connection.Query<Evento>(query, new { IdPropietario = idPropietario, Desde = desde.Date, Cantidad = cantidad }).AsList();
     }
 
+    // El inquilino sólo ve los eventos de las propiedades que alquila a los que fue invitado.
+    public List<Evento> ObtenerEventosPorInquilino(int idInquilino, DateTime desde, DateTime hasta)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT e.*, p.Direccion AS NombrePropiedad
+                               FROM Eventos e
+                               INNER JOIN Propiedades p ON p.IdPropiedad = e.IdPropiedad
+                               WHERE p.IdInquilino = @IdInquilino AND e.Invitado = 'Inquilino'
+                                 AND e.Fecha >= @Desde AND e.Fecha < @Hasta
+                               ORDER BY e.Fecha, e.HoraInicio";
+        return connection.Query<Evento>(query, new { IdInquilino = idInquilino, Desde = desde.Date, Hasta = hasta.Date }).AsList();
+    }
+
+    public List<Evento> ObtenerProximosEventosInquilino(int idInquilino, DateTime desde, int cantidad)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT TOP (@Cantidad) e.*, p.Direccion AS NombrePropiedad
+                               FROM Eventos e
+                               INNER JOIN Propiedades p ON p.IdPropiedad = e.IdPropiedad
+                               WHERE p.IdInquilino = @IdInquilino AND e.Invitado = 'Inquilino' AND e.Fecha >= @Desde
+                               ORDER BY e.Fecha, e.HoraInicio";
+        return connection.Query<Evento>(query, new { IdInquilino = idInquilino, Desde = desde.Date, Cantidad = cantidad }).AsList();
+    }
+
     public void AgregarEvento(Evento evento)
     {
         using SqlConnection connection = new(connectionString);
@@ -595,5 +638,56 @@ public class BD
             @"INSERT INTO Eventos (IdPropietario, IdPropiedad, Titulo, Fecha, HoraInicio, HoraFin, Ubicacion, Invitado, Descripcion)
               VALUES (@IdPropietario, @IdPropiedad, @Titulo, @Fecha, @HoraInicio, @HoraFin, @Ubicacion, @Invitado, @Descripcion)",
             evento);
+    }
+
+    // Contactos = inquilinos de mis propiedades + propietarios de las propiedades que alquilo
+    // + cualquiera con quien ya tenga mensajes (así la conversación no se pierde si se desvincula).
+    public List<Contacto> ObtenerContactos(int idUsuario, int? idPropietario, int? idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT u.IdUsuario, u.Nombre, u.Apellido, u.FotoPerfil,
+                                      ult.Texto AS UltimoMensaje, ult.FechaEnvio AS FechaUltimoMensaje,
+                                      ult.IdEmisor AS IdEmisorUltimo, ISNULL(ult.Leido, 0) AS UltimoLeido,
+                                      (SELECT COUNT(*) FROM Mensajes m
+                                       WHERE m.IdEmisor = u.IdUsuario AND m.IdReceptor = @IdUsuario AND m.Leido = 0) AS NoLeidos
+                               FROM Usuarios u
+                               OUTER APPLY (SELECT TOP 1 m.Texto, m.FechaEnvio, m.IdEmisor, m.Leido
+                                            FROM Mensajes m
+                                            WHERE (m.IdEmisor = @IdUsuario AND m.IdReceptor = u.IdUsuario)
+                                               OR (m.IdEmisor = u.IdUsuario AND m.IdReceptor = @IdUsuario)
+                                            ORDER BY m.FechaEnvio DESC, m.IdMensaje DESC) ult
+                               WHERE u.IdUsuario <> @IdUsuario
+                                 AND (u.IdInquilino IN (SELECT p.IdInquilino FROM Propiedades p WHERE p.IdPropietario = @IdPropietario)
+                                   OR u.IdPropietario IN (SELECT p.IdPropietario FROM Propiedades p WHERE p.IdInquilino = @IdInquilino)
+                                   OR ult.FechaEnvio IS NOT NULL)
+                               ORDER BY CASE WHEN ult.FechaEnvio IS NULL THEN 1 ELSE 0 END, ult.FechaEnvio DESC, u.Nombre, u.Apellido";
+        return connection.Query<Contacto>(query, new { IdUsuario = idUsuario, IdPropietario = idPropietario, IdInquilino = idInquilino }).AsList();
+    }
+
+    public List<Mensaje> ObtenerConversacion(int idUsuario, int idContacto)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT * FROM Mensajes
+                               WHERE (IdEmisor = @IdUsuario AND IdReceptor = @IdContacto)
+                                  OR (IdEmisor = @IdContacto AND IdReceptor = @IdUsuario)
+                               ORDER BY FechaEnvio, IdMensaje";
+        return connection.Query<Mensaje>(query, new { IdUsuario = idUsuario, IdContacto = idContacto }).AsList();
+    }
+
+    public void MarcarMensajesComoLeidos(int idUsuario, int idContacto)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute(
+            "UPDATE Mensajes SET Leido = 1 WHERE IdEmisor = @IdContacto AND IdReceptor = @IdUsuario AND Leido = 0",
+            new { IdUsuario = idUsuario, IdContacto = idContacto });
+    }
+
+    public void EnviarMensaje(int idEmisor, int idReceptor, string texto)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute(
+            @"INSERT INTO Mensajes (IdEmisor, IdReceptor, Texto, FechaEnvio, Leido)
+              VALUES (@IdEmisor, @IdReceptor, @Texto, GETDATE(), 0)",
+            new { IdEmisor = idEmisor, IdReceptor = idReceptor, Texto = texto });
     }
 }

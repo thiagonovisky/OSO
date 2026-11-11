@@ -1,3 +1,4 @@
+<div class="auth-page">
 <h1>Inicia Sesión</h1>
 
 @if (ViewBag.Error != null)
@@ -19,8 +20,11 @@
         <label for="contrasena">Contraseña:</label>
         <input type="password" id="contrasena" name="contrasena" required />
     </div>
-    <button type="submit">Iniciar Sesión</button>
-    <button type="reset">Limpiar</button>
+    <div class="auth-actions">
+        <button type="submit">Iniciar Sesión</button>
+        <button type="reset">Limpiar</button>
+    </div>
 </form>
 
-<p>¿No tenés cuenta? <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Registrate</a></p>
+<p class="auth-switch">¿No tenés cuenta? <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Registrate</a></p>
+</div>

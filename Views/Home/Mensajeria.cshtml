@@ -1,0 +1,140 @@
+@model List<OSO.Models.Contacto>
+@{
+    ViewData["Title"] = "Mensajería";
+    int idUsuario = (int)ViewBag.IdUsuario;
+    bool esPropietario = (bool)ViewBag.EsPropietario;
+    var activo = ViewBag.Activo as OSO.Models.Contacto;
+    var mensajes = ViewBag.Mensajes as List<OSO.Models.Mensaje> ?? new List<OSO.Models.Mensaje>();
+
+    string Hora(DateTime? fecha) => fecha == null ? "" : (fecha.Value.Date == DateTime.Today ? fecha.Value.ToString("HH:mm") : fecha.Value.ToString("dd/MM"));
+}
+
+@functions {
+    private Microsoft.AspNetCore.Html.IHtmlContent Avatar(OSO.Models.Contacto c, string clase)
+    {
+        if (!string.IsNullOrEmpty(c.FotoPerfil))
+        {
+            return Html.Raw($"<img class=\"{clase}\" src=\"{Url.Content("~/imagenes/" + c.FotoPerfil)}\" alt=\"\" />");
+        }
+        return Html.Raw($"<span class=\"{clase} msj-avatar--iniciales\" aria-hidden=\"true\">{System.Net.WebUtility.HtmlEncode(c.Iniciales)}</span>");
+    }
+}
+
+@* Fila de contacto: se usa igual en la lista inicial y en la barra lateral del chat. *@
+@{
+    void FilaContacto(OSO.Models.Contacto c, bool esActivo)
+    {
+        bool ultimoEsMio = c.IdEmisorUltimo == idUsuario;
+        <a class="msj-contact @(esActivo ? "is-active" : "")" href="@Url.Action("Mensajeria", new { con = c.IdUsuario })">
+            @Avatar(c, "msj-avatar")
+            <span class="msj-contact__body">
+                <span class="msj-contact__name">@c.NombreCompleto</span>
+                <span class="msj-contact__meta">
+                    <span class="msj-contact__last">@(c.UltimoMensaje ?? "Sin mensajes todavía")</span>
+                    @if (c.FechaUltimoMensaje != null)
+                    {
+                        <span class="msj-contact__time">@Hora(c.FechaUltimoMensaje)</span>
+                    }
+                    @if (ultimoEsMio)
+                    {
+                        <svg class="msj-ticks @(c.UltimoLeido ? "is-read" : "")" viewBox="0 0 24 14" aria-label="@(c.UltimoLeido ? "Leído" : "Enviado")">
+                            <path d="M1 7.5l4 4L13 3.5M9 10l1.5 1.5L18.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    }
+                    @if (c.NoLeidos > 0)
+                    {
+                        <span class="msj-badge" aria-label="@c.NoLeidos sin leer">@c.NoLeidos</span>
+                    }
+                </span>
+            </span>
+        </a>
+    }
+}
+
+<div class="msj-page">
+    @if (activo == null)
+    {
+        <div class="msj-list-view">
+            <div class="msj-list-view__head">
+                <h1 class="msj-title">CONTACTOS</h1>
+                @if (esPropietario)
+                {
+                    <a class="msj-add-btn" asp-action="Propiedades" title="Invitá a un inquilino desde tus propiedades">+ Agregar contacto</a>
+                }
+            </div>
+
+            <div class="msj-list-view__body">
+                <div class="msj-contacts">
+                    @if (Model.Count == 0)
+                    {
+                        <p class="msj-empty">
+                            Todavía no tenés contactos.
+                            @(esPropietario
+                                ? "Cuando un inquilino se vincule a una de tus propiedades, va a aparecer acá."
+                                : "Cuando te vincules a una propiedad, tu propietario va a aparecer acá.")
+                        </p>
+                    }
+                    @foreach (var c in Model)
+                    {
+                        FilaContacto(c, false);
+                    }
+                </div>
+                <img class="msj-deco" src="~/imagenes/Logo colores.png" alt="" aria-hidden="true" />
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="msj-chat-view">
+            <aside class="msj-sidebar" aria-label="Contactos">
+                @foreach (var c in Model)
+                {
+                    FilaContacto(c, c.IdUsuario == activo.IdUsuario);
+                }
+            </aside>
+
+            <section class="msj-chat" aria-label="Conversación con @activo.NombreCompleto">
+                <header class="msj-chat__head">
+                    <a class="msj-back" asp-action="Mensajeria" aria-label="Volver a contactos">&larr;</a>
+                    @Avatar(activo, "msj-avatar")
+                    <span class="msj-chat__name">@activo.NombreCompleto</span>
+                </header>
+
+                <div class="msj-chat__messages" id="msj-messages">
+                    @if (mensajes.Count == 0)
+                    {
+                        <p class="msj-empty">Todavía no hay mensajes. ¡Escribí el primero!</p>
+                    }
+                    @foreach (var m in mensajes)
+                    {
+                        bool mio = m.IdEmisor == idUsuario;
+                        <div class="msj-bubble @(mio ? "msj-bubble--mine" : "msj-bubble--theirs")">
+                            <span class="msj-bubble__text">@m.Texto</span>
+                            <span class="msj-bubble__time">@Hora(m.FechaEnvio)</span>
+                        </div>
+                    }
+                </div>
+
+                <form class="msj-chat__form" asp-action="EnviarMensaje" method="post" autocomplete="off">
+                    <input type="hidden" name="idReceptor" value="@activo.IdUsuario" />
+                    <input class="msj-input" type="text" name="texto" maxlength="1000" required
+                           placeholder="Escribí un mensaje..." aria-label="Mensaje" autofocus />
+                    <button class="msj-send" type="submit" aria-label="Enviar">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M3 3l19 9-19 9 3-9-3-9z" fill="currentColor" />
+                        </svg>
+                    </button>
+                </form>
+            </section>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var box = document.getElementById('msj-messages');
+            if (box) box.scrollTop = box.scrollHeight;
+        })();
+    </script>
+}

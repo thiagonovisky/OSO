@@ -2,13 +2,18 @@
 @{
     var linksInvitacion = ViewBag.LinksInvitacion as Dictionary<int, string> ?? new Dictionary<int, string>();
     var inquilinosPorPropiedad = ViewBag.InquilinosPorPropiedad as Dictionary<int, OSO.Models.Usuario?> ?? new Dictionary<int, OSO.Models.Usuario?>();
+    bool esInquilino = ViewBag.EsInquilino == true;
+    var es = new System.Globalization.CultureInfo("es-AR");
 }
 
-<h2>Mis propiedades</h2>
+<h2>@(esInquilino ? "Mi alquiler" : "Mis propiedades")</h2>
 
-<form action='@Url.Action("AgregarPropiedad", "Home")' method="get">
-    <button type="submit">Agregar Propiedad</button>
-</form>
+@if (!esInquilino)
+{
+    <form class="propiedades-add-form" action='@Url.Action("AgregarPropiedad", "Home")' method="get">
+        <button type="submit">Agregar Propiedad</button>
+    </form>
+}
 
 @if (TempData["Error"] != null)
 {
@@ -53,9 +58,35 @@
                         </div>
                         <div class="summary-info-row">
                             <span class="label">Alquiler:</span>
-                            <span class="value">@(propiedad.AlquilerActual.HasValue ? string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", propiedad.AlquilerActual.Value) : "-")</span>
+                            <span class="value">@(propiedad.AlquilerActual.HasValue ? string.Format(es, "{0:C}", propiedad.AlquilerActual.Value) : "-")</span>
                         </div>
-                        @if (propiedad.IdInquilino.HasValue)
+                        @if (esInquilino)
+                        {
+                            @* El inquilino sólo ve información: sin acciones sobre la propiedad. *@
+                            <div class="summary-info-row">
+                                <span class="label">Contrato hasta:</span>
+                                <span class="value">@(propiedad.FinContrato?.ToString("dd/MM/yyyy") ?? "-")</span>
+                            </div>
+                            <div class="summary-info-row">
+                                <span class="label">Propietario:</span>
+                                <span class="value">@(string.IsNullOrWhiteSpace(propiedad.NombrePropietario) ? "-" : propiedad.NombrePropietario)</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(propiedad.CorreoPropietario))
+                            {
+                                <div class="summary-info-row">
+                                    <span class="label">Correo:</span>
+                                    <span class="value">@propiedad.CorreoPropietario</span>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(propiedad.TelefonoPropietario))
+                            {
+                                <div class="summary-info-row">
+                                    <span class="label">Teléfono:</span>
+                                    <span class="value">@propiedad.TelefonoPropietario</span>
+                                </div>
+                            }
+                        }
+                        else if (propiedad.IdInquilino.HasValue)
                         {
                             var inquilino = inquilinosPorPropiedad.GetValueOrDefault(propiedad.IdPropiedad);
                             <div class="summary-info-row">
@@ -77,6 +108,8 @@
                             </div>
                         }
 
+                        @if (!esInquilino)
+                        {
                         <div class="property-actions">
                             <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Servicios</a>
                             <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Contrato</a>
@@ -88,6 +121,7 @@
                                 <button type="submit" class="btn btn-danger property-action-btn" onclick="return confirm('¿Seguro que querés eliminar esta propiedad y todos sus registros asociados?');">Eliminar</button>
                             </form>
                         </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -96,5 +130,5 @@
 }
 else
 {
-    <p>No hay propiedades para mostrar.</p>
+    <p class="propiedades-empty">@(esInquilino ? "Todavía no estás vinculado a ninguna propiedad. Pedile a tu propietario el link de invitación." : "No hay propiedades para mostrar.")</p>
 }

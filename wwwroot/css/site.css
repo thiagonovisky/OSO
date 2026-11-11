@@ -90,10 +90,12 @@ header {
   padding: 0 0 0 18px;
 }
 
+/* Logo y acciones ocupan lo mismo a cada lado, así el menú queda centrado de verdad. */
 .oso-brand {
   display: inline-flex;
+  flex: 1 1 0;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   min-width: 170px;
   margin: 0;
   color: var(--brand-text);
@@ -111,8 +113,9 @@ header {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   gap: 18px;
-  margin: 0 auto;
+  margin: 0;
   padding-top: 6px;
 }
 
@@ -149,8 +152,14 @@ header {
   align-items: center;
   justify-content: flex-end;
   gap: 18px;
+  flex: 1 1 0;
   min-width: 200px;
   padding-right: 18px;
+}
+
+.oso-icon--user svg {
+  width: 34px;
+  height: 34px;
 }
 
 .oso-icon {
@@ -179,9 +188,14 @@ header {
 }
 
 .oso-icon--notification {
-  width: 52px;
-  height: 52px;
+  width: 60px;
+  height: 60px;
   color: var(--blue-main);
+}
+
+.oso-icon--notification svg {
+  width: 32px;
+  height: 32px;
 }
 
 .oso-menu {
@@ -189,20 +203,36 @@ header {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  width: 38px;
-  height: 38px;
+  gap: 7px;
+  width: 52px;
+  min-width: 0;
+  height: 52px;
   padding: 0;
   border: 0;
   background: transparent;
+  box-shadow: none;
+  border-radius: 12px;
+  transition: background 0.15s ease;
   cursor: pointer;
   color: var(--blue-main);
 }
 
+.oso-menu:focus,
+.oso-menu:active {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+.oso-menu:hover {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: none;
+}
+
 .oso-menu span {
   display: block;
-  width: 24px;
-  height: 4px;
+  width: 34px;
+  height: 5px;
   border-radius: 3px;
   background: currentColor;
 }
@@ -1073,11 +1103,18 @@ a[href^="#"] {
 }
 
 .bienvenida .bienvenida__card:hover,
-.bienvenida .bienvenida__card:focus {
+.bienvenida .bienvenida__card:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 18px 30px rgba(29, 59, 82, 0.14);
   text-decoration: none;
   color: var(--blue-main);
+}
+
+/* Con teclado se ve igual que con el mouse (el fondo oscuro del hover viene de una regla global de links). */
+.bienvenida .bienvenida__card:focus-visible {
+  background: var(--blue-dark);
+  outline: 3px solid var(--blue-soft);
+  outline-offset: 3px;
 }
 
 .bienvenida__icon {
@@ -1097,12 +1134,23 @@ a[href^="#"] {
   color: var(--blue-main);
   opacity: 1;
   display: block;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease;
 }
 
 .bienvenida .bienvenida__card:hover .bienvenida__icon svg,
-.bienvenida .bienvenida__card:focus .bienvenida__icon svg {
+.bienvenida .bienvenida__card:focus-visible .bienvenida__icon svg {
   transform: scale(1.05);
+  color: var(--white);
+}
+
+.bienvenida .bienvenida__card:hover .bienvenida__icon,
+.bienvenida .bienvenida__card:focus-visible .bienvenida__icon {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.bienvenida .bienvenida__card:hover .bienvenida__label,
+.bienvenida .bienvenida__card:focus-visible .bienvenida__label {
+  color: var(--white);
 }
 
 .bienvenida__label {
@@ -1110,6 +1158,7 @@ a[href^="#"] {
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
+  transition: color 0.2s ease;
 }
 
 @media (max-width: 600px) {
@@ -1301,6 +1350,7 @@ a[href^="#"] {
 .cal-page a.cal-month-btn.is-active { background: rgba(255, 255, 255, 0.8); border-color: var(--blue-dark); color: var(--blue-dark); }
 .cal-page .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
 .cal-page .cal-grid--head { margin-bottom: 10px; text-align: center; font-size: 1.25rem; color: #000; }
+.cal-page div.cal-cell--readonly,
 .cal-page a.cal-cell { position: relative; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; gap: 6px; aspect-ratio: 1 / 1; width: auto; height: auto; min-width: 0; padding: 8px; border-radius: 0; background: rgba(125, 167, 198, 0.31); box-shadow: none; color: #000; font-weight: 400; overflow: hidden; }
 .cal-page a.cal-cell:hover { background: rgba(125, 167, 198, 0.5); }
 .cal-page div.cal-cell--empty { aspect-ratio: 1 / 1; background: transparent; }
@@ -1333,3 +1383,94 @@ a[href^="#"] {
 .evt-page .evt-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 109px; height: 41px; padding: 0 27px; border: 0; border-radius: 7px; background: var(--blue-main); box-shadow: none; color: #fff; font-size: 1rem; font-weight: 400; cursor: pointer; }
 .evt-page .evt-btn:hover { background: var(--blue-dark); color: #fff; }
 .evt-page .evt-alert { max-width: 420px; margin: 0 auto 16px; }
+
+
+/* ===== Mensajería ===== */
+/* Prefijado con .msj-page para ganarle a las reglas "body > div:first-of-type a/img" que se filtran a todas las vistas. */
+.msj-page { width: 100%; max-width: 1400px; margin: 0 auto; padding: 24px 24px 32px; }
+.msj-page .msj-title { margin: 0; padding: 0; color: var(--blue-main); font-size: 2.5rem; font-weight: 400; letter-spacing: 0.02em; line-height: 1.2; text-align: center; }
+.msj-page .msj-empty { margin: 24px 0; color: var(--blue-main); font-size: 1.05rem; text-align: center; }
+
+/* Avatares */
+.msj-page .msj-avatar { flex: 0 0 auto; width: 54px; height: 54px; margin: 0; border: 2px solid var(--blue-main); border-radius: 50%; object-fit: cover; background: var(--white); }
+.msj-page .msj-avatar--iniciales { display: inline-flex; align-items: center; justify-content: center; background: var(--icon-bg); color: var(--blue-main); font-weight: 700; font-size: 1.1rem; }
+
+/* Vista inicial: lista de contactos */
+.msj-page .msj-list-view__head { position: relative; display: flex; justify-content: center; align-items: center; min-height: 48px; margin-bottom: 24px; }
+.msj-page a.msj-add-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); min-width: 0; height: auto; padding: 8px 16px; border-radius: 4px; background: var(--blue-main); color: var(--white); font-weight: 400; box-shadow: none; }
+.msj-page a.msj-add-btn:hover { background: var(--blue-dark); }
+.msj-page .msj-list-view__body { display: grid; grid-template-columns: minmax(0, 620px) minmax(0, 1fr); gap: 32px; align-items: start; }
+.msj-page .msj-contacts { display: flex; flex-direction: column; gap: 8px; }
+.msj-page img.msj-deco { justify-self: end; align-self: end; width: min(340px, 100%); height: auto; margin: 40px 0 0; opacity: 0.25; filter: grayscale(0.6); pointer-events: none; }
+
+/* Fila de contacto */
+.msj-page a.msj-contact { display: flex; align-items: center; justify-content: flex-start; gap: 14px; width: 100%; min-width: 0; height: auto; min-height: 92px; padding: 14px 18px; border-radius: 6px; background: #f7f7f7; color: #000; font-weight: 400; text-align: left; box-shadow: none; transition: background 0.15s ease; }
+.msj-page a.msj-contact:hover { background: #ececec; color: #000; }
+.msj-page a.msj-contact.is-active { background: #e6e6e6; }
+.msj-page .msj-contact__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.msj-page .msj-contact__name { font-size: 1.05rem; font-weight: 700; color: #000; }
+.msj-page .msj-contact__meta { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 0.78rem; color: #000; }
+.msj-page .msj-contact__last { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msj-page .msj-contact__time { flex: 0 0 auto; }
+.msj-page .msj-ticks { flex: 0 0 auto; width: 18px; height: 11px; color: #9aa7b3; }
+.msj-page .msj-ticks.is-read { color: var(--blue-soft); }
+.msj-page .msj-badge { flex: 0 0 auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--blue-main); color: var(--white); font-size: 0.72rem; font-weight: 700; line-height: 20px; text-align: center; }
+
+/* Vista de chat */
+.msj-page .msj-chat-view { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: calc(100vh - 170px); min-height: 460px; border-top: 1px solid #ddd; }
+.msj-page .msj-sidebar { display: flex; flex-direction: column; gap: 4px; padding: 24px 0 0; border-right: 1px solid #c9c9c9; overflow-y: auto; }
+.msj-page .msj-sidebar a.msj-contact { border-radius: 0; min-height: 84px; }
+.msj-page .msj-sidebar .msj-avatar { width: 46px; height: 46px; }
+.msj-page .msj-chat { display: flex; flex-direction: column; min-height: 0; padding: 0 0 0 32px; }
+.msj-page .msj-chat__head { display: flex; align-items: center; gap: 14px; padding: 18px 0 18px 40px; }
+.msj-page .msj-chat__name { font-size: 1.5rem; color: #000; }
+.msj-page a.msj-back { display: none; min-width: 0; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: transparent; color: var(--blue-main); font-size: 1.5rem; box-shadow: none; }
+.msj-page a.msj-back:hover { background: var(--blue-main-12); }
+.msj-page .msj-chat__messages { flex: 1; display: flex; flex-direction: column; gap: 22px; padding: 16px 32px 16px 0; overflow-y: auto; }
+.msj-page .msj-bubble { display: flex; flex-direction: column; gap: 4px; max-width: min(340px, 75%); padding: 12px 18px; border-radius: 4px; color: var(--white); font-size: 0.9rem; line-height: 1.6; overflow-wrap: anywhere; }
+.msj-page .msj-bubble__text { white-space: pre-wrap; }
+.msj-page .msj-bubble--mine { align-self: flex-end; background: var(--blue-main); }
+.msj-page .msj-bubble--theirs { align-self: flex-start; background: var(--blue-soft); text-align: right; }
+.msj-page .msj-bubble__time { align-self: flex-end; font-size: 0.7rem; opacity: 0.75; }
+
+/* Caja para escribir */
+.msj-page form.msj-chat__form { display: flex; align-items: center; gap: 16px; width: 100%; max-width: none; margin: 0; padding: 16px 32px 8px 0; }
+.msj-page input.msj-input { flex: 1; min-height: 46px; padding: 10px 16px; border: 1px solid var(--blue-soft); border-radius: 4px; background: rgba(125, 167, 198, 0.08); color: #000; }
+.msj-page input.msj-input:focus { outline: none; border-color: var(--blue-main); background: var(--white); }
+.msj-page button.msj-send { flex: 0 0 auto; min-width: 0; width: 46px; height: 46px; padding: 8px; border-radius: 50%; background: transparent; color: var(--blue-main); }
+.msj-page button.msj-send:hover { background: var(--blue-main-12); }
+.msj-page button.msj-send svg { width: 28px; height: 28px; }
+
+@media (max-width: 900px) {
+  .msj-page { padding: 16px; }
+  .msj-page .msj-list-view__head { flex-direction: column; gap: 12px; }
+  .msj-page a.msj-add-btn { position: static; transform: none; }
+  .msj-page .msj-list-view__body { grid-template-columns: 1fr; }
+  .msj-page img.msj-deco { display: none; }
+  .msj-page .msj-chat-view { grid-template-columns: 1fr; height: calc(100vh - 140px); }
+  .msj-page .msj-sidebar { display: none; }
+  .msj-page .msj-chat { padding: 0; }
+  .msj-page .msj-chat__head { padding-left: 0; }
+  .msj-page a.msj-back { display: inline-flex; align-items: center; justify-content: center; }
+  .msj-page .msj-chat__messages,
+  .msj-page form.msj-chat__form { padding-right: 0; }
+}
+
+/* Propiedades: botón "Agregar Propiedad" centrado, haya o no propiedades. */
+form.propiedades-add-form { display: flex; justify-content: center; max-width: none; margin: 0 auto 24px; padding: 0; }
+.propiedades-empty { text-align: center; }
+
+/* ===== Login / Registro ===== */
+/* Prefijado con .auth-page para ganarle a las reglas "body > div:first-of-type ..." que se filtran a todas las vistas. */
+.auth-page { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 780px; margin: 0 auto; padding: 32px 20px 48px; }
+.auth-page.auth-page h1 { margin: 0 0 24px; text-align: center; }
+.auth-page .alert { margin: 0 0 16px; }
+.auth-page form { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: none; margin: 0; padding: 0; }
+.auth-page form label { margin-bottom: 6px; }
+.auth-page .auth-roles { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
+.auth-page .auth-roles label { display: inline-flex; margin: 0 24px 0 0; font-weight: 400; }
+.auth-page .auth-roles label:last-child { margin-right: 0; }
+.auth-page .auth-roles input[type="radio"] { margin: 0; }
+.auth-page .auth-actions { display: flex; justify-content: center; gap: 12px; margin-top: 8px; }
+.auth-page .auth-switch { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px; margin: 28px 0 0; text-align: center; }
+.auth-page .auth-switch a { min-width: 120px; height: 40px; margin: 0; }
