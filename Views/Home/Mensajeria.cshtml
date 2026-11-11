@@ -63,17 +63,19 @@
                 }
             </div>
 
+            @if (Model.Count == 0)
+            {
+                @* Fuera de la grilla para que quede centrado respecto de toda la página. *@
+                <p class="msj-empty">
+                    Todavía no tenés contactos.
+                    @(esPropietario
+                        ? "Cuando un inquilino se vincule a una de tus propiedades, va a aparecer acá."
+                        : "Cuando te vincules a una propiedad, tu propietario va a aparecer acá.")
+                </p>
+            }
+
             <div class="msj-list-view__body">
                 <div class="msj-contacts">
-                    @if (Model.Count == 0)
-                    {
-                        <p class="msj-empty">
-                            Todavía no tenés contactos.
-                            @(esPropietario
-                                ? "Cuando un inquilino se vincule a una de tus propiedades, va a aparecer acá."
-                                : "Cuando te vincules a una propiedad, tu propietario va a aparecer acá.")
-                        </p>
-                    }
                     @foreach (var c in Model)
                     {
                         FilaContacto(c, false);

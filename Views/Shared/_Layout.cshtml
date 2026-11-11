@@ -17,6 +17,15 @@
             @{
                 string? accionActual = ViewContext.RouteData.Values["action"]?.ToString();
                 bool esPaginaPublica = accionActual == "Index" || accionActual == "Login" || accionActual == "Registro";
+                bool esLanding = accionActual == "Index";
+            }
+
+            @if (esLanding)
+            {
+                <div class="oso-actions oso-actions--landing">
+                    <a class="oso-nav__item oso-nav__item--landing" asp-area="" asp-controller="Home" asp-action="Login">Iniciar sesión</a>
+                    <a class="oso-nav__item oso-nav__item--landing" asp-area="" asp-controller="Home" asp-action="Registro">Registrarse</a>
+                </div>
             }
 
             @if (!esPaginaPublica)
@@ -62,8 +71,8 @@
             }
         </div>
     </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+    <div class="@(esLanding ? "landing-container" : "container")">
+        <main role="main" class="@(esLanding ? "" : "pb-3")">
             @RenderBody()
         </main>
     </div>

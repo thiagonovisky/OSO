@@ -16,16 +16,23 @@
 <div class="cal-page">
     <h1 class="cal-title">CALENDARIO</h1>
 
+    @{
+        var anterior = mes.AddMonths(-1);
+        var siguiente = mes.AddMonths(1);
+    }
     <div class="cal-layout">
-        <aside class="cal-months">
-            <p class="cal-months__current">@NombreMes(mes) @mes.Year</p>
-            @for (int i = -3; i <= 1; i++)
-            {
-                var m = mes.AddMonths(i);
-                <a class="cal-month-btn @(i == 0 ? "is-active" : "")"
-                   asp-action="Calendario" asp-route-anio="@m.Year" asp-route-mes="@m.Month">@NombreMes(m)</a>
-            }
-        </aside>
+            @* El selector de mes va en su propia fila, así "Próximos eventos" arranca a la altura de los días de la semana. *@
+            <nav class="cal-nav" aria-label="Cambiar de mes">
+                <a class="cal-nav__btn" asp-action="Calendario" asp-route-anio="@anterior.Year" asp-route-mes="@anterior.Month"
+                   aria-label="Mes anterior (@NombreMes(anterior) @anterior.Year)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </a>
+                <p class="cal-nav__current">@NombreMes(mes) @mes.Year</p>
+                <a class="cal-nav__btn" asp-action="Calendario" asp-route-anio="@siguiente.Year" asp-route-mes="@siguiente.Month"
+                   aria-label="Mes siguiente (@NombreMes(siguiente) @siguiente.Year)">
+                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </a>
+            </nav>
 
         <section class="cal-grid-wrap" aria-label="Calendario de @NombreMes(mes) @mes.Year">
             <div class="cal-grid cal-grid--head">
@@ -42,11 +49,12 @@
                 @for (int dia = 1; dia <= diasMes; dia++)
                 {
                     var fecha = new DateTime(mes.Year, mes.Month, dia);
+                    var claseDia = fecha == DateTime.Today ? "cal-cell__day is-today" : "cal-cell__day";
                     porDia.TryGetValue(dia, out var eventosDia);
                     if (soloLectura)
                     {
                         <div class="cal-cell cal-cell--readonly">
-                            <span class="cal-cell__day">@dia</span>
+                            <span class="@claseDia">@dia</span>
                             @foreach (var ev in eventosDia ?? new List<OSO.Models.Evento>())
                             {
                                 <span class="cal-chip" title="@($"{ev.Titulo} ({ev.HoraInicio:hh\\:mm}–{ev.HoraFin:hh\\:mm})")">@ev.Titulo</span>
@@ -57,7 +65,7 @@
                     {
                         <a class="cal-cell" asp-action="AgregarEvento" asp-route-fecha="@fecha.ToString("yyyy-MM-dd")"
                            title="Agregar evento el @fecha.ToString("dd/MM/yyyy")">
-                            <span class="cal-cell__day">@dia</span>
+                            <span class="@claseDia">@dia</span>
                             @foreach (var ev in eventosDia ?? new List<OSO.Models.Evento>())
                             {
                                 <span class="cal-chip" title="@ev.Titulo">@(ev.NombrePropiedad ?? ev.Titulo)</span>

@@ -1,16 +1,147 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "O.S.O · Propietarios";
 }
-<div>
-<h1>Bienvenido</h1>
-<img src="~/imagenes/Logo colores.png" alt="OSO" />
-</div>
-<div>
-<form action='@Url.Action("Login", "Home")' method="get">
-		<button type="submit">Iniciar Sesión</button>
-</form>
-<form action='@Url.Action("Registro", "Home")' method="get">
-        <button type="submit">Registrarse</button>
-</form>
-</div>
 
+<div class="landing">
+    <!-- Hero -->
+    <section class="landing-hero">
+        <h1 class="landing-hero__title">
+            <span>Administrá tus alquileres, expensas y cobros</span>
+            <span>sin intermediarios ni estrés.</span>
+        </h1>
+        <p class="landing-hero__text">
+            La herramienta pensada para dueños que quieren control total: seguimiento de pagos en
+            tiempo real, control de servicios vencidos, recibos automáticos y portal para inquilinos.
+        </p>
+        <div class="landing-stats">
+            <div class="landing-stat">
+                <strong>0%</strong>
+                <span>Comisiones ocultas</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Beneficios -->
+    <section class="landing-section landing-section--muted">
+        <div class="landing-heading">
+            <h2>¿Por qué los propietarios eligen O.S.O.?</h2>
+            <p>Diseñado desde cero para acabar con el caos de los excel, los mensajes desordenados y las deudas sorpresa de servicios.</p>
+        </div>
+
+        <div class="landing-grid landing-grid--3">
+            <article class="landing-card landing-card--feature">
+                <div class="landing-card__icon landing-card__icon--blue">
+                    <img src="~/img/landing/recibo.svg" alt="" width="28" height="28" />
+                </div>
+                <h3>Recibos Profesionales Instantáneos</h3>
+                <p class="landing-card__text landing-card__text--fixed">Cada vez que marcás un pago como “Cobrado”, O.S.O. genera un recibo digital formal e impecable. No necesitás de carpetas de Word ni blocs de papel.</p>
+                <ul class="landing-checks">
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Envío por WhatsApp con un solo clic.</li>
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Historial completo de pagos descargable en PDF y Excel.</li>
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Numeración correlativa legal y código de validación.</li>
+                </ul>
+            </article>
+
+            <article class="landing-card landing-card--feature">
+                <div class="landing-card__icon landing-card__icon--gold">
+                    <img src="~/img/landing/casa-servicios.svg" alt="" width="28" height="28" />
+                </div>
+                <h3>Control de Expensas y Servicios</h3>
+                <p class="landing-card__text landing-card__text--fixed">No pierdas el rastro de tus impuestos, servicios o unidades desocupadas. Detectá al instante si un inquilino adeuda luz o gas antes de que sea un problema grave.</p>
+                <ul class="landing-checks">
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Alertas preventivas de vencimientos de Edenor, Edesur, Gas y ABL.</li>
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Cálculo de gastos comunes y cuánto paga en períodos de vacancia.</li>
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Carga de fotos de medidores en actas de entrega y devolución.</li>
+                </ul>
+            </article>
+
+            <article class="landing-card landing-card--feature">
+                <div class="landing-card__icon landing-card__icon--blue">
+                    <img src="~/img/landing/mantenimiento.svg" alt="" width="28" height="28" />
+                </div>
+                <h3>Mantenimiento y Portal Inquilino</h3>
+                <p class="landing-card__text landing-card__text--fixed">Llevá el mantenimiento de tus unidades ordenado. Acceso exclusivo para que tu inquilino consulte su canon, descargue comprobantes y reporte roturas sin llamadas a deshora.</p>
+                <ul class="landing-checks">
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Prioridades de ticket: Normal, Importante y Urgente.</li>
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Historial consolidado de gastos en reparaciones por inmueble.</li>
+                    <li><img src="~/img/landing/beneficio-incluido.svg" alt="" width="18" height="18" />Panel web liviano sin necesidad de descargar apps pesadas.</li>
+                </ul>
+            </article>
+        </div>
+    </section>
+
+    <!-- Cómo funciona -->
+    <section class="landing-section">
+        <div class="landing-heading landing-heading--wide-gap">
+            <h2>Configurá todo en menos de 5 minutos</h2>
+            <p>Sin curvas de aprendizaje complejas. Todo lo que necesitás para tener tus alquileres en piloto automático.</p>
+        </div>
+
+        <div class="landing-grid landing-grid--3">
+            <article class="landing-card landing-card--step">
+                <span class="landing-step__number">01</span>
+                <h3>Cargá tus inmuebles y contratos</h3>
+                <p class="landing-card__text">Ingresá los datos básicos de la propiedad, canon pactado, fecha de vencimiento e inquilino. O.S.O. calcula los plazos automáticamente.</p>
+            </article>
+            <article class="landing-card landing-card--step">
+                <span class="landing-step__number">02</span>
+                <h3>Sincronizá servicios y cuentas de cobro</h3>
+                <p class="landing-card__text">Definí tu Alias o CBU preferido y asociá los números de cliente de servicios (Edenor, Metrogas, AYSA) para monitoreo activo.</p>
+            </article>
+            <article class="landing-card landing-card--step">
+                <span class="landing-step__number">03</span>
+                <h3>Cobrá a término y automatizá recibos</h3>
+                <p class="landing-card__text">Los recordatorios salen solos, recibís los comprobantes, emitís el recibo formal y monitoreás el rendimiento mes a mes.</p>
+            </article>
+        </div>
+    </section>
+
+    <!-- Todo en un solo lugar -->
+    <section class="landing-section landing-section--gray">
+        <div class="landing-heading landing-heading--left">
+            <h2>La diferencia entre gestionar con estrés y gestionar con O.S.O.</h2>
+        </div>
+
+        <div class="landing-grid landing-grid--4">
+            <article class="landing-card landing-card--mini">
+                <div class="landing-card__icon landing-card__icon--small landing-card__icon--blue">
+                    <img src="~/img/landing/planillas-excel.svg" alt="" width="24" height="24" />
+                </div>
+                <h3>Chau planillas de Excel</h3>
+                <p class="landing-card__text">Sin fórmulas ni errores. Todo sincronizado en la nube de forma segura.</p>
+            </article>
+            <article class="landing-card landing-card--mini">
+                <div class="landing-card__icon landing-card__icon--small landing-card__icon--blue">
+                    <img src="~/img/landing/ajustes-ipc-icl.svg" alt="" width="24" height="24" />
+                </div>
+                <h3>Cálculo de Ajustes IPC / ICL</h3>
+                <p class="landing-card__text">Actualizaciones oficiales automáticas según el índice del Banco Central e INDEC. Cero errores de cálculo manual.</p>
+            </article>
+            <article class="landing-card landing-card--mini">
+                <div class="landing-card__icon landing-card__icon--small landing-card__icon--gold">
+                    <img src="~/img/landing/avisos-programados.svg" alt="" width="24" height="24" />
+                </div>
+                <h3>Avisos Programados</h3>
+                <p class="landing-card__text">Notificaciones corteses y automáticas días antes de los vencimientos. Evitá conversaciones incómodas de cobro.</p>
+            </article>
+            <article class="landing-card landing-card--mini">
+                <div class="landing-card__icon landing-card__icon--small landing-card__icon--blue">
+                    <img src="~/img/landing/boveda-contratos.svg" alt="" width="24" height="24" />
+                </div>
+                <h3>Bóveda de Contratos</h3>
+                <p class="landing-card__text">Respaldo encriptado de contratos, inventarios fotográficos y pólizas de caución accesibles las 24 horas.</p>
+            </article>
+        </div>
+    </section>
+
+    <!-- Empezá gratis -->
+    <section class="landing-cta-wrap">
+        <div class="landing-cta">
+            <div class="landing-cta__copy">
+                <h2>Simplificá la gestión de tus alquileres hoy mismo.</h2>
+                <p>Unite a cientos de dueños que administran sus propiedades con claridad y tranquilidad financiera.</p>
+            </div>
+            <a class="landing-cta__btn" asp-controller="Home" asp-action="Registro">Empezar ahora&nbsp;&nbsp;→</a>
+        </div>
+    </section>
+</div>
