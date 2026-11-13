@@ -13,7 +13,7 @@
     <p>Propiedad: @propiedad.Direccion</p>
 }
 
-<form asp-action="GuardarGasto" asp-controller="Home" method="post">
+<form asp-action="GuardarGasto" asp-controller="Home" method="post" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
     <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
     <input type="hidden" name="idGasto" value="@idGasto" />
@@ -49,7 +49,7 @@
 
     <div>
         <label>Comprobante</label>
-        <input type="text" name="comprobante" class="form-control" />
+        <input type="file" name="comprobanteArchivo" accept="image/*,.pdf" class="form-control" />
     </div>
 
     <button type="submit" class="btn btn-primary">Guardar gasto</button>

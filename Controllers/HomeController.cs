@@ -857,7 +857,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult GuardarGasto(int idPropiedad, int idGasto, DateTime mes, decimal monto, DateTime fechaVencimiento, string estado, string? comprobante)
+    public IActionResult GuardarGasto(int idPropiedad, int idGasto, DateTime mes, decimal monto, DateTime fechaVencimiento, string estado, IFormFile? comprobanteArchivo)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -891,6 +891,21 @@ public class HomeController : Controller
             FechaVencimiento = fechaVencimiento,
             FechaAlta = DateTime.Today
         };
+
+        string? comprobante = null;
+        if (comprobanteArchivo != null && comprobanteArchivo.Length > 0)
+        {
+            string comprobantesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "comprobantes");
+            Directory.CreateDirectory(comprobantesPath);
+
+            string extension = Path.GetExtension(comprobanteArchivo.FileName);
+            comprobante = $"gasto_{idPropiedad}_{idGasto}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
+
+            using (var stream = new FileStream(Path.Combine(comprobantesPath, comprobante), FileMode.Create))
+            {
+                comprobanteArchivo.CopyTo(stream);
+            }
+        }
 
         bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante);
         string? tipo = bd.ObtenerTipoGastoPorId(idGasto)?.TipoGasto;

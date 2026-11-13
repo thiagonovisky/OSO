@@ -4,7 +4,9 @@
     string? returnUrl = ViewBag.ReturnUrl as string;
 }
 
-<h2>Invitación a la propiedad</h2>
+<div class="invitacion-page">
+<h2 class="invitacion-title">Invitación a la propiedad</h2>
+<div class="invitacion-body">
 
 @switch (estado)
 {
@@ -48,3 +50,5 @@
         <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Registrarme como inquilino</a>
         break;
 }
+</div>
+</div>
