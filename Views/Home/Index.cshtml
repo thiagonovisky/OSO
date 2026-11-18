@@ -5,20 +5,36 @@
 <div class="landing">
     <!-- Hero -->
     <section class="landing-hero">
-        <h1 class="landing-hero__title">
-            <span>Administrá tus alquileres, expensas y cobros</span>
-            <span>sin intermediarios ni estrés.</span>
-        </h1>
-        <p class="landing-hero__text">
-            La herramienta pensada para dueños que quieren control total: seguimiento de pagos en
-            tiempo real, control de servicios vencidos, recibos automáticos y portal para inquilinos.
-        </p>
-        <div class="landing-stats">
-            <div class="landing-stat">
-                <strong>0%</strong>
-                <span>Comisiones ocultas</span>
+        <div class="landing-hero__copy">
+            <h1 class="landing-hero__title">
+                <span>Administrá tus alquileres, expensas y cobros</span>
+                <span>sin intermediarios ni estrés.</span>
+            </h1>
+            <p class="landing-hero__text">
+                La herramienta pensada para dueños que quieren control total: seguimiento de pagos en
+                tiempo real, control de servicios vencidos, recibos automáticos y portal para inquilinos.
+            </p>
+            <a class="landing-hero__btn" asp-controller="Home" asp-action="Registro">Empezar ahora&nbsp;&nbsp;→</a>
+            <div class="landing-stats">
+                <div class="landing-stat">
+                    <strong>0%</strong>
+                    <span>Comisiones ocultas</span>
+                </div>
+                <div class="landing-stat">
+                    <strong>5 min</strong>
+                    <span>Para configurar todo</span>
+                </div>
+                <div class="landing-stat">
+                    <strong>24/7</strong>
+                    <span>Acceso a tus contratos</span>
+                </div>
+                <div class="landing-stat">
+                    <strong>100%</strong>
+                    <span>Online, sin apps</span>
+                </div>
             </div>
         </div>
+        <img class="landing-hero__img" src="~/imagenes/landing-apreton.jpg" alt="Apretón de manos entre propietario e inquilino" />
     </section>
 
     <!-- Beneficios -->
@@ -142,6 +158,7 @@
                 <p>Unite a cientos de dueños que administran sus propiedades con claridad y tranquilidad financiera.</p>
             </div>
             <a class="landing-cta__btn" asp-controller="Home" asp-action="Registro">Empezar ahora&nbsp;&nbsp;→</a>
+            <img class="landing-cta__img" src="~/imagenes/landing-logo-oso.png" alt="" />
         </div>
     </section>
 </div>

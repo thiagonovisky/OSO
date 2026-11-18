@@ -70,6 +70,7 @@ textarea {
 
 header {
   display: block;
+  position: fixed;
   background: var(--blue-soft);
   min-height: 111px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
@@ -1539,7 +1540,7 @@ form.propiedades-add-form { display: flex; justify-content: center; max-width: n
   --landing-text: #4B5563;
   --landing-blue-chip: #C7E3FF;
   --landing-gold-chip: var(--gold-soft);
-  --landing-gray: var(--icon-bg);
+  --landing-gray: #e2f2f9;
   --landing-step: #5C91BA;
   width: 100%;
   background: var(--gray-bg);
@@ -2071,3 +2072,164 @@ h2.invitacion-title { margin: 0 0 28px; color: var(--blue-main); font-size: 2.5r
 /* Título "Propiedad" encima de la foto */
 .summary-media { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
 .summary-media .summary-header { justify-content: flex-start; margin-bottom: 12px; }
+
+/* Landing: header fijo, hero con foto y logo en el CTA */
+.oso-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.landing .landing-hero {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 64px;
+  text-align: left;
+}
+
+.landing-hero__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 32px;
+  flex: 1 1 0;
+  max-width: 640px;
+}
+
+.landing .landing-hero__copy .landing-hero__title {
+  text-align: left;
+}
+
+.landing-hero__img {
+  flex: 1 1 0;
+  max-width: 560px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 14px;
+}
+
+.landing .landing-cta {
+  position: relative;
+  overflow: hidden;
+  min-height: 260px;
+  padding-right: 260px;
+}
+
+.landing .landing-cta__img {
+  position: absolute;
+  right: 40px;
+  bottom: 0;
+  height: 230px;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 1100px) {
+  .landing .landing-hero {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .landing-hero__copy {
+    align-items: center;
+    max-width: none;
+  }
+
+  .landing .landing-hero__copy .landing-hero__title {
+    text-align: center;
+  }
+
+  .landing .landing-cta {
+    padding-right: 24px;
+    padding-bottom: 200px;
+  }
+
+  .landing .landing-cta__img {
+    right: 24px;
+    height: 170px;
+  }
+}
+
+/* Ajustes hero (margen lateral + botón) y logo centrado en el CTA */
+.landing .landing-hero {
+  padding-left: 120px;
+  padding-right: 120px;
+  gap: 96px;
+}
+
+.landing .landing-hero__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 32px;
+  background: var(--blue-main);
+  border: 1px solid var(--blue-main);
+  border-radius: 7px;
+  color: var(--white);
+  font-size: 22px;
+  line-height: 24px;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.landing .landing-hero__btn:hover,
+.landing .landing-hero__btn:focus {
+  background: var(--white);
+  color: var(--blue-main);
+}
+
+.landing .landing-cta {
+  padding-right: 300px;
+}
+
+.landing .landing-cta__img {
+  top: 50%;
+  bottom: auto;
+  right: 96px;
+  height: 200px;
+  transform: translateY(-50%);
+}
+
+@media (max-width: 1100px) {
+  .landing .landing-hero {
+    padding-left: 24px;
+    padding-right: 24px;
+    gap: 40px;
+  }
+
+  .landing .landing-cta__img {
+    top: auto;
+    bottom: 16px;
+    right: 24px;
+    height: 150px;
+    transform: none;
+  }
+}
+
+/* Botón del CTA centrado entre el texto y el logo */
+@media (min-width: 1101px) {
+  .landing .landing-cta__btn {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Stats del hero en dorado */
+.landing .landing-hero__copy .landing-stats {
+  justify-content: flex-start;
+  gap: 24px 48px;
+  padding-top: 8px;
+}
+
+.landing .landing-hero__copy .landing-stat {
+  align-items: flex-start;
+}
+
+.landing .landing-stat strong {
+  color: var(--gold-soft);
+  font-weight: 700;
+}
