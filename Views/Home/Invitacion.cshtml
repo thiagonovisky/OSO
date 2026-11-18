@@ -40,14 +40,14 @@
             Tenés la sesión iniciada con una cuenta de propietario. Para aceptar la invitación, iniciá sesión o registrate con una cuenta de inquilino.
         </div>
         <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión como inquilino</a>
-        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Registrarme como inquilino</a>
+        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Registrarme como inquilino</a>
         break;
 
     default: // sinSesion
         <p>Te invitaron a la propiedad ubicada en <strong>@Model?.Direccion</strong>.</p>
         <p>Para aceptar, iniciá sesión o registrate como inquilino. Vas a quedar vinculado automáticamente.</p>
         <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión</a>
-        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Registrarme como inquilino</a>
+        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Registrarme como inquilino</a>
         break;
 }
 </div>

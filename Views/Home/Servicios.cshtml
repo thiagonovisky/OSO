@@ -27,9 +27,9 @@
                         <div class="service-actions">
                             <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-primary">Ver detalle</a>
 
-                            <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-secondary">Agregar gasto</a>
+                            <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-primary">Agregar gasto</a>
 
-                            <form asp-action="EliminarTipoGasto" asp-controller="Home" method="post" style="display:inline;" onsubmit="return confirm('¿Eliminar este tipo de gasto y sus registros asociados en esta propiedad?');">
+                            <form asp-action="EliminarTipoGasto" asp-controller="Home" method="post" onsubmit="return confirm('¿Eliminar este tipo de gasto y sus registros asociados en esta propiedad?');">
                                 <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
                                 <input type="hidden" name="idGasto" value="@servicio.IdGasto" />
                                 <button type="submit" class="btn btn-danger">Eliminar tipo</button>

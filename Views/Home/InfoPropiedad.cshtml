@@ -3,7 +3,7 @@
 <h2>Información de la propiedad</h2>
 
 <div>
-	<img src="@Url.Content("~/imagenes/" + Model.Foto)" alt="@Model.Direccion" style="max-width: 420px; height: auto;" />
+	<img src="@Url.Content("~/imagenes/" + Model.Foto)" alt="@Model.Direccion" class="foto-propiedad" />
 </div>
 
 <p><strong>Dirección:</strong> @Model.Direccion</p>
@@ -12,4 +12,4 @@
 <p><strong>Estado:</strong> @Model.Estado</p>
 <p><strong>Fecha de alta:</strong> @Model.FechaDeAlta.ToString("dd/MM/yyyy")</p>
 
-<a asp-action="Propiedades" asp-controller="Home">Volver</a>
+<a asp-action="Propiedades" asp-controller="Home" class="btn">Volver</a>

@@ -96,7 +96,7 @@
                                 <form asp-action="QuitarInquilino" asp-controller="Home" method="post" class="property-action-form">
                                     @Html.AntiForgeryToken()
                                     <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
-                                    <button type="submit" class="btn-secondary" onclick="return confirm('¿Desvincular al inquilino de esta propiedad?');">Quitar inquilino</button>
+                                    <button type="submit" class="btn btn-secondary" onclick="return confirm('¿Desvincular al inquilino de esta propiedad?');">Quitar inquilino</button>
                                 </form>
                             </div>
                         }
@@ -114,7 +114,7 @@
                         <div class="property-actions">
                             <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Servicios</a>
                             <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Contrato</a>
-                            <a asp-action="EditarPropiedad" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn-secondary property-action-btn">Editar</a>
+                            <a asp-action="EditarPropiedad" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Editar</a>
 
                             <form asp-action="EliminarPropiedad" asp-controller="Home" method="post" class="property-action-form">
                                 @Html.AntiForgeryToken()

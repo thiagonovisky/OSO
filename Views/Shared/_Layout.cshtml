@@ -7,7 +7,6 @@
     <script type="importmap"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/OSO.styles.css" asp-append-version="true" />
 </head>
 <body>
     <header class="oso-header">
@@ -104,11 +103,9 @@
             </form>
         </aside>
     }
-    <div class="@(esLanding ? "landing-container" : "container")">
-        <main role="main" class="@(esLanding ? "" : "pb-3")">
-            @RenderBody()
-        </main>
-    </div>
+    <main class="@(esLanding ? "main main--landing" : "main")">
+        @RenderBody()
+    </main>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>

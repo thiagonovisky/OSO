@@ -12,11 +12,11 @@
                 <small class="text-muted">@n.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</small>
                 @if (n.IdGastoResponsable.HasValue && Context.Session.GetInt32("IdInquilino").HasValue)
                 {
-                    <div><a asp-action="MisGastos" asp-controller="Home">Ir a pagar</a></div>
+                    <div><a asp-action="MisGastos" asp-controller="Home" class="btn">Ir a pagar</a></div>
                 }
                 else if (n.IdEmisor.HasValue)
                 {
-                    <div><a asp-action="Mensajeria" asp-controller="Home" asp-route-con="@n.IdEmisor">Ver conversación</a></div>
+                    <div><a asp-action="Mensajeria" asp-controller="Home" asp-route-con="@n.IdEmisor" class="btn">Ver conversación</a></div>
                 }
             </li>
         }
