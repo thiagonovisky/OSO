@@ -28,7 +28,12 @@
 else
 {
     <div class="alert alert-warning">No hay un contrato activo para esta propiedad.</div>
-    <a asp-action="CrearContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Crear contrato</a>
 }
 
-<a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Volver</a>
+<div class="contrato-actions">
+    @if (contrato == null)
+    {
+        <a asp-action="CrearContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Crear contrato</a>
+    }
+    <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Volver</a>
+</div>

@@ -1,0 +1,28 @@
+@model List<OSO.Models.Notificacion>
+
+<h2>Notificaciones</h2>
+
+@if (Model != null && Model.Any())
+{
+    <ul class="list-group mt-3">
+        @foreach (var n in Model)
+        {
+            <li class="list-group-item @(n.Leida ? "" : "fw-bold")">
+                <div>@n.Texto</div>
+                <small class="text-muted">@n.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</small>
+                @if (n.IdGastoResponsable.HasValue && Context.Session.GetInt32("IdInquilino").HasValue)
+                {
+                    <div><a asp-action="MisGastos" asp-controller="Home">Ir a pagar</a></div>
+                }
+                else if (n.IdEmisor.HasValue)
+                {
+                    <div><a asp-action="Mensajeria" asp-controller="Home" asp-route-con="@n.IdEmisor">Ver conversación</a></div>
+                }
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <p class="mt-3 text-center">No tenés notificaciones.</p>
+}

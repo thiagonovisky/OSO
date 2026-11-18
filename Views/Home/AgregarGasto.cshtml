@@ -39,6 +39,17 @@
         <input type="date" name="fechaVencimiento" value="@DateTime.Today.AddDays(15).ToString("yyyy-MM-dd")" required class="form-control" />
     </div>
 
+    @if (propiedad?.IdInquilino != null)
+    {
+        <div>
+            <label>¿Quién paga?</label>
+            <select name="responsable" class="form-control">
+                <option value="Propietario">Propietario</option>
+                <option value="Inquilino">Inquilino</option>
+            </select>
+        </div>
+    }
+
     <div>
         <label>Estado</label>
         <select name="estado" class="form-control">

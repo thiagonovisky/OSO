@@ -36,7 +36,7 @@
                     <td>@(string.IsNullOrWhiteSpace(expensa.Aclaracion) ? "-" : expensa.Aclaracion)</td>
                     <td>@(expensa.FechaPago.HasValue ? expensa.FechaPago.Value.ToString("dd/MM/yyyy") : "-")</td>
                     <td>
-                        @if (!string.Equals(expensa.Estado, "Pagado", StringComparison.OrdinalIgnoreCase))
+                        @if (expensa.MontoPagado < expensa.MontoResponsable)
                         {
                             <form asp-action="PagarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
                                 @Html.AntiForgeryToken()

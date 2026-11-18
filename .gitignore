@@ -274,3 +274,6 @@ __pycache__/
 # tools/
 
 # End of https://www.toptal.com/developers/gitignore/api/aspnetcore
+# Imagenes subidas por usuarios (fotos de perfil, propiedades)
+wwwroot/imagenes/*
+!wwwroot/imagenes/Logo colores.png

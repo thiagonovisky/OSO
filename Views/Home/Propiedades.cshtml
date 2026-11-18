@@ -26,12 +26,13 @@
     {
         <div class="resumen-propiedad-box">
             <div class="summary-card">
-                <div class="summary-header">
-                    <h3>Propiedad</h3>
-                </div>
-
                 <div class="summary-detail">
-                    <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="summary-image" alt="@propiedad.Direccion" />
+                    <div class="summary-media">
+                        <div class="summary-header">
+                            <h3>Propiedad</h3>
+                        </div>
+                        <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="summary-image" alt="@propiedad.Direccion" />
+                    </div>
 
                     <div class="summary-info">
                         <div class="summary-info-row">

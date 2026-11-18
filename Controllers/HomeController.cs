@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Dapper;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using OSO.Models;
 
 namespace OSO.Controllers;
@@ -17,6 +18,48 @@ public class HomeController : Controller
     {
         _logger = logger;
         _protectorInvitaciones = dataProtectionProvider.CreateProtector("OSO.InvitacionPropiedad");
+    }
+
+    // En cada pedido de un usuario logueado: si es inquilino, se generan los avisos de gastos por vencer.
+    public override void OnActionExecuting(ActionExecutingContext context)
+    {
+        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+
+        if (idUsuario.HasValue && idInquilino.HasValue && HttpMethods.IsGet(Request.Method))
+        {
+            try
+            {
+                bd.GenerarNotificacionesVencimiento(idUsuario.Value, idInquilino.Value);
+            }
+            catch (Exception ex)
+            {
+                // Las notificaciones nunca deben romper la navegación.
+                _logger.LogError(ex, "No se pudieron generar las notificaciones de vencimiento");
+            }
+        }
+
+        base.OnActionExecuting(context);
+    }
+
+    // Después de la acción (ya marcó lo leído, ej. al abrir un chat) se cuenta lo no leído para la campanita.
+    public override void OnActionExecuted(ActionExecutedContext context)
+    {
+        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
+
+        if (idUsuario.HasValue && context.Result is ViewResult)
+        {
+            try
+            {
+                ViewBag.NotificacionesNoLeidas = bd.ContarNotificacionesNoLeidas(idUsuario.Value);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "No se pudieron contar las notificaciones");
+            }
+        }
+
+        base.OnActionExecuted(context);
     }
 
     // El token de invitación es el id de la propiedad cifrado/firmado: no se puede adivinar ni modificar.
@@ -57,6 +100,7 @@ public class HomeController : Controller
         HttpContext.Session.Clear();
         HttpContext.Session.SetInt32("IdUsuario", usuario.Id);
         HttpContext.Session.SetString("FotoPerfil", usuario.FotoPerfil ?? string.Empty);
+        HttpContext.Session.SetString("NombreUsuario", usuario.Nombre ?? string.Empty);
 
         if (usuario.IdPropietario > 0)
         {
@@ -431,7 +475,7 @@ public class HomeController : Controller
 
         if (!idPropietario.HasValue)
         {
-            return RedirectToAction("Login");
+            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
         List<GastoPropiedad> expensas = bd.ObtenerExpensasPorIdPropietario(idPropietario.Value);
@@ -444,7 +488,7 @@ public class HomeController : Controller
 
         if (!idPropietario.HasValue)
         {
-            return RedirectToAction("Login");
+            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
         ViewBag.Propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
@@ -459,7 +503,7 @@ public class HomeController : Controller
 
         if (!idPropietario.HasValue)
         {
-            return RedirectToAction("Login");
+            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
         Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
@@ -483,7 +527,7 @@ public class HomeController : Controller
 
         if (!idPropietario.HasValue)
         {
-            return RedirectToAction("Login");
+            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
         if (comprobanteArchivo == null || comprobanteArchivo.Length == 0)
@@ -507,6 +551,80 @@ public class HomeController : Controller
         bd.MarcarExpensaComoPagada(idGastoResponsable, idPropietario.Value, nombreArchivo);
         TempData["Mensaje"] = "Pago confirmado correctamente.";
         return RedirectToAction("Expensas");
+    }
+
+    public IActionResult MisGastos()
+    {
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+
+        if (!idInquilino.HasValue)
+        {
+            return RedirectToAction(HttpContext.Session.GetInt32("IdPropietario").HasValue ? "Propiedades" : "Login");
+        }
+
+        return View(bd.ObtenerGastosPorIdInquilino(idInquilino.Value));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult PagarGasto(int idGastoResponsable, IFormFile? comprobanteArchivo)
+    {
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+
+        if (!idInquilino.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        if (comprobanteArchivo == null || comprobanteArchivo.Length == 0)
+        {
+            TempData["Mensaje"] = "Debe adjuntar un comprobante para confirmar el pago.";
+            return RedirectToAction("MisGastos");
+        }
+
+        string extension = Path.GetExtension(comprobanteArchivo.FileName).ToLowerInvariant();
+        if (!new[] { ".jpg", ".jpeg", ".png", ".pdf", ".webp" }.Contains(extension))
+        {
+            TempData["Mensaje"] = "El comprobante debe ser una imagen o un PDF.";
+            return RedirectToAction("MisGastos");
+        }
+
+        string comprobantesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "comprobantes");
+        Directory.CreateDirectory(comprobantesPath);
+
+        string nombreArchivo = $"pago_gasto_{idGastoResponsable}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
+        string rutaArchivo = Path.Combine(comprobantesPath, nombreArchivo);
+
+        using (var stream = new FileStream(rutaArchivo, FileMode.Create))
+        {
+            comprobanteArchivo.CopyTo(stream);
+        }
+
+        if (bd.PagarGastoInquilino(idGastoResponsable, idInquilino.Value, nombreArchivo))
+        {
+            TempData["Mensaje"] = "Pago registrado. El comprobante quedó pendiente de verificación.";
+        }
+        else
+        {
+            System.IO.File.Delete(rutaArchivo);
+            TempData["Mensaje"] = "No se pudo registrar el pago de ese gasto.";
+        }
+
+        return RedirectToAction("MisGastos");
+    }
+
+    public IActionResult Notificaciones()
+    {
+        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
+
+        if (!idUsuario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        var notificaciones = bd.ObtenerNotificaciones(idUsuario.Value);
+        bd.MarcarNotificacionesComoLeidas(idUsuario.Value);
+        return View(notificaciones);
     }
 
     public IActionResult AgregarPropiedad()
@@ -857,7 +975,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult GuardarGasto(int idPropiedad, int idGasto, DateTime mes, decimal monto, DateTime fechaVencimiento, string estado, IFormFile? comprobanteArchivo)
+    public IActionResult GuardarGasto(int idPropiedad, int idGasto, DateTime mes, decimal monto, DateTime fechaVencimiento, string estado, IFormFile? comprobanteArchivo, string? responsable)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -907,7 +1025,10 @@ public class HomeController : Controller
             }
         }
 
-        bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante);
+        // Solo se le puede asignar el gasto al inquilino si la propiedad tiene uno.
+        bool loPagaElInquilino = responsable == "Inquilino" && propiedad.IdInquilino.HasValue;
+
+        bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante, loPagaElInquilino);
         string? tipo = bd.ObtenerTipoGastoPorId(idGasto)?.TipoGasto;
         return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo });
     }

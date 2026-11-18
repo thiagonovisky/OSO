@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -54,15 +54,19 @@
                     }
                 </a>
 
-                <a class="oso-icon oso-icon--notification" href="#" aria-label="Notificaciones">
+                <a class="oso-icon oso-icon--notification" asp-area="" asp-controller="Home" asp-action="Notificaciones" aria-label="Notificaciones">
                     <svg viewBox="0 0 64 64" aria-hidden="true">
                         <path d="M32 10v3" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
                         <path d="M20 42V30a12 12 0 0 1 24 0v12l4 5H16z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
                         <path d="M27 52a5 5 0 0 0 10 0" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
                     </svg>
+                    @if ((ViewBag.NotificacionesNoLeidas as int? ?? 0) > 0)
+                    {
+                        <span class="oso-badge">@ViewBag.NotificacionesNoLeidas</span>
+                    }
                 </a>
 
-                <button class="oso-menu" type="button" aria-label="Menú">
+                <button class="oso-menu" type="button" aria-label="Menú" aria-controls="osoSidemenu" aria-expanded="false">
                     <span></span>
                     <span></span>
                     <span></span>
@@ -71,6 +75,35 @@
             }
         </div>
     </header>
+    @if (!esPaginaPublica)
+    {
+        var nombreMenu = Context.Session.GetString("NombreUsuario");
+        <span class="oso-sidemenu-backdrop" id="osoSidemenuBackdrop" hidden></span>
+        <aside class="oso-sidemenu" id="osoSidemenu" aria-label="Menú de usuario" aria-hidden="true">
+            <h2 class="oso-sidemenu__title">Hola, @(string.IsNullOrWhiteSpace(nombreMenu) ? "Usuario" : nombreMenu)!</h2>
+            <nav class="oso-sidemenu__nav">
+                <a asp-controller="Home" asp-action="Bienvenida">Inicio</a>
+                <a asp-controller="Home" asp-action="Perfil">Perfil</a>
+                <a asp-controller="Home" asp-action="Propiedades">Propiedades</a>
+                @if (Context.Session.GetString("EsPropietario") == "true")
+                {
+                    <a asp-controller="Home" asp-action="Expensas">Expensas</a>
+                }
+                <a asp-controller="Home" asp-action="Mensajeria">Mensajería</a>
+                @if (Context.Session.GetInt32("IdInquilino").HasValue)
+                {
+                    <a asp-controller="Home" asp-action="MisGastos">Mis gastos</a>
+                }
+                <a asp-controller="Home" asp-action="Notificaciones">Notificaciones</a>
+                <a asp-controller="Home" asp-action="Calendario">Calendario</a>
+            </nav>
+            <form asp-controller="Home" asp-action="CerrarSesion" method="post" class="oso-sidemenu__logout">
+                <button type="submit">Cerrar sesión
+                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </form>
+        </aside>
+    }
     <div class="@(esLanding ? "landing-container" : "container")">
         <main role="main" class="@(esLanding ? "" : "pb-3")">
             @RenderBody()

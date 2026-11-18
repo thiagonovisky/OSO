@@ -22,6 +22,13 @@ public class GastoPropiedad
     public string TipoGasto { get; set; } = string.Empty;
     public string NombrePropiedad { get; set; } = string.Empty;
 
-    // El estado no se guarda: se deduce de los pagos registrados
-    public string Estado => MontoPagado >= MontoResponsable ? "Pagado" : "A pagar";
+    // Parte del inquilino (0 si no le corresponde nada) y lo que ya pagó
+    public decimal MontoInquilino { get; set; }
+    public decimal PagadoInquilino { get; set; }
+
+    // El estado no se guarda: se deduce de los pagos registrados (de todas las partes)
+    public string Estado => MontoPagado >= MontoResponsable && PagadoInquilino >= MontoInquilino ? "Pagado" : "A pagar";
+
+    // Sin pagar y con la fecha de vencimiento ya pasada
+    public bool Vencido => Estado != "Pagado" && FechaVencimiento.Date < DateTime.Today;
 }

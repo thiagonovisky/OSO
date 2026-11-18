@@ -218,22 +218,32 @@ public class BD
 
     private const string TipoExpensas = "Expensas";
 
-    // Un gasto con la parte del propietario y lo que ya pagó.
-    private const string SelectGastoPropietario = @"
+    // Un gasto con la parte de un responsable (Propietario | Inquilino) y lo que ya pagó.
+    // Siempre trae también cuánto le toca pagar al inquilino y cuánto pagó, para deducir el estado.
+    private static string SelectGastoDe(string responsable) => $@"
         SELECT gp.*, g.TipoGasto, p.Direccion AS NombrePropiedad,
                gr.IdGastoResponsable, gr.Monto AS MontoResponsable,
                ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0) AS MontoPagado,
                (SELECT MAX(pg.Fecha) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable) AS FechaPago,
-               (SELECT TOP 1 pg.Comprobante FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable ORDER BY pg.Fecha DESC, pg.IdPago DESC) AS Comprobante
+               (SELECT TOP 1 pg.Comprobante FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable ORDER BY pg.Fecha DESC, pg.IdPago DESC) AS Comprobante,
+               ISNULL(gi.Monto, 0) AS MontoInquilino,
+               ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gi.IdGastoResponsable), 0) AS PagadoInquilino
         FROM GastosPropiedad gp
         INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
         INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
-        INNER JOIN GastoResponsables gr ON gr.IdGastoPropiedad = gp.IdGastoPropiedad AND gr.Responsable = 'Propietario'";
+        INNER JOIN GastoResponsables gr ON gr.IdGastoPropiedad = gp.IdGastoPropiedad AND gr.Responsable = '{responsable}'
+        LEFT JOIN GastoResponsables gi ON gi.IdGastoPropiedad = gp.IdGastoPropiedad AND gi.Responsable = 'Inquilino'";
+
+    private static readonly string SelectGastoPropietario = SelectGastoDe("Propietario");
+    private static readonly string SelectGastoInquilino = SelectGastoDe("Inquilino");
+
+    // Días de anticipación con los que se avisa al inquilino que un gasto está por vencer.
+    private const int DiasAvisoVencimiento = 3;
 
     private static DateTime PrimerDiaDelMes(DateTime fecha) => new(fecha.Year, fecha.Month, 1);
 
-    // Crea o actualiza el gasto del período y deja al propietario como responsable del total.
-    private static int GuardarGastoPropiedad(SqlConnection connection, SqlTransaction transaction, int idPropiedad, int idGasto, GastoPropiedad gasto)
+    // Crea o actualiza el gasto del período. El total lo paga el propietario o, si se indica, el inquilino.
+    private static int GuardarGastoPropiedad(SqlConnection connection, SqlTransaction transaction, int idPropiedad, int idGasto, GastoPropiedad gasto, bool loPagaElInquilino = false)
     {
         DateTime periodo = PrimerDiaDelMes(gasto.Periodo);
 
@@ -268,22 +278,49 @@ public class BD
                 transaction);
         }
 
-        // Por ahora el propietario paga el 100%. Cuando haya reparto/IA, acá se escriben las demás partes.
+        decimal montoPropietario = loPagaElInquilino ? 0 : gasto.Monto;
         connection.Execute(
             @"MERGE GastoResponsables AS destino
               USING (SELECT @IdGastoPropiedad AS IdGastoPropiedad) AS origen
                  ON destino.IdGastoPropiedad = origen.IdGastoPropiedad AND destino.Responsable = 'Propietario'
-              WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = 100
+              WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = @Porcentaje
               WHEN NOT MATCHED THEN INSERT (IdGastoPropiedad, Responsable, Monto, Porcentaje, Origen)
-                   VALUES (@IdGastoPropiedad, 'Propietario', @Monto, 100, 'Manual');",
-            new { IdGastoPropiedad = idGastoPropiedad, gasto.Monto },
+                   VALUES (@IdGastoPropiedad, 'Propietario', @Monto, @Porcentaje, 'Manual');",
+            new { IdGastoPropiedad = idGastoPropiedad, Monto = montoPropietario, Porcentaje = loPagaElInquilino ? 0 : 100 },
             transaction);
+
+        if (loPagaElInquilino)
+        {
+            connection.Execute(
+                @"MERGE GastoResponsables AS destino
+                  USING (SELECT @IdGastoPropiedad AS IdGastoPropiedad) AS origen
+                     ON destino.IdGastoPropiedad = origen.IdGastoPropiedad AND destino.Responsable = 'Inquilino'
+                  WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = 100
+                  WHEN NOT MATCHED THEN INSERT (IdGastoPropiedad, Responsable, Monto, Porcentaje, Origen)
+                       VALUES (@IdGastoPropiedad, 'Inquilino', @Monto, 100, 'Manual');",
+                new { IdGastoPropiedad = idGastoPropiedad, gasto.Monto },
+                transaction);
+        }
+        else
+        {
+            // Vuelve a ser del propietario: se descarta la parte del inquilino salvo que ya haya pagado algo.
+            connection.Execute(
+                @"DELETE n FROM Notificaciones n
+                  INNER JOIN GastoResponsables gr ON gr.IdGastoResponsable = n.IdGastoResponsable
+                  WHERE gr.IdGastoPropiedad = @IdGastoPropiedad AND gr.Responsable = 'Inquilino'
+                    AND NOT EXISTS (SELECT 1 FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable);
+                  DELETE gr FROM GastoResponsables gr
+                  WHERE gr.IdGastoPropiedad = @IdGastoPropiedad AND gr.Responsable = 'Inquilino'
+                    AND NOT EXISTS (SELECT 1 FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable);",
+                new { IdGastoPropiedad = idGastoPropiedad },
+                transaction);
+        }
 
         return idGastoPropiedad;
     }
 
-    // Registra un pago por lo que falta de la parte del propietario. Devuelve false si no corresponde.
-    private static bool PagarParteDelPropietario(SqlConnection connection, SqlTransaction transaction, int idGastoResponsable, string? comprobante)
+    // Registra un pago por lo que falta de la parte de un responsable. Devuelve false si no corresponde.
+    private static bool PagarParte(SqlConnection connection, SqlTransaction transaction, int idGastoResponsable, string responsable, string? comprobante)
     {
         int filas = connection.Execute(
             @"INSERT INTO Pagos (IdGastoResponsable, Fecha, Monto, Concepto, Comprobante)
@@ -294,9 +331,9 @@ public class BD
               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
               INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
               WHERE gr.IdGastoResponsable = @IdGastoResponsable
-                AND gr.Responsable = 'Propietario'
+                AND gr.Responsable = @Responsable
                 AND gr.Monto > ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0)",
-            new { IdGastoResponsable = idGastoResponsable, Fecha = DateTime.Today, Comprobante = comprobante },
+            new { IdGastoResponsable = idGastoResponsable, Responsable = responsable, Fecha = DateTime.Today, Comprobante = comprobante },
             transaction);
 
         return filas > 0;
@@ -341,9 +378,92 @@ public class BD
             new { IdGastoResponsable = idGastoResponsable, IdPropietario = idPropietario },
             transaction) > 0;
 
-        bool pagado = esDelPropietario && PagarParteDelPropietario(connection, transaction, idGastoResponsable, comprobante);
+        bool pagado = esDelPropietario && PagarParte(connection, transaction, idGastoResponsable, "Propietario", comprobante);
         transaction.Commit();
         return pagado;
+    }
+
+    // ---- Gastos del inquilino y notificaciones ----
+
+    public List<GastoPropiedad> ObtenerGastosPorIdInquilino(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        string query = SelectGastoInquilino + @"
+            WHERE p.IdInquilino = @IdInquilino
+            ORDER BY CASE WHEN gr.Monto > ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0) THEN 0 ELSE 1 END,
+                     gp.FechaVencimiento DESC, gp.IdGastoPropiedad DESC";
+
+        return connection.Query<GastoPropiedad>(query, new { IdInquilino = idInquilino }).AsList();
+    }
+
+    // El inquilino paga lo que le toca de un gasto de su propiedad subiendo el comprobante.
+    public bool PagarGastoInquilino(int idGastoResponsable, int idInquilino, string comprobante)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        bool esDelInquilino = connection.ExecuteScalar<int>(
+            @"SELECT COUNT(*)
+              FROM GastoResponsables gr
+              INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+              INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+              WHERE gr.IdGastoResponsable = @IdGastoResponsable AND gr.Responsable = 'Inquilino' AND p.IdInquilino = @IdInquilino",
+            new { IdGastoResponsable = idGastoResponsable, IdInquilino = idInquilino },
+            transaction) > 0;
+
+        bool pagado = esDelInquilino && PagarParte(connection, transaction, idGastoResponsable, "Inquilino", comprobante);
+        transaction.Commit();
+        return pagado;
+    }
+
+    // Avisa al inquilino de los gastos suyos sin pagar que vencen en los próximos días (o ya vencieron).
+    // Se avisa una sola vez por gasto.
+    public void GenerarNotificacionesVencimiento(int idUsuario, int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"
+            INSERT INTO Notificaciones (IdUsuario, IdGastoResponsable, Texto)
+            SELECT @IdUsuario, gr.IdGastoResponsable,
+                   LEFT(CONCAT(g.TipoGasto, ' de ', p.Direccion, CASE WHEN gp.FechaVencimiento < @Hoy THEN ' venció el ' ELSE ' vence el ' END,
+                               CONVERT(varchar(10), gp.FechaVencimiento, 103), ' ($', CONVERT(varchar(20), gr.Monto - pag.Pagado),
+                               '). Subí el comprobante para marcarlo como pagado.'), 300)
+            FROM GastoResponsables gr
+            INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+            INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
+            INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+            CROSS APPLY (SELECT ISNULL(SUM(pg.Monto), 0) AS Pagado FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable) pag
+            WHERE gr.Responsable = 'Inquilino' AND p.IdInquilino = @IdInquilino
+              AND gr.Monto > pag.Pagado
+              AND gp.FechaVencimiento <= DATEADD(day, @Dias, @Hoy)
+              AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = @IdUsuario AND n.IdGastoResponsable = gr.IdGastoResponsable)";
+
+        try
+        {
+            connection.Execute(query, new { IdUsuario = idUsuario, IdInquilino = idInquilino, Hoy = DateTime.Today, Dias = DiasAvisoVencimiento });
+        }
+        catch (SqlException ex) when (ex.Number is 2601 or 2627)
+        {
+            // Otra solicitud simultánea ya creó el aviso.
+        }
+    }
+
+    public int ContarNotificacionesNoLeidas(int idUsuario)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Notificaciones WHERE IdUsuario = @IdUsuario AND Leida = 0", new { IdUsuario = idUsuario });
+    }
+
+    public List<Notificacion> ObtenerNotificaciones(int idUsuario)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<Notificacion>("SELECT * FROM Notificaciones WHERE IdUsuario = @IdUsuario ORDER BY FechaCreacion DESC, IdNotificacion DESC", new { IdUsuario = idUsuario }).AsList();
+    }
+
+    public void MarcarNotificacionesComoLeidas(int idUsuario)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute("UPDATE Notificaciones SET Leida = 1 WHERE IdUsuario = @IdUsuario AND Leida = 0", new { IdUsuario = idUsuario });
     }
 
     public List<Gastos> ObtenerTiposGasto()
@@ -387,13 +507,13 @@ public class BD
     }
 
     // Crea (o actualiza) el gasto del mes. Si se indica que está pagado, registra el pago.
-    public void AgregarGasto(int idPropiedad, int idGasto, GastoPropiedad gasto, bool pagado, string? comprobante)
+    public void AgregarGasto(int idPropiedad, int idGasto, GastoPropiedad gasto, bool pagado, string? comprobante, bool loPagaElInquilino = false)
     {
         using SqlConnection connection = new(connectionString);
         connection.Open();
         using var transaction = connection.BeginTransaction();
 
-        int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto);
+        int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto, loPagaElInquilino);
         FijarEstadoPagado(connection, transaction, idGastoPropiedad, pagado, comprobante);
 
         transaction.Commit();
@@ -448,7 +568,7 @@ public class BD
 
         if (pagado)
         {
-            PagarParteDelPropietario(connection, transaction, idGastoResponsable, string.IsNullOrWhiteSpace(comprobante) ? null : comprobante);
+            PagarParte(connection, transaction, idGastoResponsable, "Propietario", string.IsNullOrWhiteSpace(comprobante) ? null : comprobante);
         }
         else
         {
@@ -497,6 +617,12 @@ public class BD
         connection.Execute(
             $@"DELETE pg FROM Pagos pg
                INNER JOIN GastoResponsables gr ON gr.IdGastoResponsable = pg.IdGastoResponsable
+               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+               WHERE {filtro}", parametros, transaction);
+
+        connection.Execute(
+            $@"DELETE n FROM Notificaciones n
+               INNER JOIN GastoResponsables gr ON gr.IdGastoResponsable = n.IdGastoResponsable
                INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
                WHERE {filtro}", parametros, transaction);
 
@@ -678,16 +804,38 @@ public class BD
     {
         using SqlConnection connection = new(connectionString);
         connection.Execute(
-            "UPDATE Mensajes SET Leido = 1 WHERE IdEmisor = @IdContacto AND IdReceptor = @IdUsuario AND Leido = 0",
+            @"UPDATE Mensajes SET Leido = 1 WHERE IdEmisor = @IdContacto AND IdReceptor = @IdUsuario AND Leido = 0;
+              UPDATE Notificaciones SET Leida = 1 WHERE IdUsuario = @IdUsuario AND IdEmisor = @IdContacto AND Leida = 0;",
             new { IdUsuario = idUsuario, IdContacto = idContacto });
     }
 
+    // Guarda el mensaje y avisa al receptor. Mientras no lea el chat hay una sola notificación
+    // por remitente, que se actualiza con el último mensaje.
     public void EnviarMensaje(int idEmisor, int idReceptor, string texto)
     {
         using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
         connection.Execute(
             @"INSERT INTO Mensajes (IdEmisor, IdReceptor, Texto, FechaEnvio, Leido)
               VALUES (@IdEmisor, @IdReceptor, @Texto, GETDATE(), 0)",
-            new { IdEmisor = idEmisor, IdReceptor = idReceptor, Texto = texto });
+            new { IdEmisor = idEmisor, IdReceptor = idReceptor, Texto = texto },
+            transaction);
+
+        connection.Execute(
+            @"DECLARE @Aviso VARCHAR(300) = LEFT(CONCAT('Nuevo mensaje de ',
+                     (SELECT LTRIM(RTRIM(CONCAT(Nombre, ' ', Apellido))) FROM Usuarios WHERE IdUsuario = @IdEmisor),
+                     ': ', CASE WHEN LEN(@Texto) > 120 THEN LEFT(@Texto, 117) + '...' ELSE @Texto END), 300);
+
+              UPDATE Notificaciones SET Texto = @Aviso, FechaCreacion = GETDATE()
+              WHERE IdUsuario = @IdReceptor AND IdEmisor = @IdEmisor AND Leida = 0;
+
+              IF @@ROWCOUNT = 0
+                  INSERT INTO Notificaciones (IdUsuario, IdEmisor, Texto) VALUES (@IdReceptor, @IdEmisor, @Aviso);",
+            new { IdEmisor = idEmisor, IdReceptor = idReceptor, Texto = texto },
+            transaction);
+
+        transaction.Commit();
     }
-}
+}
