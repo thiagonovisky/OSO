@@ -413,6 +413,26 @@ public class BD
             transaction) > 0;
 
         bool pagado = esDelInquilino && PagarParte(connection, transaction, idGastoResponsable, "Inquilino", comprobante);
+
+        if (pagado)
+        {
+            // Avisa al propietario que el inquilino subió el comprobante.
+            connection.Execute(
+                @"INSERT INTO Notificaciones (IdUsuario, IdGastoResponsable, Texto)
+                  SELECT u.IdUsuario, gr.IdGastoResponsable,
+                         LEFT(CONCAT('El inquilino pagó ', g.TipoGasto, ' de ', p.Direccion, ' ($', CONVERT(varchar(20), gr.Monto),
+                                     ') y subió el comprobante.'), 300)
+                  FROM GastoResponsables gr
+                  INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+                  INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
+                  INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+                  INNER JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
+                  WHERE gr.IdGastoResponsable = @IdGastoResponsable
+                    AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = u.IdUsuario AND n.IdGastoResponsable = gr.IdGastoResponsable)",
+                new { IdGastoResponsable = idGastoResponsable },
+                transaction);
+        }
+
         transaction.Commit();
         return pagado;
     }
@@ -516,7 +536,33 @@ public class BD
         int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto, loPagaElInquilino);
         FijarEstadoPagado(connection, transaction, idGastoPropiedad, pagado, comprobante);
 
+        if (loPagaElInquilino && !pagado)
+        {
+            AvisarGastoNuevoAlInquilino(connection, transaction, idGastoPropiedad);
+        }
+
         transaction.Commit();
+    }
+
+    // Avisa al inquilino apenas se le asigna un gasto, salvo que ya tenga un aviso de ese gasto.
+    private static void AvisarGastoNuevoAlInquilino(SqlConnection connection, SqlTransaction transaction, int idGastoPropiedad)
+    {
+        connection.Execute(
+            @"INSERT INTO Notificaciones (IdUsuario, IdGastoResponsable, Texto)
+              SELECT u.IdUsuario, gr.IdGastoResponsable,
+                     LEFT(CONCAT('Nuevo gasto: ', g.TipoGasto, ' de ', p.Direccion, ' por $', CONVERT(varchar(20), gr.Monto),
+                                 ', vence el ', CONVERT(varchar(10), gp.FechaVencimiento, 103),
+                                 '. Subí el comprobante para marcarlo como pagado.'), 300)
+              FROM GastoResponsables gr
+              INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+              INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
+              INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+              INNER JOIN Usuarios u ON u.IdInquilino = p.IdInquilino
+              WHERE gp.IdGastoPropiedad = @IdGastoPropiedad AND gr.Responsable = 'Inquilino'
+                AND gr.Monto > ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0)
+                AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = u.IdUsuario AND n.IdGastoResponsable = gr.IdGastoResponsable)",
+            new { IdGastoPropiedad = idGastoPropiedad },
+            transaction);
     }
 
     public List<GastoPropiedad> ObtenerGastosPorServicioYTipo(int idPropiedad, string tipoGasto)

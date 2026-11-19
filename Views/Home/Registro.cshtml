@@ -24,12 +24,26 @@
         <input type="email" id="correo" name="correo" required />
     </div>
     <div>
-        <label for="telefono">Telefono:</label>
-        <input type="tel" id="telefono" name="telefono" required />
+        <label for="telefono">Teléfono:</label>
+        <div class="phone-field">
+            <select id="codigoPais" name="codigoPais" aria-label="País">
+                @foreach (var pais in OSO.Models.TelefonoFormato.Paises)
+                {
+                    <option value="@pais.Codigo" data-digitos="@pais.Digitos" data-ejemplo="@pais.Ejemplo">@pais.Nombre (+@pais.Codigo)</option>
+                }
+            </select>
+            <input type="tel" id="telefono" name="telefono" required inputmode="numeric"
+                   placeholder="11-2345-6789"
+                   title="Ingresá el número con código de área; los guiones se agregan solos" />
+        </div>
     </div>
     <div>
         <label for="contrasena">Contraseña:</label>
-        <input type="password" id="contrasena" name="contrasena" required />
+        <input type="password" id="contrasena" name="contrasena" required minlength="8" />
+        <ul class="password-rules" id="passwordRules">
+            <li data-rule="len">Mínimo 8 caracteres</li>
+            <li data-rule="special">Al menos 1 carácter especial (ej: ! * # $ %)</li>
+        </ul>
     </div>
     <div>
         <label for="confirmarContrasena">Confirmar Contraseña:</label>

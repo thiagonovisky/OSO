@@ -146,6 +146,36 @@ public class HomeController : Controller
             return View("Registro");
         }
 
+        string telefonoTexto = (Request.Form["telefono"].ToString() ?? "").Replace("-", "").Replace(" ", "").Trim();
+        PaisTelefono? pais = TelefonoFormato.BuscarPais(Request.Form["codigoPais"].ToString());
+        string? errorValidacion = null;
+        if (pais == null)
+        {
+            errorValidacion = "Elegí un país para el teléfono.";
+        }
+        else if (!System.Text.RegularExpressions.Regex.IsMatch(telefonoTexto, @"^\d+$")
+                 || telefonoTexto.Length != pais.Digitos)
+        {
+            errorValidacion = $"El teléfono de {pais.Nombre} debe tener {pais.Digitos} dígitos, incluido el código de área.";
+        }
+        else if (usuario.Contrasena.Length < 8
+                 || !usuario.Contrasena.Any(c => !char.IsLetterOrDigit(c)))
+        {
+            errorValidacion = "La contraseña debe tener al menos 8 caracteres y 1 carácter especial.";
+        }
+        else if (usuario.Contrasena != Request.Form["confirmarContrasena"].ToString())
+        {
+            errorValidacion = "Las contraseñas no coinciden.";
+        }
+
+        if (errorValidacion != null)
+        {
+            ViewBag.Error = errorValidacion;
+            ViewBag.ReturnUrl = returnUrl;
+            return View("Registro");
+        }
+
+        usuario.Telefono = TelefonoFormato.Componer(pais!.Codigo, telefonoTexto);
         usuario.Correo = usuario.Correo.Trim();
         if (bd.verificarUsuario(new Usuario { Correo = usuario.Correo }) != null)
         {

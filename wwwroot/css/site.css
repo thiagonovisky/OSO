@@ -657,20 +657,14 @@ button[type="reset"]:hover,
   background: var(--bg);
 }
 
+/* ===================== 7.1 Landing (Index) ===================== */
 /* La landing ocupa todo el ancho, sin márgenes laterales */
 .main--landing {
-  padding: 0;
-}
-
-
-/* ===================== 7.1 Landing (Index) ===================== */
-.landing {
   --landing-text: #4B5563;
   --landing-blue-chip: #C7E3FF;
   --landing-gray: #E2F2F9;
   --landing-step: #5C91BA;
-  width: 100%;
-  background: var(--bg);
+  padding: 0;
   color: #000;
 }
 
@@ -2527,4 +2521,89 @@ a.cal-cell:hover {
   .msj-add-btn {
     width: 100%;
   }
+}
+
+
+/* Ojito de contraseña */
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 44px;
+  box-sizing: border-box;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #666;
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: #000;
+  background: transparent;
+}
+
+
+/* Requisitos de contraseña */
+.password-rules {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.password-rules li {
+  color: #777;
+  padding-left: 24px;
+  position: relative;
+}
+
+.password-rules li::before {
+  content: "○";
+  position: absolute;
+  left: 0;
+}
+
+.password-rules li.is-ok {
+  color: #1a7f37;
+}
+
+.password-rules li.is-ok::before {
+  content: "✔";
+}
+
+
+/* Teléfono con selector de país */
+.phone-field {
+  display: flex;
+  gap: 8px;
+}
+
+.phone-field select {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 45%;
+}
+
+.phone-field input {
+  flex: 1 1 auto;
+  min-width: 0;
 }
