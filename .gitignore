@@ -280,3 +280,9 @@ bdoso_local.sql
 
 # Archivos temporales de Playwright
 .playwright-mcp/
+
+# Documentación de trabajo (no subir)
+docs/
+
+# Contratos subidos por los usuarios (no subir)
+App_Data/
