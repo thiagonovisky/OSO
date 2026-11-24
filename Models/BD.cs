@@ -211,6 +211,38 @@ public class BD
         return filas > 0;
     }
 
+    // Guarda lo que devolvió la IA (o el error) para poder auditar y reprocesar.
+    public void GuardarExtraccion(int idContrato, string modelo, string? json, string estado, string? error)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute(
+            @"INSERT INTO ExtraccionesContrato (IdContrato, Modelo, ResultadoJson, Estado, Error)
+              VALUES (@IdContrato, @Modelo, @Json, @Estado, @Error)",
+            new
+            {
+                IdContrato = idContrato,
+                Modelo = modelo.Length > 50 ? modelo[..50] : modelo,
+                Json = json,
+                Estado = estado,
+                Error = error != null && error.Length > 500 ? error[..500] : error
+            });
+    }
+
+    // JSON de la última extracción exitosa, o null si no hubo.
+    public string? ObtenerUltimaExtraccion(int idContrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.QueryFirstOrDefault<string?>(
+            "SELECT TOP 1 ResultadoJson FROM ExtraccionesContrato WHERE IdContrato = @IdContrato AND Estado = 'Ok' ORDER BY IdExtraccion DESC",
+            new { IdContrato = idContrato });
+    }
+
+    public List<Gastos> ObtenerCatalogoGastos()
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<Gastos>("SELECT * FROM Gastos ORDER BY IdGasto").AsList();
+    }
+
     public void GuardarNombreArchivoContrato(int idContrato, string nombreArchivo)
     {
         using SqlConnection connection = new(connectionString);

@@ -1,6 +1,7 @@
 @model OSO.Models.Propiedades
 @{
     var contrato = ViewBag.Contrato as OSO.Models.Contratos;
+    var enCurso = ViewBag.ContratoEnCurso as OSO.Models.Contratos;
 }
 
 <h2>Contrato</h2>
@@ -23,6 +24,18 @@
         <p><strong>Fecha inicio:</strong> @contrato.FechaInicio.ToString("dd/MM/yyyy")</p>
         <p><strong>Fecha fin:</strong> @contrato.FechaFin.ToString("dd/MM/yyyy")</p>
         <p><strong>Alquiler:</strong> @string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", contrato.MontoAlquiler)</p>
+        @if (!string.IsNullOrEmpty(contrato.ArchivoContrato))
+        {
+            <p><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@contrato.IdContrato" target="_blank">Ver el archivo del contrato</a></p>
+        }
+    </div>
+}
+else if (enCurso != null)
+{
+    <div class="alert alert-warning">
+        @(enCurso.Estado == "Borrador"
+            ? "Hay un contrato en borrador: falta que lo revises y lo confirmes."
+            : "El contrato está esperando que el inquilino lo acepte.")
     </div>
 }
 else
@@ -31,9 +44,14 @@ else
 }
 
 <div class="contrato-actions">
-    @if (contrato == null)
+    @if (contrato == null && enCurso == null)
     {
-        <a asp-action="CrearContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Crear contrato</a>
+        <a asp-action="SubirContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Subir contrato (IA)</a>
+        <a asp-action="CrearContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Cargar a mano</a>
+    }
+    else if (enCurso != null)
+    {
+        <a asp-action="RevisarContrato" asp-controller="Home" asp-route-idContrato="@enCurso.IdContrato" class="btn btn-primary">@(enCurso.Estado == "Borrador" ? "Seguir revisando" : "Ver contrato")</a>
     }
     <a asp-action="Propiedades" asp-controller="Home" class="btn btn-primary">Volver</a>
 </div>

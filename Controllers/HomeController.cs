@@ -12,10 +12,12 @@ public class HomeController : Controller
     private readonly ILogger<HomeController> _logger;
     private readonly IDataProtector _protectorInvitaciones;
     private readonly BD bd = new();
+    private readonly ExtractorContratoGemini _extractor;
 
-    public HomeController(ILogger<HomeController> logger, IDataProtectionProvider dataProtectionProvider)
+    public HomeController(ILogger<HomeController> logger, IDataProtectionProvider dataProtectionProvider, ExtractorContratoGemini extractor)
     {
         _logger = logger;
+        _extractor = extractor;
         _protectorInvitaciones = dataProtectionProvider.CreateProtector("OSO.InvitacionPropiedad");
     }
 
@@ -759,19 +761,154 @@ public class HomeController : Controller
         }
 
         ViewBag.Propiedad = propiedad;
+        ViewBag.Inquilinos = ObtenerInquilinosParaContrato(propiedad);
+        return View(propiedad);
+    }
 
-        // Si ya hay un inquilino vinculado, el contrato sólo puede ser con él.
+    // Si ya hay un inquilino vinculado, el contrato sólo puede ser con él.
+    private List<Usuario> ObtenerInquilinosParaContrato(Propiedades propiedad)
+    {
         if (propiedad.IdInquilino.HasValue)
         {
             Usuario? inquilinoActual = bd.ObtenerUsuarioPorIdInquilino(propiedad.IdInquilino.Value);
-            ViewBag.Inquilinos = inquilinoActual != null ? new List<Usuario> { inquilinoActual } : new List<Usuario>();
-        }
-        else
-        {
-            ViewBag.Inquilinos = bd.ObtenerInquilinosDisponibles();
+            return inquilinoActual != null ? new List<Usuario> { inquilinoActual } : new List<Usuario>();
         }
 
+        return bd.ObtenerInquilinosDisponibles();
+    }
+
+    // Devuelve el inquilino con el que se puede hacer el contrato, o null si el elegido no corresponde.
+    private int? ElegirInquilinoParaContrato(Propiedades propiedad, int idInquilino)
+    {
+        int idElegido = propiedad.IdInquilino ?? idInquilino;
+        return ObtenerInquilinosParaContrato(propiedad).Any(i => i.IdInquilino == idElegido) ? idElegido : null;
+    }
+
+    [HttpGet]
+    public IActionResult SubirContrato(int idPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
+
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        if (bd.ObtenerContratoActivoPorPropiedad(idPropiedad) != null || bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad) != null)
+        {
+            return RedirectToAction("Contrato", new { idPropiedad });
+        }
+
+        ViewBag.Inquilinos = ObtenerInquilinosParaContrato(propiedad);
         return View(propiedad);
+    }
+
+    // Sube el contrato, lo lee con Gemini y deja un Borrador listo para revisar.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(11_534_336)] // 10 MB del archivo + lo que ocupa el resto del formulario
+    public async Task<IActionResult> SubirContrato(int idPropiedad, int idInquilino, IFormFile? archivo)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
+
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        string? error = ArchivosContrato.Validar(archivo);
+        int? idInquilinoContrato = ElegirInquilinoParaContrato(propiedad, idInquilino);
+        if (error == null && idInquilinoContrato == null)
+        {
+            error = "Debe seleccionar un inquilino para crear el contrato.";
+        }
+
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("SubirContrato", new { idPropiedad });
+        }
+
+        int idContrato;
+        try
+        {
+            idContrato = bd.CrearContratoBorrador(idPropiedad, idInquilinoContrato!.Value);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return RedirectToAction("Contrato", new { idPropiedad });
+        }
+
+        bd.GuardarNombreArchivoContrato(idContrato, ArchivosContrato.Guardar(idContrato, archivo!));
+
+        List<Gastos> catalogo = bd.ObtenerCatalogoGastos();
+        using var memoria = new MemoryStream();
+        await archivo!.CopyToAsync(memoria);
+
+        var (json, errorIa) = await _extractor.ExtraerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(archivo.FileName), catalogo.Select(g => g.TipoGasto));
+        ResultadoExtraccion resultado = ResultadoExtraccion.Parsear(json);
+        bool leyoAlgo = json != null && (resultado.Gastos.Count > 0 || resultado.ConfianzaPorCampo().Values.Any(c => c > 0));
+
+        if (!leyoAlgo)
+        {
+            bd.GuardarExtraccion(idContrato, _extractor.Modelo, null, "Error", errorIa ?? "La respuesta de la IA no tenía datos del contrato.");
+            TempData["Error"] = "No pudimos leer el contrato; completalo a mano.";
+            return RedirectToAction("RevisarContrato", new { idContrato });
+        }
+
+        bd.GuardarExtraccion(idContrato, _extractor.Modelo, json, "Ok", null);
+
+        Contratos contrato = bd.ObtenerContratoPorId(idContrato)!;
+        ResultadoExtraccion.AplicarA(resultado, contrato);
+        bd.GuardarDatosContrato(contrato);
+        bd.GuardarReglasGasto(idContrato, ResultadoExtraccion.ReglasDesde(resultado, catalogo));
+
+        TempData["Success"] = "Leímos el contrato. Revisá los datos marcados antes de confirmar.";
+        return RedirectToAction("RevisarContrato", new { idContrato });
+    }
+
+    // El archivo solo lo bajan el propietario de la propiedad o el inquilino del contrato.
+    [HttpGet]
+    public IActionResult DescargarContrato(int idContrato)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+
+        if (!idPropietario.HasValue && !idInquilino.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        if (!bd.EsParteDelContrato(idContrato, idPropietario, idInquilino))
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        Contratos? contrato = bd.ObtenerContratoPorId(idContrato);
+        string? ruta = ArchivosContrato.ObtenerRuta(contrato?.ArchivoContrato);
+        if (contrato == null || ruta == null)
+        {
+            TempData["Error"] = "Este contrato no tiene un archivo cargado.";
+            return RedirectToAction("Propiedades");
+        }
+
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return PhysicalFile(ruta, ArchivosContrato.ObtenerTipoMime(contrato.ArchivoContrato!));
     }
 
     [HttpPost]
@@ -793,8 +930,8 @@ public class HomeController : Controller
         }
 
         // Una propiedad tiene un único inquilino: si ya hay uno, se usa siempre ése.
-        int idInquilinoContrato = propiedad.IdInquilino ?? idInquilino;
-        if (idInquilinoContrato <= 0 || (!propiedad.IdInquilino.HasValue && bd.ObtenerInquilinosDisponibles().All(i => i.IdInquilino != idInquilinoContrato)))
+        int? idInquilinoContrato = ElegirInquilinoParaContrato(propiedad, idInquilino);
+        if (idInquilinoContrato == null)
         {
             TempData["Error"] = "Debe seleccionar un inquilino para crear el contrato.";
             return RedirectToAction("CrearContrato", new { idPropiedad });
@@ -803,7 +940,7 @@ public class HomeController : Controller
         // El contrato nace en Borrador: se completa y se confirma en la pantalla de revisión.
         try
         {
-            int idContrato = bd.CrearContratoBorrador(idPropiedad, idInquilinoContrato);
+            int idContrato = bd.CrearContratoBorrador(idPropiedad, idInquilinoContrato.Value);
             return RedirectToAction("RevisarContrato", new { idContrato });
         }
         catch (InvalidOperationException ex)
