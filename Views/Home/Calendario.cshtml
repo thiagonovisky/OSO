@@ -43,7 +43,7 @@
                             <span class="cal-cell__day @(dia.EsHoy ? "is-today" : "")">@dia.Fecha.Day</span>
                             @foreach (var ev in dia.Eventos)
                             {
-                                <span class="cal-chip" title="@ev.Titulo (@ev.HoraInicio.ToString(@"hh\:mm")–@ev.HoraFin.ToString(@"hh\:mm"))">@ev.Titulo</span>
+                                <span class="cal-chip cal-chip--@ev.Tipo.ToLowerInvariant()" title="@ev.Titulo (@ev.HoraInicio.ToString(@"hh\:mm")–@ev.HoraFin.ToString(@"hh\:mm"))">@ev.Titulo</span>
                             }
                         </div>
                     }
@@ -54,7 +54,7 @@
                             <span class="cal-cell__day @(dia.EsHoy ? "is-today" : "")">@dia.Fecha.Day</span>
                             @foreach (var ev in dia.Eventos)
                             {
-                                <span class="cal-chip" title="@ev.Titulo">@(ev.NombrePropiedad ?? ev.Titulo)</span>
+                                <span class="cal-chip cal-chip--@ev.Tipo.ToLowerInvariant()" title="@ev.Titulo">@(ev.Tipo == "Manual" ? (ev.NombrePropiedad ?? ev.Titulo) : ev.Titulo)</span>
                             }
                         </a>
                     }

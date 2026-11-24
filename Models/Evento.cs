@@ -14,6 +14,11 @@ public class Evento
     public string? Descripcion { get; set; }
     public string? NombrePropiedad { get; set; }
 
+    // Los eventos que arma el contrato (y los vencimientos de gastos) tienen Tipo distinto de "Manual" y no se editan a mano.
+    public int? IdContrato { get; set; }
+    public int? IdGastoPropiedad { get; set; }
+    public string Tipo { get; set; } = "Manual";
+
     // Devuelve el mensaje de error, o null si el evento es válido.
     public string? Validar()
     {

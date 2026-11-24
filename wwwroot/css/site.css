@@ -2747,3 +2747,30 @@ a.cal-cell:hover {
   max-width: 420px;
   margin: 8px 0 12px;
 }
+
+/* Color por tipo de evento del calendario (los manuales conservan el estilo base) */
+.cal-chip--vencimientoalquiler {
+  border-color: var(--blue-main);
+  background: var(--blue-main-12);
+}
+
+.cal-chip--ajuste {
+  border-color: var(--warning);
+  background: rgba(235, 180, 0, 0.18);
+}
+
+.cal-chip--avisofincontrato,
+.cal-chip--fincontrato {
+  border-color: var(--danger-soft);
+  background: rgba(217, 74, 74, 0.12);
+}
+
+.cal-chip--devoluciondeposito {
+  border-color: var(--success);
+  background: rgba(52, 168, 83, 0.14);
+}
+
+.cal-chip--vencimientogasto {
+  border-color: var(--gold-soft);
+  background: rgba(237, 200, 127, 0.3);
+}

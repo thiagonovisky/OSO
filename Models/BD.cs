@@ -467,6 +467,9 @@ public class BD
             return false;
         }
 
+        // Con el contrato confirmado se arma el calendario de todo su plazo, en la misma transacción.
+        GenerarEventosContrato(connection, transaction, idContrato);
+
         connection.Execute(
             @"INSERT INTO Notificaciones (IdUsuario, Texto)
               SELECT u.IdUsuario, LEFT(CONCAT('El inquilino aceptó el contrato de ', p.Direccion, '. Ya está vigente.'), 300)
@@ -675,6 +678,7 @@ public class BD
                 transaction);
         }
 
+        GuardarEventoVencimientoGasto(connection, transaction, idGastoPropiedad, gasto, parteInquilino.Monto > 0);
         return idGastoPropiedad;
     }
 
@@ -850,6 +854,141 @@ public class BD
         {
             // Otra solicitud simultánea ya creó el aviso.
         }
+    }
+
+    // Avisa de los eventos que arma el contrato (vencimiento del alquiler 3 días antes, ajuste el día que corresponde,
+    // avisos y fin de contrato en su fecha). Sirve para propietario e inquilino y no duplica: lo evita UQ_Notificaciones_Evento.
+    public void GenerarNotificacionesEventos(int idUsuario, int? idPropietario, int? idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        DateTime hoy = DateTime.Today;
+
+        var eventos = connection.Query<Evento>(
+            @"SELECT e.IdEvento, e.Tipo, e.Fecha, e.Titulo, e.IdContrato, e.IdPropiedad
+              FROM Eventos e
+              INNER JOIN Propiedades p ON p.IdPropiedad = e.IdPropiedad
+              WHERE e.Tipo IN ('VencimientoAlquiler', 'Ajuste', 'AvisoFinContrato', 'FinContrato', 'DevolucionDeposito')
+                AND ((@IdPropietario IS NOT NULL AND e.IdPropietario = @IdPropietario)
+                     OR (@IdInquilino IS NOT NULL AND p.IdInquilino = @IdInquilino AND e.Invitado = 'Inquilino'))
+                AND ((e.Tipo = 'VencimientoAlquiler' AND e.Fecha BETWEEN @Hoy AND DATEADD(day, @Dias, @Hoy))
+                  OR (e.Tipo = 'Ajuste' AND e.Fecha BETWEEN DATEADD(day, -7, @Hoy) AND @Hoy)
+                  OR (e.Tipo IN ('AvisoFinContrato', 'FinContrato', 'DevolucionDeposito') AND e.Fecha BETWEEN DATEADD(day, -3, @Hoy) AND @Hoy))
+                AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = @IdUsuario AND n.IdEvento = e.IdEvento)",
+            new { IdUsuario = idUsuario, IdPropietario = idPropietario, IdInquilino = idInquilino, Hoy = hoy, Dias = DiasAvisoVencimiento }).AsList();
+
+        foreach (Evento evento in eventos)
+        {
+            string texto = $"{evento.Titulo}: {evento.Fecha:dd/MM/yyyy}.";
+
+            if (evento.Tipo == GeneradorCalendario.Ajuste)
+            {
+                string? detalle = DetalleAvisoAjuste(evento);
+                if (detalle == null)
+                {
+                    continue; // ya se aplicó o el contrato no está vigente
+                }
+
+                texto = $"{evento.Titulo}: {evento.Fecha:dd/MM/yyyy}. {detalle}";
+            }
+
+            try
+            {
+                connection.Execute(
+                    "INSERT INTO Notificaciones (IdUsuario, IdEvento, Texto) VALUES (@IdUsuario, @IdEvento, @Texto)",
+                    new { IdUsuario = idUsuario, evento.IdEvento, Texto = texto.Length > 300 ? texto[..300] : texto });
+            }
+            catch (SqlException ex) when (ex.Number is 2601 or 2627)
+            {
+                // Otra solicitud simultánea ya creó el aviso.
+            }
+        }
+    }
+
+    // Monto calculado del ajuste (o qué falta) para el aviso; null si ese ajuste ya se aplicó.
+    private string? DetalleAvisoAjuste(Evento evento)
+    {
+        Contratos? contrato = evento.IdContrato.HasValue ? ObtenerContratoPorId(evento.IdContrato.Value) : null;
+        if (contrato == null || contrato.Estado != "Confirmado" || string.IsNullOrEmpty(contrato.IndiceAjuste))
+        {
+            return null;
+        }
+
+        List<AjusteContrato> ajustes = ObtenerAjustes(contrato.IdContrato);
+        if (ajustes.Any(a => a.Fecha.Date == evento.Fecha.Date))
+        {
+            return null;
+        }
+
+        DateTime desde = ajustes.Count > 0 ? ajustes.Max(a => a.Fecha) : contrato.FechaInicio;
+        ResultadoAjuste calculo = CalculadoraAjuste.Calcular(contrato.IndiceAjuste, contrato.MontoAlquiler, desde, evento.Fecha,
+            contrato.PorcentajeFijo, ObtenerValorIndice);
+
+        return calculo.MontoNuevo.HasValue
+            ? $"Monto calculado: ${calculo.MontoNuevo.Value:0.00}."
+            : $"{calculo.Faltante}.";
+    }
+
+    // Reemplaza los eventos que arma el contrato (los manuales no se tocan). Es idempotente.
+    private static void GenerarEventosContrato(SqlConnection connection, SqlTransaction transaction, int idContrato)
+    {
+        Contratos? contrato = connection.QueryFirstOrDefault<Contratos>("SELECT * FROM Contratos WHERE IdContrato = @IdContrato", new { IdContrato = idContrato }, transaction);
+        Propiedades? propiedad = contrato == null ? null : connection.QueryFirstOrDefault<Propiedades>("SELECT * FROM Propiedades WHERE IdPropiedad = @IdPropiedad", new { contrato.IdPropiedad }, transaction);
+        if (contrato == null || propiedad == null || propiedad.IdPropietario <= 0)
+        {
+            return;
+        }
+
+        connection.Execute(
+            @"DELETE n FROM Notificaciones n INNER JOIN Eventos e ON e.IdEvento = n.IdEvento WHERE e.IdContrato = @IdContrato AND e.Tipo <> 'Manual';
+              DELETE FROM Eventos WHERE IdContrato = @IdContrato AND Tipo <> 'Manual';",
+            new { IdContrato = idContrato },
+            transaction);
+
+        connection.Execute(
+            @"INSERT INTO Eventos (IdPropietario, IdPropiedad, Titulo, Fecha, HoraInicio, HoraFin, Ubicacion, Invitado, Descripcion, IdContrato, Tipo)
+              VALUES (@IdPropietario, @IdPropiedad, @Titulo, @Fecha, @HoraInicio, @HoraFin, @Ubicacion, @Invitado, @Descripcion, @IdContrato, @Tipo)",
+            GeneradorCalendario.EventosDelContrato(contrato, propiedad.IdPropietario, propiedad.Direccion),
+            transaction);
+    }
+
+    // Un evento de vencimiento por gasto: se crea la primera vez y después se actualiza.
+    private static void GuardarEventoVencimientoGasto(SqlConnection connection, SqlTransaction transaction, int idGastoPropiedad, GastoPropiedad gasto, bool loPagaElInquilino)
+    {
+        var datos = connection.QueryFirstOrDefault<(int? IdPropietario, int IdPropiedad, string Direccion, string TipoGasto)>(
+            @"SELECT p.IdPropietario, p.IdPropiedad, p.Direccion, g.TipoGasto
+              FROM GastosPropiedad gp
+              INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+              INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
+              WHERE gp.IdGastoPropiedad = @IdGastoPropiedad",
+            new { IdGastoPropiedad = idGastoPropiedad },
+            transaction);
+
+        if (datos.IdPropietario == null)
+        {
+            return;
+        }
+
+        string titulo = GeneradorCalendario.ArmarTitulo($"Vence {datos.TipoGasto}", datos.Direccion);
+        string descripcion = $"Gasto de {gasto.Periodo:MM/yyyy}: ${gasto.Monto:0.00}.";
+
+        connection.Execute(
+            @"UPDATE Eventos SET Titulo = @Titulo, Fecha = @Fecha, Invitado = @Invitado, Descripcion = @Descripcion
+              WHERE IdGastoPropiedad = @IdGastoPropiedad AND Tipo = 'VencimientoGasto';
+              IF @@ROWCOUNT = 0
+                  INSERT INTO Eventos (IdPropietario, IdPropiedad, Titulo, Fecha, HoraInicio, HoraFin, Ubicacion, Invitado, Descripcion, Tipo, IdGastoPropiedad)
+                  VALUES (@IdPropietario, @IdPropiedad, @Titulo, @Fecha, '09:00', '10:00', @Direccion, @Invitado, @Descripcion, 'VencimientoGasto', @IdGastoPropiedad);",
+            new
+            {
+                IdGastoPropiedad = idGastoPropiedad,
+                datos.IdPropietario,
+                datos.IdPropiedad,
+                Direccion = datos.Direccion.Length > 150 ? datos.Direccion[..150] : datos.Direccion,
+                Titulo = titulo,
+                Fecha = gasto.FechaVencimiento.Date,
+                Invitado = loPagaElInquilino ? "Inquilino" : "No",
+                Descripcion = descripcion
+            },
+            transaction);
     }
 
     public int ContarNotificacionesNoLeidas(int idUsuario)
@@ -1057,6 +1196,18 @@ public class BD
     {
         var parametros = new { IdPropiedad = idPropiedad, IdGasto = idGasto };
         const string filtro = "gp.IdPropiedad = @IdPropiedad AND (@IdGasto IS NULL OR gp.IdGasto = @IdGasto)";
+
+        // Los vencimientos de esos gastos en el calendario (y sus avisos) se van con ellos.
+        connection.Execute(
+            $@"DELETE n FROM Notificaciones n
+               INNER JOIN Eventos e ON e.IdEvento = n.IdEvento
+               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = e.IdGastoPropiedad
+               WHERE {filtro}", parametros, transaction);
+
+        connection.Execute(
+            $@"DELETE e FROM Eventos e
+               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = e.IdGastoPropiedad
+               WHERE {filtro}", parametros, transaction);
 
         connection.Execute(
             $@"DELETE pg FROM Pagos pg

@@ -26,16 +26,25 @@ public class HomeController : Controller
     {
         int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
         int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
-        if (idUsuario.HasValue && idInquilino.HasValue && HttpMethods.IsGet(Request.Method))
+        if (idUsuario.HasValue && HttpMethods.IsGet(Request.Method))
         {
+            // Las notificaciones nunca deben romper la navegación.
             try
             {
-                bd.GenerarNotificacionesVencimiento(idUsuario.Value, idInquilino.Value);
+                if (idInquilino.HasValue)
+                {
+                    bd.GenerarNotificacionesVencimiento(idUsuario.Value, idInquilino.Value);
+                }
+
+                if (idInquilino.HasValue || idPropietario.HasValue)
+                {
+                    bd.GenerarNotificacionesEventos(idUsuario.Value, idPropietario, idInquilino);
+                }
             }
             catch (Exception ex)
             {
-                // Las notificaciones nunca deben romper la navegación.
                 _logger.LogError(ex, "No se pudieron generar las notificaciones de vencimiento");
             }
         }
@@ -397,6 +406,11 @@ public class HomeController : Controller
         }
 
         evento.IdPropietario = idPropietario.Value;
+
+        // Los eventos del contrato y de los gastos los arma el sistema: desde acá solo se crean manuales.
+        evento.Tipo = "Manual";
+        evento.IdContrato = null;
+        evento.IdGastoPropiedad = null;
         bd.AgregarEvento(evento);
         return RedirectToAction("Calendario", new { anio = evento.Fecha.Year, mes = evento.Fecha.Month });
     }
