@@ -230,6 +230,37 @@ public class BD
         }
     }
 
+    public DateTime? UltimoPeriodoIndice(string indice)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.ExecuteScalar<DateTime?>("SELECT MAX(Periodo) FROM IndicesAjuste WHERE Indice = @Indice", new { Indice = indice });
+    }
+
+    // true si ya hay valores diarios del ICL (no solo los del día 1 de cada mes que carga el script).
+    public bool TieneIclDiario()
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM IndicesAjuste WHERE Indice = 'ICL' AND DAY(Periodo) <> 1") > 0;
+    }
+
+    // Inserta solo los períodos que todavía no están; nunca pisa un valor cargado. Devuelve cuántos agregó.
+    public int InsertarIndicesFaltantes(string indice, IEnumerable<(DateTime Periodo, decimal Valor)> valores, string fuente)
+    {
+        var filas = valores.Where(v => v.Valor > 0).GroupBy(v => v.Periodo.Date).Select(g => new { p = g.Key.ToString("yyyy-MM-dd"), v = g.First().Valor }).ToList();
+        if (filas.Count == 0)
+        {
+            return 0;
+        }
+
+        using SqlConnection connection = new(connectionString);
+        return connection.Execute(
+            @"INSERT INTO IndicesAjuste (Indice, Periodo, Valor, Fuente)
+              SELECT @Indice, j.Periodo, j.Valor, @Fuente
+              FROM OPENJSON(@Json) WITH (Periodo date '$.p', Valor decimal(18, 6) '$.v') j
+              WHERE NOT EXISTS (SELECT 1 FROM IndicesAjuste i WHERE i.Indice = @Indice AND i.Periodo = j.Periodo)",
+            new { Indice = indice, Fuente = fuente, Json = System.Text.Json.JsonSerializer.Serialize(filas) });
+    }
+
     public List<AjusteContrato> ObtenerAjustes(int idContrato)
     {
         using SqlConnection connection = new(connectionString);
