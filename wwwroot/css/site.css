@@ -2731,3 +2731,19 @@ a.cal-cell:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.ajuste-faltante {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.ajuste-aviso {
+  display: block;
+  margin-top: 4px;
+  color: #7a5200;
+}
+
+.ajuste-form {
+  max-width: 420px;
+  margin: 8px 0 12px;
+}

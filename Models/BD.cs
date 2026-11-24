@@ -211,6 +211,97 @@ public class BD
         return filas > 0;
     }
 
+    // ---- Ajustes del alquiler ----
+
+    // Valor publicado del índice en ese período (IPC y Casa Propia: primer día del mes; ICL: el día exacto).
+    public decimal? ObtenerValorIndice(string indice, DateTime periodo)
+    {
+        using SqlConnection connection = new(connectionString);
+        try
+        {
+            return connection.ExecuteScalar<decimal?>(
+                "SELECT Valor FROM IndicesAjuste WHERE Indice = @Indice AND Periodo = @Periodo",
+                new { Indice = indice, Periodo = periodo.Date });
+        }
+        catch (SqlException ex) when (ex.Number == 208)
+        {
+            // La tabla de índices todavía no existe en esta base: se trata como índice sin cargar.
+            return null;
+        }
+    }
+
+    public List<AjusteContrato> ObtenerAjustes(int idContrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<AjusteContrato>(
+            "SELECT * FROM AjustesContrato WHERE IdContrato = @IdContrato ORDER BY Fecha DESC, IdAjuste DESC",
+            new { IdContrato = idContrato }).AsList();
+    }
+
+    // Registra el ajuste de la fecha indicada, actualiza el alquiler y avisa al inquilino.
+    // Devuelve false si ese ajuste ya estaba aplicado o el contrato no está vigente.
+    public bool AplicarAjuste(int idContrato, DateTime fechaAjuste, ResultadoAjuste calculo, decimal montoNuevo, string origen)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        Contratos? contrato = connection.QueryFirstOrDefault<Contratos>(
+            "SELECT * FROM Contratos WITH (UPDLOCK) WHERE IdContrato = @IdContrato AND Estado = 'Confirmado'",
+            new { IdContrato = idContrato },
+            transaction);
+
+        bool yaAplicado = contrato == null || connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM AjustesContrato WHERE IdContrato = @IdContrato AND Fecha = @Fecha",
+            new { IdContrato = idContrato, Fecha = fechaAjuste.Date },
+            transaction) > 0;
+
+        if (yaAplicado)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        connection.Execute(
+            @"INSERT INTO AjustesContrato (IdContrato, Fecha, MontoAnterior, MontoNuevo, MontoCalculado, Indice, ValorIndiceDesde, ValorIndiceHasta, Origen)
+              VALUES (@IdContrato, @Fecha, @MontoAnterior, @MontoNuevo, @MontoCalculado, @Indice, @ValorDesde, @ValorHasta, @Origen)",
+            new
+            {
+                IdContrato = idContrato,
+                Fecha = fechaAjuste.Date,
+                MontoAnterior = contrato!.MontoAlquiler,
+                MontoNuevo = montoNuevo,
+                MontoCalculado = calculo.MontoNuevo,
+                Indice = contrato.IndiceAjuste ?? "Otro",
+                ValorDesde = calculo.ValorDesde,
+                ValorHasta = calculo.ValorHasta,
+                Origen = origen
+            },
+            transaction);
+
+        connection.Execute("UPDATE Contratos SET MontoAlquiler = @Monto WHERE IdContrato = @IdContrato",
+            new { Monto = montoNuevo, IdContrato = idContrato }, transaction);
+
+        string detalle = calculo.ValorDesde.HasValue && calculo.ValorHasta.HasValue && calculo.ValorDesde.Value != 1m
+            ? $" Cálculo: {contrato.IndiceAjuste} {calculo.ValorHasta.Value:0.####} / {calculo.ValorDesde.Value:0.####}."
+            : string.Empty;
+
+        connection.Execute(
+            @"INSERT INTO Notificaciones (IdUsuario, Texto)
+              SELECT u.IdUsuario,
+                     LEFT(CONCAT('El alquiler de ', p.Direccion, ' se ajustó el ', CONVERT(varchar(10), @Fecha, 103), ': de $', CONVERT(varchar(20), @Anterior),
+                                 ' a $', CONVERT(varchar(20), @Nuevo), '.', @Detalle), 300)
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              INNER JOIN Usuarios u ON u.IdInquilino = c.IdInquilino
+              WHERE c.IdContrato = @IdContrato",
+            new { IdContrato = idContrato, Fecha = fechaAjuste.Date, Anterior = contrato.MontoAlquiler, Nuevo = montoNuevo, Detalle = detalle },
+            transaction);
+
+        transaction.Commit();
+        return true;
+    }
+
     // Contratos que el propietario ya confirmó y el inquilino todavía tiene que aceptar.
     public List<Contratos> ObtenerContratosPendientesDeInquilino(int idInquilino)
     {

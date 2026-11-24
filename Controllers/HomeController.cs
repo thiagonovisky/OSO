@@ -744,7 +744,96 @@ public class HomeController : Controller
         ViewBag.Propiedad = propiedad;
         ViewBag.Contrato = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
         ViewBag.ContratoEnCurso = bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad);
+
+        if (ViewBag.Contrato is Contratos vigente)
+        {
+            Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(vigente.IdInquilino);
+            ViewBag.NombreInquilino = inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido}".Trim() : $"Inquilino {vigente.IdInquilino}";
+
+            List<AjusteContrato> ajustes = bd.ObtenerAjustes(vigente.IdContrato);
+            var (fecha, _, calculo) = PrepararProximoAjuste(vigente, ajustes);
+            ViewBag.Ajustes = ajustes;
+            ViewBag.ProximoAjuste = fecha;
+            ViewBag.CalculoAjuste = calculo;
+        }
+
         return View(propiedad);
+    }
+
+    // Próxima fecha de ajuste del contrato, desde cuándo se calcula y el monto que da el índice (o qué falta).
+    private (DateTime? Fecha, DateTime Desde, ResultadoAjuste? Calculo) PrepararProximoAjuste(Contratos contrato, List<AjusteContrato> ajustes)
+    {
+        DateTime? ultimo = ajustes.Count > 0 ? ajustes.Max(a => a.Fecha) : null;
+        DateTime? proxima = CalculadoraAjuste.ProximaFecha(contrato, ultimo);
+        DateTime desde = ultimo ?? contrato.FechaInicio;
+
+        if (proxima == null || proxima.Value > contrato.FechaFin)
+        {
+            return (null, desde, null);
+        }
+
+        ResultadoAjuste calculo = CalculadoraAjuste.Calcular(contrato.IndiceAjuste!, contrato.MontoAlquiler, desde, proxima.Value,
+            contrato.PorcentajeFijo, bd.ObtenerValorIndice);
+        return (proxima, desde, calculo);
+    }
+
+    // El propietario aplica el ajuste cuando llega la fecha. Con la ley (ICL / Casa Propia) el monto es el calculado;
+    // con el DNU puede escribir otro (se guarda como Manual, junto con el calculado).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AplicarAjuste(int idContrato, decimal? montoManual)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        Contratos? contrato = bd.ObtenerContratoPorId(idContrato);
+        Propiedades? propiedad = contrato == null ? null : bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario.Value);
+        if (contrato == null || propiedad == null || contrato.Estado != "Confirmado")
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        var (fecha, _, calculo) = PrepararProximoAjuste(contrato, bd.ObtenerAjustes(idContrato));
+        if (fecha == null || calculo == null || fecha.Value.Date > DateTime.Today)
+        {
+            TempData["Error"] = "Todavía no corresponde aplicar un ajuste.";
+            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+        }
+
+        bool puedeCambiarMonto = contrato.RegimenLegal == RegimenesLegales.Dnu70;
+        decimal? montoElegido = puedeCambiarMonto && montoManual.HasValue ? Math.Round(montoManual.Value, 2) : calculo.MontoNuevo;
+
+        if (montoElegido == null)
+        {
+            TempData["Error"] = (calculo.Faltante ?? "No se pudo calcular el ajuste") + (puedeCambiarMonto ? ", o ingresá el monto a mano." : ".");
+            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+        }
+
+        if (montoElegido <= 0 || montoElegido > 9_999_999_999m)
+        {
+            TempData["Error"] = "El monto del alquiler no es válido.";
+            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+        }
+
+        bool esManual = calculo.MontoNuevo != montoElegido;
+        if (!bd.AplicarAjuste(idContrato, fecha.Value, calculo, montoElegido.Value, esManual ? "Manual" : "Calculado"))
+        {
+            TempData["Error"] = "Ese ajuste ya estaba aplicado.";
+            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+        }
+
+        string aviso = $"Ajuste aplicado: el alquiler pasa a {montoElegido.Value.ToString("C", new System.Globalization.CultureInfo("es-AR"))}.";
+        if (esManual && calculo.MontoNuevo.HasValue && CalculadoraAjuste.SeAlejaDelCalculado(montoElegido.Value, calculo.MontoNuevo.Value))
+        {
+            aviso += " Ojo: el monto se aleja más de un 5% del calculado por el índice.";
+        }
+
+        TempData["Success"] = aviso;
+        return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
     }
 
     [HttpGet]

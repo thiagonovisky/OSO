@@ -2,6 +2,11 @@
 @{
     var contrato = ViewBag.Contrato as OSO.Models.Contratos;
     var enCurso = ViewBag.ContratoEnCurso as OSO.Models.Contratos;
+    var es = new System.Globalization.CultureInfo("es-AR");
+    var ajustes = ViewBag.Ajustes as List<OSO.Models.AjusteContrato> ?? new List<OSO.Models.AjusteContrato>();
+    var proximoAjuste = ViewBag.ProximoAjuste as DateTime?;
+    var calculo = ViewBag.CalculoAjuste as OSO.Models.ResultadoAjuste;
+    bool esDnu = contrato?.RegimenLegal == OSO.Models.RegimenesLegales.Dnu70;
 }
 
 <h2>Contrato</h2>
@@ -20,15 +25,115 @@
 {
     <div class="card p-3 mb-3">
         <p><strong>Propiedad:</strong> @Model.Direccion</p>
-        <p><strong>Inquilino:</strong> @contrato.IdInquilino</p>
+        <p><strong>Inquilino:</strong> @(ViewBag.NombreInquilino ?? contrato.IdInquilino.ToString())</p>
         <p><strong>Fecha inicio:</strong> @contrato.FechaInicio.ToString("dd/MM/yyyy")</p>
         <p><strong>Fecha fin:</strong> @contrato.FechaFin.ToString("dd/MM/yyyy")</p>
-        <p><strong>Alquiler:</strong> @string.Format(new System.Globalization.CultureInfo("es-AR"), "{0:C}", contrato.MontoAlquiler)</p>
+        <p><strong>Alquiler actual:</strong> @string.Format(es, "{0:C}", contrato.MontoAlquiler)</p>
+        @if (!string.IsNullOrEmpty(contrato.RegimenLegal))
+        {
+            <p><strong>Régimen legal:</strong> @OSO.Models.ReglasContrato.NombreRegimen(contrato.RegimenLegal)</p>
+        }
         @if (!string.IsNullOrEmpty(contrato.ArchivoContrato))
         {
             <p><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@contrato.IdContrato" target="_blank">Ver el archivo del contrato</a></p>
         }
     </div>
+
+    <div class="card p-3 mb-3 ajuste-card">
+        <h3>Ajuste del alquiler</h3>
+        @if (string.IsNullOrEmpty(contrato.IndiceAjuste) || proximoAjuste == null)
+        {
+            <p>Este contrato no tiene más ajustes programados.</p>
+        }
+        else
+        {
+            <p>
+                <strong>Próximo ajuste:</strong> @proximoAjuste.Value.ToString("dd/MM/yyyy")
+                (@contrato.IndiceAjuste@(contrato.IndiceAjuste == "Fijo" ? $" {contrato.PorcentajeFijo}%" : ""), cada @contrato.FrecuenciaAjusteMeses meses)
+            </p>
+            @if (calculo?.MontoNuevo != null)
+            {
+                <p><strong>Monto calculado:</strong> @string.Format(es, "{0:C}", calculo.MontoNuevo.Value)
+                    @if (calculo.ValorDesde.HasValue && calculo.ValorHasta.HasValue && calculo.ValorDesde.Value != 1m)
+                    {
+                        <small>(@contrato.IndiceAjuste @calculo.ValorHasta.Value.ToString("0.####", es) / @calculo.ValorDesde.Value.ToString("0.####", es))</small>
+                    }
+                </p>
+            }
+            else
+            {
+                <p class="ajuste-faltante">@(calculo?.Faltante ?? "No se pudo calcular el ajuste.")</p>
+            }
+
+            @if (contrato.IndiceAjuste == "CasaPropia")
+            {
+                <p class="revision-ayuda">Cálculo a confirmar: la fuente oficial no detalla cómo se aplica el coeficiente de Casa Propia a los alquileres.</p>
+            }
+
+            @if (proximoAjuste.Value.Date <= DateTime.Today)
+            {
+                <form asp-action="AplicarAjuste" asp-controller="Home" method="post" class="ajuste-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="idContrato" value="@contrato.IdContrato" />
+                    @if (esDnu)
+                    {
+                        <label for="montoManual">Monto a aplicar (podés cambiarlo)</label>
+                        <input type="number" step="0.01" min="0.01" name="montoManual" id="montoManual" class="form-control"
+                               value="@(calculo?.MontoNuevo?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))"
+                               data-calculado="@(calculo?.MontoNuevo?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))" />
+                        <small id="avisoAjuste" class="ajuste-aviso" hidden>Ese monto se aleja más de un 5% del calculado por el índice. Se puede aplicar igual: el DNU 70/2023 no pone tope.</small>
+                    }
+                    else
+                    {
+                        <p class="revision-ayuda">Por la ley, el monto es el calculado: no se puede cambiar.</p>
+                    }
+                    <button type="submit" class="btn btn-primary" disabled="@(!esDnu && calculo?.MontoNuevo == null)">Aplicar ajuste</button>
+                </form>
+            }
+            else
+            {
+                <p class="revision-ayuda">Podés aplicarlo a partir de esa fecha.</p>
+            }
+        }
+
+        @if (ajustes.Count > 0)
+        {
+            <h4>Historial de ajustes</h4>
+            <table class="revision-tabla">
+                <thead><tr><th>Fecha</th><th>Índice</th><th>Antes</th><th>Después</th><th>Origen</th></tr></thead>
+                <tbody>
+                    @foreach (var ajuste in ajustes)
+                    {
+                        <tr>
+                            <td>@ajuste.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td>@ajuste.Indice</td>
+                            <td>@string.Format(es, "{0:C}", ajuste.MontoAnterior)</td>
+                            <td>@string.Format(es, "{0:C}", ajuste.MontoNuevo)
+                                @if (ajuste.Origen == "Manual" && ajuste.MontoCalculado.HasValue)
+                                {
+                                    <small>(calculado: @string.Format(es, "{0:C}", ajuste.MontoCalculado.Value))</small>
+                                }
+                            </td>
+                            <td>@ajuste.Origen</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <script>
+        (function () {
+            var input = document.getElementById('montoManual');
+            if (!input) { return; }
+            var calculado = parseFloat(input.dataset.calculado);
+            var aviso = document.getElementById('avisoAjuste');
+            input.addEventListener('input', function () {
+                var propuesto = parseFloat(input.value);
+                aviso.hidden = !(calculado > 0 && propuesto > 0 && Math.abs(propuesto - calculado) / calculado > 0.05);
+            });
+        })();
+    </script>
 }
 else if (enCurso != null)
 {
