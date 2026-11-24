@@ -38,7 +38,7 @@ public class BD
         using SqlConnection connection = new(connectionString);
         const string query = @"SELECT p.*,
                                       (SELECT TOP 1 c.MontoAlquiler FROM Contratos c
-                                       WHERE c.IdPropiedad = p.IdPropiedad
+                                       WHERE c.IdPropiedad = p.IdPropiedad AND c.Estado = 'Confirmado'
                                          AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
                                        ORDER BY c.FechaInicio DESC) AS AlquilerActual
                                FROM Propiedades p
@@ -58,7 +58,7 @@ public class BD
                                FROM Propiedades p
                                LEFT JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
                                OUTER APPLY (SELECT TOP 1 c.MontoAlquiler, c.FechaFin FROM Contratos c
-                                            WHERE c.IdPropiedad = p.IdPropiedad
+                                            WHERE c.IdPropiedad = p.IdPropiedad AND c.Estado = 'Confirmado'
                                               AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
                                             ORDER BY c.FechaInicio DESC) contrato
                                WHERE p.IdInquilino = @IdInquilino";
@@ -80,7 +80,7 @@ public class BD
         using SqlConnection connection = new(connectionString);
         const string query = @"SELECT p.*,
                                       (SELECT TOP 1 c.MontoAlquiler FROM Contratos c
-                                       WHERE c.IdPropiedad = p.IdPropiedad
+                                       WHERE c.IdPropiedad = p.IdPropiedad AND c.Estado = 'Confirmado'
                                          AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
                                        ORDER BY c.FechaInicio DESC) AS AlquilerActual
                                FROM Propiedades p
@@ -103,6 +103,7 @@ public class BD
         const string query = @"SELECT *
                               FROM Contratos
                               WHERE IdPropiedad = @IdPropiedad
+                                AND Estado = 'Confirmado'
                                 AND FechaInicio <= @FechaReferencia
                                 AND FechaFin >= @FechaReferencia
                               ORDER BY FechaInicio DESC";
@@ -114,57 +115,250 @@ public class BD
         });
     }
 
-    public void CrearContrato(Contratos contrato)
+    // ---------------------------------------------------------------------
+    // Contratos: Borrador -> PendienteInquilino -> Confirmado
+    // ---------------------------------------------------------------------
+
+    // Crea el contrato en Borrador con datos provisorios; se completan en la revisión.
+    public int CrearContratoBorrador(int idPropiedad, int idInquilino)
     {
         using SqlConnection connection = new(connectionString);
         connection.Open();
         using var transaction = connection.BeginTransaction();
 
-        int contratoActivo = connection.QuerySingleOrDefault<int>(
-            @"SELECT COUNT(*)
-              FROM Contratos
-              WHERE IdPropiedad = @IdPropiedad
-                AND FechaInicio <= @FechaReferencia
-                AND FechaFin >= @FechaReferencia",
-            new
-            {
-                IdPropiedad = contrato.IdPropiedad,
-                FechaReferencia = DateTime.Today.Date
-            },
-            transaction: transaction);
+        int contratosNoVencidos = connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM Contratos WHERE IdPropiedad = @IdPropiedad AND FechaFin >= @Hoy",
+            new { IdPropiedad = idPropiedad, Hoy = DateTime.Today },
+            transaction);
 
-        if (contratoActivo > 0)
+        if (contratosNoVencidos > 0)
         {
-            throw new InvalidOperationException("Ya existe un contrato activo para esta propiedad.");
+            throw new InvalidOperationException("Esta propiedad ya tiene un contrato vigente o en curso.");
         }
 
-        connection.Execute(
-            @"INSERT INTO Contratos (IdPropiedad, IdInquilino, FechaInicio, FechaFin, MontoAlquiler)
-              VALUES (@IdPropiedad, @IdInquilino, @FechaInicio, @FechaFin, @MontoAlquiler)",
+        int idContrato = connection.ExecuteScalar<int>(
+            @"INSERT INTO Contratos (IdPropiedad, IdInquilino, FechaInicio, FechaFin, MontoAlquiler, Estado)
+              VALUES (@IdPropiedad, @IdInquilino, @FechaInicio, @FechaFin, 1, 'Borrador');
+              SELECT CAST(SCOPE_IDENTITY() AS int);",
             new
             {
-                IdPropiedad = contrato.IdPropiedad,
-                IdInquilino = contrato.IdInquilino,
-                FechaInicio = contrato.FechaInicio.Date,
-                FechaFin = contrato.FechaFin.Date,
-                MontoAlquiler = contrato.MontoAlquiler
+                IdPropiedad = idPropiedad,
+                IdInquilino = idInquilino,
+                FechaInicio = DateTime.Today,
+                FechaFin = DateTime.Today.AddMonths(24)
             },
-            transaction: transaction);
+            transaction);
 
-        connection.Execute(
-            @"UPDATE Propiedades
-              SET IdInquilino = @IdInquilino,
-                  Estado = 'Ocupada'
-              WHERE IdPropiedad = @IdPropiedad",
+        transaction.Commit();
+        return idContrato;
+    }
+
+    public Contratos? ObtenerContratoPorId(int idContrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.QueryFirstOrDefault<Contratos>("SELECT * FROM Contratos WHERE IdContrato = @IdContrato", new { IdContrato = idContrato });
+    }
+
+    // El contrato Borrador o PendienteInquilino de la propiedad, si hay uno.
+    public Contratos? ObtenerContratoEnCursoPorPropiedad(int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.QueryFirstOrDefault<Contratos>(
+            @"SELECT TOP 1 * FROM Contratos
+              WHERE IdPropiedad = @IdPropiedad AND Estado IN ('Borrador', 'PendienteInquilino')
+              ORDER BY IdContrato DESC",
+            new { IdPropiedad = idPropiedad });
+    }
+
+    // Guarda los datos que se completan en la revisión. Solo mientras el contrato es Borrador.
+    public bool GuardarDatosContrato(Contratos c)
+    {
+        using SqlConnection connection = new(connectionString);
+        int filas = connection.Execute(
+            @"UPDATE Contratos
+              SET FechaInicio = @FechaInicio, FechaFin = @FechaFin, MontoAlquiler = @MontoAlquiler,
+                  FechaFirma = @FechaFirma, RegimenLegal = @RegimenLegal, Destino = @Destino, Moneda = @Moneda,
+                  IndiceAjuste = @IndiceAjuste, FrecuenciaAjusteMeses = @FrecuenciaAjusteMeses,
+                  FechaPrimerAjuste = @FechaPrimerAjuste, PorcentajeFijo = @PorcentajeFijo,
+                  DiaVencimiento = @DiaVencimiento, MedioPago = @MedioPago, PunitorioDiario = @PunitorioDiario,
+                  MontoDeposito = @MontoDeposito, MonedaDeposito = @MonedaDeposito, TipoGarantia = @TipoGarantia,
+                  PreavisoRescisionDias = @PreavisoRescisionDias, CondicionesRescision = @CondicionesRescision
+              WHERE IdContrato = @IdContrato AND Estado = 'Borrador'",
             new
             {
-                IdInquilino = contrato.IdInquilino,
-                IdPropiedad = contrato.IdPropiedad
-            },
-            transaction: transaction);
+                c.IdContrato,
+                FechaInicio = c.FechaInicio.Date,
+                FechaFin = c.FechaFin.Date,
+                c.MontoAlquiler,
+                FechaFirma = c.FechaFirma?.Date,
+                c.RegimenLegal,
+                c.Destino,
+                c.Moneda,
+                c.IndiceAjuste,
+                c.FrecuenciaAjusteMeses,
+                FechaPrimerAjuste = c.FechaPrimerAjuste?.Date,
+                c.PorcentajeFijo,
+                c.DiaVencimiento,
+                c.MedioPago,
+                c.PunitorioDiario,
+                c.MontoDeposito,
+                c.MonedaDeposito,
+                c.TipoGarantia,
+                c.PreavisoRescisionDias,
+                c.CondicionesRescision
+            });
+
+        return filas > 0;
+    }
+
+    public void GuardarNombreArchivoContrato(int idContrato, string nombreArchivo)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute("UPDATE Contratos SET ArchivoContrato = @Archivo WHERE IdContrato = @IdContrato",
+            new { Archivo = nombreArchivo, IdContrato = idContrato });
+    }
+
+    // Todos los tipos de gasto del catálogo; los que el contrato no define salen con el responsable por defecto.
+    public List<ReglaGasto> ObtenerReglasGasto(int idContrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<ReglaGasto>(
+            @"SELECT g.IdGasto, g.TipoGasto,
+                     ISNULL(r.Responsable, g.ResponsableDefault) AS Responsable,
+                     ISNULL(r.PorcentajeInquilino, CASE g.ResponsableDefault WHEN 'Inquilino' THEN 100 ELSE 0 END) AS PorcentajeInquilino,
+                     ISNULL(r.Origen, 'Default') AS Origen,
+                     r.TextoClausula, r.Confianza
+              FROM Gastos g
+              LEFT JOIN ContratoResponsabilidadGasto r ON r.IdGasto = g.IdGasto AND r.IdContrato = @IdContrato
+              ORDER BY g.IdGasto",
+            new { IdContrato = idContrato }).AsList();
+    }
+
+    public void GuardarReglasGasto(int idContrato, IEnumerable<ReglaGasto> reglas)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        foreach (ReglaGasto regla in reglas)
+        {
+            string texto = regla.TextoClausula ?? string.Empty;
+            connection.Execute(
+                @"MERGE ContratoResponsabilidadGasto AS destino
+                  USING (SELECT @IdContrato AS IdContrato, @IdGasto AS IdGasto) AS origen
+                     ON destino.IdContrato = origen.IdContrato AND destino.IdGasto = origen.IdGasto
+                  WHEN MATCHED THEN UPDATE SET Responsable = @Responsable, PorcentajeInquilino = @Porcentaje,
+                       Origen = @Origen, TextoClausula = @TextoClausula, Confianza = @Confianza
+                  WHEN NOT MATCHED THEN INSERT (IdContrato, IdGasto, Responsable, PorcentajeInquilino, Origen, TextoClausula, Confianza)
+                       VALUES (@IdContrato, @IdGasto, @Responsable, @Porcentaje, @Origen, @TextoClausula, @Confianza);",
+                new
+                {
+                    IdContrato = idContrato,
+                    regla.IdGasto,
+                    regla.Responsable,
+                    Porcentaje = regla.PorcentajeEfectivoInquilino,
+                    regla.Origen,
+                    TextoClausula = texto.Length == 0 ? null : (texto.Length > 1000 ? texto[..1000] : texto),
+                    Confianza = regla.Confianza.HasValue ? Math.Round(Math.Clamp(regla.Confianza.Value, 0m, 1m), 2) : (decimal?)null
+                },
+                transaction);
+        }
 
         transaction.Commit();
     }
+
+    // El propietario confirma: pasa a PendienteInquilino y se le avisa al inquilino.
+    public bool ConfirmarPorPropietario(int idContrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        int filas = connection.Execute(
+            "UPDATE Contratos SET Estado = 'PendienteInquilino', ConfirmadoPorPropietario = 1 WHERE IdContrato = @IdContrato AND Estado = 'Borrador'",
+            new { IdContrato = idContrato },
+            transaction);
+
+        if (filas > 0)
+        {
+            connection.Execute(
+                @"INSERT INTO Notificaciones (IdUsuario, Texto)
+                  SELECT u.IdUsuario,
+                         LEFT(CONCAT('Tu propietario cargó el contrato de ', p.Direccion, '. Revisalo y aceptalo para dejarlo vigente.'), 300)
+                  FROM Contratos c
+                  INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+                  INNER JOIN Usuarios u ON u.IdInquilino = c.IdInquilino
+                  WHERE c.IdContrato = @IdContrato",
+                new { IdContrato = idContrato },
+                transaction);
+        }
+
+        transaction.Commit();
+        return filas > 0;
+    }
+
+    // El inquilino acepta: el contrato queda Confirmado y se vincula a la propiedad.
+    public bool AceptarPorInquilino(int idContrato, int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        int filas = connection.Execute(
+            @"UPDATE Contratos SET Estado = 'Confirmado', ConfirmadoPorInquilino = 1
+              WHERE IdContrato = @IdContrato AND IdInquilino = @IdInquilino AND Estado = 'PendienteInquilino'",
+            new { IdContrato = idContrato, IdInquilino = idInquilino },
+            transaction);
+
+        if (filas == 0)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        // Si la propiedad ya la tomó otro inquilino, el contrato no se puede aceptar.
+        int vinculadas = connection.Execute(
+            @"UPDATE p SET p.IdInquilino = @IdInquilino, p.Estado = 'Ocupada'
+              FROM Propiedades p
+              INNER JOIN Contratos c ON c.IdPropiedad = p.IdPropiedad
+              WHERE c.IdContrato = @IdContrato AND (p.IdInquilino IS NULL OR p.IdInquilino = @IdInquilino)",
+            new { IdContrato = idContrato, IdInquilino = idInquilino },
+            transaction);
+
+        if (vinculadas == 0)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        connection.Execute(
+            @"INSERT INTO Notificaciones (IdUsuario, Texto)
+              SELECT u.IdUsuario, LEFT(CONCAT('El inquilino aceptó el contrato de ', p.Direccion, '. Ya está vigente.'), 300)
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              INNER JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
+              WHERE c.IdContrato = @IdContrato",
+            new { IdContrato = idContrato },
+            transaction);
+
+        transaction.Commit();
+        return true;
+    }
+
+    // El propietario ve el contrato en cualquier estado; el inquilino, recién cuando se le pide aceptarlo.
+    public bool EsParteDelContrato(int idContrato, int? idPropietario, int? idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.ExecuteScalar<int>(
+            @"SELECT COUNT(*)
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              WHERE c.IdContrato = @IdContrato
+                AND (p.IdPropietario = @IdPropietario
+                     OR (c.IdInquilino = @IdInquilino AND c.Estado IN ('PendienteInquilino', 'Confirmado')))",
+            new { IdContrato = idContrato, IdPropietario = idPropietario, IdInquilino = idInquilino }) > 0;
+    }
+
 
     public List<Usuario> ObtenerInquilinosDisponibles()
     {

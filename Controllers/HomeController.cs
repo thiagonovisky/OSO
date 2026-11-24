@@ -732,6 +732,7 @@ public class HomeController : Controller
 
         ViewBag.Propiedad = propiedad;
         ViewBag.Contrato = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
+        ViewBag.ContratoEnCurso = bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad);
         return View(propiedad);
     }
 
@@ -752,7 +753,7 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        if (bd.ObtenerContratoActivoPorPropiedad(idPropiedad) != null)
+        if (bd.ObtenerContratoActivoPorPropiedad(idPropiedad) != null || bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad) != null)
         {
             return RedirectToAction("Contrato", new { idPropiedad });
         }
@@ -775,7 +776,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult GuardarContrato(int idPropiedad, int idInquilino, DateTime fechaInicio, DateTime fechaFin, decimal montoAlquiler)
+    public IActionResult GuardarContrato(int idPropiedad, int idInquilino)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -791,35 +792,25 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        var contrato = new Contratos
+        // Una propiedad tiene un único inquilino: si ya hay uno, se usa siempre ése.
+        int idInquilinoContrato = propiedad.IdInquilino ?? idInquilino;
+        if (idInquilinoContrato <= 0 || (!propiedad.IdInquilino.HasValue && bd.ObtenerInquilinosDisponibles().All(i => i.IdInquilino != idInquilinoContrato)))
         {
-            IdPropiedad = idPropiedad,
-            // Una propiedad tiene un único inquilino: si ya hay uno, se usa siempre ése.
-            IdInquilino = propiedad.IdInquilino ?? idInquilino,
-            FechaInicio = fechaInicio,
-            FechaFin = fechaFin,
-            MontoAlquiler = montoAlquiler
-        };
-
-        string? error = contrato.Validar();
-        if (error != null)
-        {
-            TempData["Error"] = error;
+            TempData["Error"] = "Debe seleccionar un inquilino para crear el contrato.";
             return RedirectToAction("CrearContrato", new { idPropiedad });
         }
 
+        // El contrato nace en Borrador: se completa y se confirma en la pantalla de revisión.
         try
         {
-            bd.CrearContrato(contrato);
-            TempData["Success"] = "Contrato creado con éxito.";
+            int idContrato = bd.CrearContratoBorrador(idPropiedad, idInquilinoContrato);
+            return RedirectToAction("RevisarContrato", new { idContrato });
         }
         catch (InvalidOperationException ex)
         {
             TempData["Error"] = ex.Message;
-            return RedirectToAction("CrearContrato", new { idPropiedad });
+            return RedirectToAction("Contrato", new { idPropiedad });
         }
-
-        return RedirectToAction("Contrato", new { idPropiedad });
     }
 
     [HttpGet]

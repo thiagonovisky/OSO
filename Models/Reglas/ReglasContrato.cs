@@ -60,6 +60,19 @@ public static class ReglasContrato
         _ => null
     };
 
+    // Calcula el régimen desde la fecha de firma y, si la ley lo impone, fuerza el índice y la frecuencia.
+    public static void AplicarRegimen(Contratos c)
+    {
+        c.RegimenLegal = c.FechaFirma.HasValue ? CalcularRegimen(c.FechaFirma.Value) : null;
+
+        var forzado = AjusteForzado(c.RegimenLegal);
+        if (forzado.HasValue)
+        {
+            c.IndiceAjuste = forzado.Value.Indice;
+            c.FrecuenciaAjusteMeses = forzado.Value.FrecuenciaMeses;
+        }
+    }
+
     public static string NombreRegimen(string? regimen) => regimen switch
     {
         RegimenesLegales.Ley27551 => "Ley 27.551 (firmado hasta el 17/10/2023)",
