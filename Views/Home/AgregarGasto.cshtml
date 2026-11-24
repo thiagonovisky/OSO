@@ -1,9 +1,8 @@
 @model OSO.Models.GastoPropiedad
 @{
     var propiedad = ViewBag.Propiedad as OSO.Models.Propiedades;
-    var tipo = ViewBag.Tipo as string;
-    var tipos = ViewBag.Tipos as List<OSO.Models.Gastos> ?? new List<OSO.Models.Gastos>();
-    var idGasto = tipos.FirstOrDefault(t => t.TipoGasto == tipo)?.IdGasto ?? 0;
+    var tipoGasto = ViewBag.TipoGasto as OSO.Models.Gastos;
+    var tipo = tipoGasto?.TipoGasto;
 }
 
 <h2>Agregar gasto para @tipo</h2>
@@ -13,11 +12,15 @@
     <p>Propiedad: @propiedad.Direccion</p>
 }
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
 <form asp-action="GuardarGasto" asp-controller="Home" method="post" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
     <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
-    <input type="hidden" name="idGasto" value="@idGasto" />
-    <input type="hidden" name="tipo" value="@tipo" />
+    <input type="hidden" name="idGasto" value="@tipoGasto?.IdGasto" />
 
     <div>
         <label>Tipo de gasto</label>
@@ -31,7 +34,7 @@
 
     <div>
         <label>Monto</label>
-        <input type="number" name="monto" step="0.01" min="0" required class="form-control" />
+        <input type="number" name="monto" step="0.01" min="0.01" required class="form-control" />
     </div>
 
     <div>
@@ -60,7 +63,7 @@
 
     <div>
         <label>Comprobante</label>
-        <input type="file" name="comprobanteArchivo" accept="image/*,.pdf" class="form-control" />
+        <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
     </div>
 
     <button type="submit" class="btn btn-primary">Guardar gasto</button>

@@ -1,0 +1,9 @@
+@model OSO.Models.Contacto
+@if (!string.IsNullOrEmpty(Model.FotoPerfil))
+{
+    <img class="msj-avatar" src="@Url.Content("~/imagenes/" + Model.FotoPerfil)" alt="" />
+}
+else
+{
+    <span class="msj-avatar msj-avatar--iniciales" aria-hidden="true">@Model.Iniciales</span>
+}

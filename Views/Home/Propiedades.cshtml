@@ -20,7 +20,7 @@
     <div class="alert alert-danger">@TempData["Error"]</div>
 }
 
-@if (Model != null && Model.Any())
+@if (Model != null && Model.Count > 0)
 {
     foreach (var propiedad in Model)
     {
@@ -29,20 +29,12 @@
                 <div class="summary-detail">
                     <div class="summary-media">
                         <div class="summary-header">
-                            <h3>Propiedad</h3>
+                            <h3>@propiedad.Direccion</h3>
                         </div>
                         <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="summary-image" alt="@propiedad.Direccion" />
                     </div>
 
                     <div class="summary-info">
-                        <div class="summary-info-row">
-                            <span class="label">Nombre:</span>
-                            <span class="value">@propiedad.Direccion</span>
-                        </div>
-                        <div class="summary-info-row">
-                            <span class="label">Dirección:</span>
-                            <span class="value">@propiedad.Direccion</span>
-                        </div>
                         <div class="summary-info-row">
                             <span class="label">Superficie:</span>
                             <span class="value">@propiedad.Superficie m²</span>

@@ -7,7 +7,7 @@
     <p>@TempData["Mensaje"]</p>
 }
 
-@if (Model != null && Model.Any())
+@if (Model != null && Model.Count > 0)
 {
     <table class="table table-striped mt-3">
         <thead>
@@ -38,7 +38,7 @@
                             <form asp-action="PagarGasto" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="idGastoResponsable" value="@gasto.IdGastoResponsable" />
-                                <input type="file" name="comprobanteArchivo" accept="image/*,.pdf" class="form-control form-control-sm" required />
+                                <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
                                 <button type="submit" class="btn btn-success btn-sm">Pagar</button>
                             </form>
                         }

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
-using Dapper;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -130,90 +129,42 @@ public class HomeController : Controller
     }
 
     [HttpPost]
-    public IActionResult Registrar(Usuario usuario, bool esPropietario, string? returnUrl, IFormFile? fotoPerfil)
+    [ValidateAntiForgeryToken]
+    public IActionResult Registrar(Usuario usuario, bool esPropietario, string? returnUrl, IFormFile? fotoPerfil,
+                                   string? confirmarContrasena, string? codigoPais, string? telefono)
     {
+        ViewBag.ReturnUrl = returnUrl;
+
         // Quien viene desde un link de invitación siempre se registra como inquilino.
-        bool desdeInvitacion = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl);
-        if (desdeInvitacion)
+        if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
         {
             esPropietario = false;
         }
 
-        if (string.IsNullOrWhiteSpace(usuario.Correo) || string.IsNullOrWhiteSpace(usuario.Contrasena))
+        string? error = usuario.ValidarYPrepararRegistro(confirmarContrasena, codigoPais, telefono)
+                        ?? GestorArchivos.ValidarImagenOpcional(fotoPerfil);
+
+        if (error == null && bd.ObtenerUsuarioPorCorreo(usuario.Correo) != null)
         {
-            ViewBag.Error = "Debe completar correo y contraseña.";
-            ViewBag.ReturnUrl = returnUrl;
+            error = "Ya existe una cuenta con ese correo. Iniciá sesión.";
+        }
+
+        if (error != null)
+        {
+            ViewBag.Error = error;
             return View("Registro");
         }
 
-        string telefonoTexto = (Request.Form["telefono"].ToString() ?? "").Replace("-", "").Replace(" ", "").Trim();
-        PaisTelefono? pais = TelefonoFormato.BuscarPais(Request.Form["codigoPais"].ToString());
-        string? errorValidacion = null;
-        if (pais == null)
-        {
-            errorValidacion = "Elegí un país para el teléfono.";
-        }
-        else if (!System.Text.RegularExpressions.Regex.IsMatch(telefonoTexto, @"^\d+$")
-                 || telefonoTexto.Length != pais.Digitos)
-        {
-            errorValidacion = $"El teléfono de {pais.Nombre} debe tener {pais.Digitos} dígitos, incluido el código de área.";
-        }
-        else if (usuario.Contrasena.Length < 8
-                 || !usuario.Contrasena.Any(c => !char.IsLetterOrDigit(c)))
-        {
-            errorValidacion = "La contraseña debe tener al menos 8 caracteres y 1 carácter especial.";
-        }
-        else if (usuario.Contrasena != Request.Form["confirmarContrasena"].ToString())
-        {
-            errorValidacion = "Las contraseñas no coinciden.";
-        }
-
-        if (errorValidacion != null)
-        {
-            ViewBag.Error = errorValidacion;
-            ViewBag.ReturnUrl = returnUrl;
-            return View("Registro");
-        }
-
-        usuario.Telefono = TelefonoFormato.Componer(pais!.Codigo, telefonoTexto);
-        usuario.Correo = usuario.Correo.Trim();
-        if (bd.verificarUsuario(new Usuario { Correo = usuario.Correo }) != null)
-        {
-            ViewBag.Error = "Ya existe una cuenta con ese correo. Iniciá sesión.";
-            ViewBag.ReturnUrl = returnUrl;
-            return View("Registro");
-        }
-
-        if (fotoPerfil != null && fotoPerfil.Length > 0)
-        {
-            string fotosPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "imagenes");
-            Directory.CreateDirectory(fotosPath);
-
-            string extension = Path.GetExtension(fotoPerfil.FileName);
-            string nombreArchivo = $"perfil_{usuario.Correo}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
-            string rutaArchivo = Path.Combine(fotosPath, nombreArchivo);
-
-            using (var stream = new FileStream(rutaArchivo, FileMode.Create))
-            {
-                fotoPerfil.CopyTo(stream);
-            }
-
-            usuario.FotoPerfil = nombreArchivo;
-        }
-        else
-        {
-            usuario.FotoPerfil = null;
-        }
-
-        string contrasenaPlana = usuario.Contrasena;
-        usuario.Contrasena = PasswordHashService.HashPassword(contrasenaPlana);
+        usuario.FotoPerfil = GestorArchivos.TieneContenido(fotoPerfil)
+            ? GestorArchivos.Guardar(fotoPerfil!, GestorArchivos.CarpetaImagenes, $"perfil_{usuario.Correo}")
+            : null;
+        usuario.Contrasena = PasswordHashService.HashPassword(usuario.Contrasena);
         bd.RegistrarUsuario(usuario, esPropietario);
 
-        Usuario? usuarioCreado = bd.verificarUsuario(new Usuario { Correo = usuario.Correo });
+        Usuario? usuarioCreado = bd.ObtenerUsuarioPorCorreo(usuario.Correo);
         if (usuarioCreado == null)
         {
             ViewBag.Error = "No se pudo crear la cuenta. Intentá de nuevo.";
-            ViewBag.ReturnUrl = returnUrl;
             return View("Registro");
         }
 
@@ -228,6 +179,7 @@ public class HomeController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public IActionResult IniciarSesion(string correo, string contrasena, string? returnUrl)
     {
         ViewBag.ReturnUrl = returnUrl;
@@ -238,7 +190,7 @@ public class HomeController : Controller
             return View("Login");
         }
 
-        Usuario? usuario = bd.verificarUsuario(new Usuario { Correo = correo.Trim() });
+        Usuario? usuario = bd.ObtenerUsuarioPorCorreo(correo.Trim());
         if (usuario == null || !PasswordHashService.VerifyPassword(contrasena, usuario.Contrasena))
         {
             ViewBag.Error = "Nombre de usuario o contraseña incorrectos.";
@@ -333,13 +285,11 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) != null)
         {
-            return RedirectToAction("Propiedades");
+            bd.QuitarInquilinoDePropiedad(idPropiedad);
         }
 
-        bd.QuitarInquilinoDePropiedad(idPropiedad);
         return RedirectToAction("Propiedades");
     }
 
@@ -356,17 +306,18 @@ public class HomeController : Controller
 
         List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idActual.Value);
 
+        // Las propiedades con inquilino muestran sus datos; las libres, el link para invitar a uno.
         var links = new Dictionary<int, string>();
         var inquilinos = new Dictionary<int, Usuario?>();
-        foreach (Propiedades p in propiedades)
+        foreach (Propiedades propiedad in propiedades)
         {
-            if (p.IdInquilino.HasValue)
+            if (propiedad.IdInquilino.HasValue)
             {
-                inquilinos[p.IdPropiedad] = bd.ObtenerUsuarioPorIdInquilino(p.IdInquilino.Value);
+                inquilinos[propiedad.IdPropiedad] = bd.ObtenerUsuarioPorIdInquilino(propiedad.IdInquilino.Value);
             }
             else
             {
-                links[p.IdPropiedad] = Url.Action("Invitacion", "Home", new { token = GenerarTokenInvitacion(p.IdPropiedad) }, Request.Scheme)!;
+                links[propiedad.IdPropiedad] = Url.Action("Invitacion", "Home", new { token = GenerarTokenInvitacion(propiedad.IdPropiedad) }, Request.Scheme)!;
             }
         }
 
@@ -385,21 +336,25 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
+        DateTime primerDia = CalendarioMes.ObtenerPrimerDia(anio, mes);
         DateTime hoy = DateTime.Today;
-        DateTime primerDia = new(anio ?? hoy.Year, mes ?? hoy.Month, 1);
-        ViewBag.Mes = primerDia;
+        const int cantidadProximos = 5;
 
         // El inquilino ve el calendario en modo lectura: sin agregar ni modificar eventos.
         if (!idPropietario.HasValue)
         {
-            ViewBag.SoloLectura = true;
-            ViewBag.Proximos = bd.ObtenerProximosEventosInquilino(idInquilino!.Value, hoy, 5);
-            return View(bd.ObtenerEventosPorInquilino(idInquilino.Value, primerDia, primerDia.AddMonths(1)));
+            return View(new CalendarioMes(
+                primerDia,
+                bd.ObtenerEventosPorInquilino(idInquilino!.Value, primerDia, primerDia.AddMonths(1)),
+                bd.ObtenerProximosEventosInquilino(idInquilino.Value, hoy, cantidadProximos),
+                soloLectura: true));
         }
 
-        ViewBag.SoloLectura = false;
-        ViewBag.Proximos = bd.ObtenerProximosEventos(idPropietario.Value, hoy, 5);
-        return View(bd.ObtenerEventosPorPropietario(idPropietario.Value, primerDia, primerDia.AddMonths(1)));
+        return View(new CalendarioMes(
+            primerDia,
+            bd.ObtenerEventosPorPropietario(idPropietario.Value, primerDia, primerDia.AddMonths(1)),
+            bd.ObtenerProximosEventos(idPropietario.Value, hoy, cantidadProximos),
+            soloLectura: false));
     }
 
     [HttpGet]
@@ -425,16 +380,15 @@ public class HomeController : Controller
             return RedirectToAction("Calendario");
         }
 
-        if (string.IsNullOrWhiteSpace(evento.Titulo) || evento.HoraFin <= evento.HoraInicio)
+        string? error = evento.Validar();
+        if (error != null)
         {
-            TempData["Error"] = string.IsNullOrWhiteSpace(evento.Titulo)
-                ? "El título es obligatorio."
-                : "La hora de fin debe ser posterior a la de inicio.";
+            TempData["Error"] = error;
             return RedirectToAction("AgregarEvento", new { fecha = evento.Fecha.ToString("yyyy-MM-dd") });
         }
 
-        if (evento.IdPropiedad.HasValue &&
-            !bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value).Any(p => p.IdPropiedad == evento.IdPropiedad.Value))
+        // Sólo se puede asociar el evento a una propiedad propia.
+        if (evento.IdPropiedad.HasValue && bd.ObtenerPropiedadDePropietario(evento.IdPropiedad.Value, idPropietario.Value) == null)
         {
             evento.IdPropiedad = null;
         }
@@ -453,18 +407,11 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        List<Contacto> contactos = bd.ObtenerContactos(
-            idUsuario.Value,
-            HttpContext.Session.GetInt32("IdPropietario"),
-            HttpContext.Session.GetInt32("IdInquilino"));
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
 
-        ViewBag.IdUsuario = idUsuario.Value;
-        ViewBag.EsPropietario = HttpContext.Session.GetString("EsPropietario") == "true";
-
-        // Sólo se puede abrir el chat con alguien que esté en la lista de contactos.
-        Contacto? activo = con.HasValue ? contactos.FirstOrDefault(c => c.IdUsuario == con.Value) : null;
-        ViewBag.Activo = activo;
-
+        // Sólo se puede abrir el chat con alguien que sea contacto del usuario.
+        Contacto? activo = con.HasValue ? bd.ObtenerContacto(idUsuario.Value, idPropietario, idInquilino, con.Value) : null;
         if (activo != null)
         {
             bd.MarcarMensajesComoLeidos(idUsuario.Value, activo.IdUsuario);
@@ -472,7 +419,10 @@ public class HomeController : Controller
             ViewBag.Mensajes = bd.ObtenerConversacion(idUsuario.Value, activo.IdUsuario);
         }
 
-        return View(contactos);
+        ViewBag.Activo = activo;
+        ViewBag.IdUsuario = idUsuario.Value;
+        ViewBag.EsPropietario = idPropietario.HasValue;
+        return View(bd.ObtenerContactos(idUsuario.Value, idPropietario, idInquilino));
     }
 
     [HttpPost]
@@ -485,22 +435,22 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        texto = texto?.Trim();
-        bool esContacto = bd.ObtenerContactos(
-                idUsuario.Value,
-                HttpContext.Session.GetInt32("IdPropietario"),
-                HttpContext.Session.GetInt32("IdInquilino"))
-            .Any(c => c.IdUsuario == idReceptor);
+        Contacto? receptor = bd.ObtenerContacto(
+            idUsuario.Value,
+            HttpContext.Session.GetInt32("IdPropietario"),
+            HttpContext.Session.GetInt32("IdInquilino"),
+            idReceptor);
 
-        if (esContacto && !string.IsNullOrEmpty(texto))
+        if (receptor != null && Mensaje.EsTextoValido(texto))
         {
-            bd.EnviarMensaje(idUsuario.Value, idReceptor, texto.Length > 1000 ? texto[..1000] : texto);
+            bd.EnviarMensaje(idUsuario.Value, idReceptor, texto!.Trim());
         }
 
         return RedirectToAction("Mensajeria", new { con = idReceptor });
     }
 
-    public IActionResult Expensas(){
+    public IActionResult Expensas()
+    {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
         if (!idPropietario.HasValue)
@@ -508,12 +458,12 @@ public class HomeController : Controller
             return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
-        List<GastoPropiedad> expensas = bd.ObtenerExpensasPorIdPropietario(idPropietario.Value);
-        return View(expensas);
+        return View(bd.ObtenerExpensasPorIdPropietario(idPropietario.Value));
     }
 
     [HttpGet]
-    public IActionResult AgregarExpensa(){
+    public IActionResult AgregarExpensa()
+    {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
         if (!idPropietario.HasValue)
@@ -536,10 +486,16 @@ public class HomeController : Controller
             return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) == null)
         {
             return RedirectToAction("Propiedades");
+        }
+
+        string? error = expensa.Validar();
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("AgregarExpensa");
         }
 
         expensa.FechaAlta = expensa.FechaAlta == default ? DateTime.Today : expensa.FechaAlta.Date;
@@ -560,26 +516,25 @@ public class HomeController : Controller
             return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
-        if (comprobanteArchivo == null || comprobanteArchivo.Length == 0)
+        string? error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
+        if (error != null)
         {
-            TempData["Mensaje"] = "Debe adjuntar un comprobante para confirmar el pago.";
+            TempData["Mensaje"] = error;
             return RedirectToAction("Expensas");
         }
 
-        string comprobantesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "comprobantes");
-        Directory.CreateDirectory(comprobantesPath);
+        string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_expensa_{idGastoResponsable}");
 
-        string extension = Path.GetExtension(comprobanteArchivo.FileName);
-        string nombreArchivo = $"pago_expensa_{idGastoResponsable}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
-        string rutaArchivo = Path.Combine(comprobantesPath, nombreArchivo);
-
-        using (var stream = new FileStream(rutaArchivo, FileMode.Create))
+        if (bd.MarcarExpensaComoPagada(idGastoResponsable, idPropietario.Value, comprobante))
         {
-            comprobanteArchivo.CopyTo(stream);
+            TempData["Mensaje"] = "Pago confirmado correctamente.";
+        }
+        else
+        {
+            GestorArchivos.Borrar(GestorArchivos.CarpetaComprobantes, comprobante);
+            TempData["Mensaje"] = "No se pudo registrar el pago de esa expensa.";
         }
 
-        bd.MarcarExpensaComoPagada(idGastoResponsable, idPropietario.Value, nombreArchivo);
-        TempData["Mensaje"] = "Pago confirmado correctamente.";
         return RedirectToAction("Expensas");
     }
 
@@ -606,37 +561,22 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        if (comprobanteArchivo == null || comprobanteArchivo.Length == 0)
+        string? error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
+        if (error != null)
         {
-            TempData["Mensaje"] = "Debe adjuntar un comprobante para confirmar el pago.";
+            TempData["Mensaje"] = error;
             return RedirectToAction("MisGastos");
         }
 
-        string extension = Path.GetExtension(comprobanteArchivo.FileName).ToLowerInvariant();
-        if (!new[] { ".jpg", ".jpeg", ".png", ".pdf", ".webp" }.Contains(extension))
-        {
-            TempData["Mensaje"] = "El comprobante debe ser una imagen o un PDF.";
-            return RedirectToAction("MisGastos");
-        }
+        string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_gasto_{idGastoResponsable}");
 
-        string comprobantesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "comprobantes");
-        Directory.CreateDirectory(comprobantesPath);
-
-        string nombreArchivo = $"pago_gasto_{idGastoResponsable}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
-        string rutaArchivo = Path.Combine(comprobantesPath, nombreArchivo);
-
-        using (var stream = new FileStream(rutaArchivo, FileMode.Create))
-        {
-            comprobanteArchivo.CopyTo(stream);
-        }
-
-        if (bd.PagarGastoInquilino(idGastoResponsable, idInquilino.Value, nombreArchivo))
+        if (bd.PagarGastoInquilino(idGastoResponsable, idInquilino.Value, comprobante))
         {
             TempData["Mensaje"] = "Pago registrado. El comprobante quedó pendiente de verificación.";
         }
         else
         {
-            System.IO.File.Delete(rutaArchivo);
+            GestorArchivos.Borrar(GestorArchivos.CarpetaComprobantes, comprobante);
             TempData["Mensaje"] = "No se pudo registrar el pago de ese gasto.";
         }
 
@@ -652,42 +592,44 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        var notificaciones = bd.ObtenerNotificaciones(idUsuario.Value);
+        List<Notificacion> notificaciones = bd.ObtenerNotificaciones(idUsuario.Value);
         bd.MarcarNotificacionesComoLeidas(idUsuario.Value);
         return View(notificaciones);
     }
 
     public IActionResult AgregarPropiedad()
     {
+        if (!HttpContext.Session.GetInt32("IdPropietario").HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
         return View();
     }
 
-    public IActionResult AgregarP(Propiedades propiedad, IFormFile foto)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AgregarP(Propiedades propiedad, IFormFile? foto)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
-        if (idPropietario.HasValue)
+        if (!idPropietario.HasValue)
         {
-            propiedad.IdPropietario = idPropietario.Value;
+            return RedirectToAction("Login");
         }
 
-        if (foto != null && foto.Length > 0)
+        string? error = propiedad.Validar() ?? GestorArchivos.ValidarImagenOpcional(foto);
+        if (error != null)
         {
-            string nombreArchivo = Path.GetFileName(foto.FileName);
-            string ruta = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "imagenes", nombreArchivo);
-
-            using (var stream = new FileStream(ruta, FileMode.Create))
-            {
-                foto.CopyTo(stream);
-            }
-
-            propiedad.Foto = nombreArchivo;
-        }
-        else
-        {
-            propiedad.Foto = "default.jpg";
+            TempData["Error"] = error;
+            return RedirectToAction("AgregarPropiedad");
         }
 
+        propiedad.IdPropietario = idPropietario.Value;
+        propiedad.Direccion = propiedad.Direccion.Trim();
+        propiedad.Foto = GestorArchivos.TieneContenido(foto)
+            ? GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"propiedad_{idPropietario.Value}")
+            : "default.jpg";
         propiedad.FechaDeAlta = DateTime.Today;
         propiedad.Estado = string.IsNullOrWhiteSpace(propiedad.Estado) ? "Disponible" : propiedad.Estado;
 
@@ -705,9 +647,9 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
 
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
@@ -716,6 +658,7 @@ public class HomeController : Controller
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public IActionResult GuardarEdicionPropiedad(Propiedades propiedad, IFormFile? foto)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
@@ -725,28 +668,25 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedadActual = bd.ObtenerPropiedadPorId(propiedad.IdPropiedad);
+        Propiedades? propiedadActual = bd.ObtenerPropiedadDePropietario(propiedad.IdPropiedad, idPropietario.Value);
 
-        if (propiedadActual == null || propiedadActual.IdPropietario != idPropietario.Value)
+        if (propiedadActual == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        propiedad.IdPropietario = idPropietario.Value;
-        propiedad.Foto = propiedadActual.Foto;
-
-        if (foto != null && foto.Length > 0)
+        string? error = propiedad.Validar() ?? GestorArchivos.ValidarImagenOpcional(foto);
+        if (error != null)
         {
-            string nombreArchivo = Path.GetFileName(foto.FileName);
-            string ruta = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "imagenes", nombreArchivo);
-
-            using (var stream = new FileStream(ruta, FileMode.Create))
-            {
-                foto.CopyTo(stream);
-            }
-
-            propiedad.Foto = nombreArchivo;
+            TempData["Error"] = error;
+            return RedirectToAction("EditarPropiedad", new { idPropiedad = propiedad.IdPropiedad });
         }
+
+        propiedad.IdPropietario = idPropietario.Value;
+        propiedad.Direccion = propiedad.Direccion.Trim();
+        propiedad.Foto = GestorArchivos.TieneContenido(foto)
+            ? GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"propiedad_{idPropietario.Value}")
+            : propiedadActual.Foto;
 
         bd.EditarPropiedad(propiedad);
         return RedirectToAction("Propiedades");
@@ -763,9 +703,9 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
 
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
@@ -783,17 +723,15 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
 
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        Contratos? contrato = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
         ViewBag.Propiedad = propiedad;
-        ViewBag.Contrato = contrato;
-
+        ViewBag.Contrato = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
         return View(propiedad);
     }
 
@@ -807,9 +745,9 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
 
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
@@ -846,45 +784,29 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
 
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
-        }
-
-        // Una propiedad tiene un único inquilino: si ya hay uno, se usa siempre ése.
-        if (propiedad.IdInquilino.HasValue)
-        {
-            idInquilino = propiedad.IdInquilino.Value;
-        }
-
-        if (idInquilino <= 0)
-        {
-            TempData["Error"] = "Debe seleccionar un inquilino para crear el contrato.";
-            return RedirectToAction("CrearContrato", new { idPropiedad });
-        }
-
-        if (montoAlquiler <= 0)
-        {
-            TempData["Error"] = "El monto del alquiler debe ser mayor a cero.";
-            return RedirectToAction("CrearContrato", new { idPropiedad });
-        }
-
-        if (fechaFin < fechaInicio)
-        {
-            TempData["Error"] = "La fecha de fin no puede ser anterior a la de inicio.";
-            return RedirectToAction("CrearContrato", new { idPropiedad });
         }
 
         var contrato = new Contratos
         {
             IdPropiedad = idPropiedad,
-            IdInquilino = idInquilino,
+            // Una propiedad tiene un único inquilino: si ya hay uno, se usa siempre ése.
+            IdInquilino = propiedad.IdInquilino ?? idInquilino,
             FechaInicio = fechaInicio,
             FechaFin = fechaFin,
             MontoAlquiler = montoAlquiler
         };
+
+        string? error = contrato.Validar();
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("CrearContrato", new { idPropiedad });
+        }
 
         try
         {
@@ -910,23 +832,15 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
 
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        List<Gastos> tipos = bd.ObtenerTiposGastoPorPropiedad(idPropiedad);
         ViewBag.Propiedad = propiedad;
-        ViewBag.Servicios = tipos.Select(t => new
-        {
-            IdGasto = t.IdGasto,
-            Nombre = t.TipoGasto,
-            Estado = ObtenerEstadoServicio(idPropiedad, t.TipoGasto),
-            UltimosGastos = ObtenerUltimosGastos(idPropiedad, t.TipoGasto)
-        }).ToList();
-
+        ViewBag.Servicios = bd.ObtenerServiciosDePropiedad(idPropiedad);
         return View(propiedad);
     }
 
@@ -940,25 +854,22 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
 
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        List<GastoPropiedad> gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
-
         ViewBag.Tipo = tipo;
         ViewBag.IdPropiedad = idPropiedad;
         ViewBag.Propiedad = propiedad;
-        ViewBag.Gastos = gastos;
-
+        ViewBag.Gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
         return View(propiedad);
     }
 
     [HttpGet]
-    public IActionResult AgregarGasto(int idPropiedad, string tipo)
+    public IActionResult AgregarGasto(int idPropiedad, string? tipo)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -967,15 +878,20 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
 
+        Gastos? tipoGasto = string.IsNullOrWhiteSpace(tipo) ? null : bd.ObtenerTipoGastoDePropiedad(idPropiedad, tipo);
+        if (tipoGasto == null)
+        {
+            return RedirectToAction("Servicios", new { idPropiedad });
+        }
+
         ViewBag.Propiedad = propiedad;
-        ViewBag.Tipo = tipo;
-        ViewBag.Tipos = bd.ObtenerTiposGastoPorPropiedad(idPropiedad);
+        ViewBag.TipoGasto = tipoGasto;
         return View(new GastoPropiedad
         {
             FechaAlta = DateTime.Today,
@@ -993,8 +909,8 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
@@ -1014,19 +930,14 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
+        if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        if (idGasto <= 0)
-        {
-            var tipoGasto = bd.ObtenerTiposGasto().FirstOrDefault(t => t.TipoGasto == Request.Form["tipo"]);
-            idGasto = tipoGasto?.IdGasto ?? 0;
-        }
-
-        if (idGasto <= 0)
+        Gastos? tipoGasto = bd.PropiedadTieneTipoGasto(idPropiedad, idGasto) ? bd.ObtenerTipoGastoPorId(idGasto) : null;
+        if (tipoGasto == null)
         {
             return RedirectToAction("Servicios", new { idPropiedad });
         }
@@ -1040,27 +951,27 @@ public class HomeController : Controller
             FechaAlta = DateTime.Today
         };
 
-        string? comprobante = null;
-        if (comprobanteArchivo != null && comprobanteArchivo.Length > 0)
+        string? error = mes == default ? "Debe indicar el mes del gasto." : gasto.Validar();
+        if (error == null && GestorArchivos.TieneContenido(comprobanteArchivo))
         {
-            string comprobantesPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "comprobantes");
-            Directory.CreateDirectory(comprobantesPath);
-
-            string extension = Path.GetExtension(comprobanteArchivo.FileName);
-            comprobante = $"gasto_{idPropiedad}_{idGasto}_{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
-
-            using (var stream = new FileStream(Path.Combine(comprobantesPath, comprobante), FileMode.Create))
-            {
-                comprobanteArchivo.CopyTo(stream);
-            }
+            error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
         }
 
-        // Solo se le puede asignar el gasto al inquilino si la propiedad tiene uno.
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("AgregarGasto", new { idPropiedad, tipo = tipoGasto.TipoGasto });
+        }
+
+        string? comprobante = GestorArchivos.TieneContenido(comprobanteArchivo)
+            ? GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"gasto_{idPropiedad}_{idGasto}")
+            : null;
+
+        // Sólo se le puede asignar el gasto al inquilino si la propiedad tiene uno.
         bool loPagaElInquilino = responsable == "Inquilino" && propiedad.IdInquilino.HasValue;
 
         bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante, loPagaElInquilino);
-        string? tipo = bd.ObtenerTipoGastoPorId(idGasto)?.TipoGasto;
-        return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo });
+        return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo = tipoGasto.TipoGasto });
     }
 
     [HttpPost]
@@ -1074,8 +985,7 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) == null)
         {
             return RedirectToAction("Propiedades");
         }
@@ -1086,7 +996,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult GuardarTipoGasto(int idPropiedad, string nombreTipo)
+    public IActionResult GuardarTipoGasto(int idPropiedad, string? nombreTipo)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -1095,23 +1005,20 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        if (string.IsNullOrWhiteSpace(nombreTipo))
+        if (!Gastos.EsNombreValido(nombreTipo))
         {
-            return RedirectToAction("Servicios", new { idPropiedad });
+            TempData["Error"] = $"El nombre del tipo de gasto es obligatorio y no puede superar los {Gastos.LargoMaximoNombre} caracteres.";
+            return RedirectToAction("AgregarTipoGasto", new { idPropiedad });
         }
 
-        var nombreLimpio = nombreTipo.Trim();
-        var tipoExistente = bd.ObtenerTiposGastoPorPropiedad(idPropiedad).FirstOrDefault(t => t.TipoGasto.Equals(nombreLimpio, StringComparison.OrdinalIgnoreCase));
-
-        if (tipoExistente == null)
+        if (bd.ObtenerTipoGastoDePropiedad(idPropiedad, nombreTipo!) == null)
         {
-            int nuevoId = bd.CrearTipoGasto(nombreLimpio);
+            int nuevoId = bd.CrearTipoGasto(nombreTipo!);
             bd.RegistrarTipoGastoEnPropiedad(idPropiedad, nuevoId);
         }
 
@@ -1144,30 +1051,12 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(idPropiedad);
-        if (propiedad == null || propiedad.IdPropietario != idPropietario.Value)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) != null)
         {
-            return RedirectToAction("Propiedades");
+            bd.EliminarTipoGastoDePropiedad(idPropiedad, idGasto);
         }
 
-        bd.EliminarTipoGastoDePropiedad(idPropiedad, idGasto);
         return RedirectToAction("Servicios", new { idPropiedad });
-    }
-
-    private string ObtenerEstadoServicio(int idPropiedad, string tipo)
-    {
-        List<GastoPropiedad> gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
-        return gastos.Any(g => g.Estado == "A pagar") ? "Pendiente" : (gastos.Any() ? "Al día" : "Sin registros");
-    }
-
-    private List<GastoPropiedad> ObtenerUltimosGastos(int idPropiedad, string tipo)
-    {
-        return bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo).Take(3).ToList();
-    }
-
-    public IActionResult Privacy()
-    {
-        return View();
     }
 
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]

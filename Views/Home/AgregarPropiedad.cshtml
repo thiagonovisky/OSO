@@ -1,22 +1,28 @@
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
 <form class="auth-form" action='@Url.Action("AgregarP", "Home")' method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
     <div class="form-row">
         <label for="direccion">Dirección</label>
-        <input type="text" id="direccion" name="direccion" required />
+        <input type="text" id="direccion" name="direccion" maxlength="50" required />
      </div>
 
     <div class="form-row">
         <label for="superficie">Superficie</label>
-        <input type="number" id="superficie" name="superficie" required />
+        <input type="number" id="superficie" name="superficie" min="1" required />
     </div>
 
     <div class="form-row">
         <label for="ambientes">Cantidad de Ambientes</label>
-        <input type="number" id="ambientes" name="ambientes" required />
+        <input type="number" id="ambientes" name="ambientes" min="1" required />
     </div>
 
     <div class="form-row">
 			<label for="foto">Foto</label>
-			<input type="file" id="foto" name="foto" accept="image/*" class="form-control" />
+			<input type="file" id="foto" name="foto" accept=".jpg,.jpeg,.png,.webp,.gif" class="form-control" />
 	</div>
 
     <div class="form-row">

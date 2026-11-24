@@ -2,7 +2,7 @@
 
 <h2>Notificaciones</h2>
 
-@if (Model != null && Model.Any())
+@if (Model != null && Model.Count > 0)
 {
     <ul class="list-group mt-3">
         @foreach (var n in Model)

@@ -31,4 +31,25 @@ public class GastoPropiedad
 
     // Sin pagar y con la fecha de vencimiento ya pasada
     public bool Vencido => Estado != "Pagado" && FechaVencimiento.Date < DateTime.Today;
+
+    // Devuelve el mensaje de error, o null si el gasto (o la expensa) es válido.
+    public string? Validar()
+    {
+        if (Monto <= 0)
+        {
+            return "El monto debe ser mayor a cero.";
+        }
+
+        if (FechaVencimiento == default)
+        {
+            return "La fecha de vencimiento es obligatoria.";
+        }
+
+        if ((Aclaracion?.Length ?? 0) > 255)
+        {
+            return "La aclaración no puede superar los 255 caracteres.";
+        }
+
+        return null;
+    }
 }

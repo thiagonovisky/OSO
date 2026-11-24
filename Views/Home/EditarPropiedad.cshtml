@@ -2,22 +2,28 @@
 
 <h2>Editar propiedad</h2>
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+
 <form asp-action="GuardarEdicionPropiedad" asp-controller="Home" method="post" enctype="multipart/form-data">
 	<input type="hidden" asp-for="IdPropiedad" />
 
 	<div class="mb-3">
 		<label asp-for="Direccion" class="form-label">Dirección</label>
-		<input asp-for="Direccion" class="form-control" />
+		<input asp-for="Direccion" class="form-control" maxlength="50" required />
 	</div>
 
 	<div class="mb-3">
 		<label asp-for="Superficie" class="form-label">Superficie</label>
-		<input asp-for="Superficie" type="number" class="form-control" />
+		<input asp-for="Superficie" type="number" min="1" class="form-control" required />
 	</div>
 
 	<div class="mb-3">
 		<label asp-for="Ambientes" class="form-label">Ambientes</label>
-		<input asp-for="Ambientes" class="form-control" />
+		<input asp-for="Ambientes" type="number" min="1" class="form-control" required />
 	</div>
 
 	<div class="mb-3">
@@ -37,7 +43,7 @@
 
 	<div class="mb-3">
 		<label class="form-label">Nueva foto (opcional)</label>
-		<input type="file" name="foto" class="form-control" />
+		<input type="file" name="foto" accept=".jpg,.jpeg,.png,.webp,.gif" class="form-control" />
 	</div>
 
 	<button type="submit" class="btn btn-primary">Guardar cambios</button>

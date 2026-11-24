@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace OSO.Models;
 
 public record PaisTelefono(string Nombre, string Codigo, int Digitos, string Ejemplo);
@@ -19,8 +21,21 @@ public static class TelefonoFormato
         new("Estados Unidos", "1", 10, "20-1555-0123"),
     };
 
-    public static PaisTelefono? BuscarPais(string? codigo) =>
-        Paises.FirstOrDefault(p => p.Codigo == (codigo ?? "").Trim().TrimStart('+'));
+    public static PaisTelefono? BuscarPais(string? codigo)
+    {
+        string codigoBuscado = (codigo ?? "").Trim().TrimStart('+');
+        foreach (PaisTelefono pais in Paises)
+        {
+            if (pais.Codigo == codigoBuscado)
+            {
+                return pais;
+            }
+        }
+
+        return null;
+    }
+
+    public static string SoloDigitos(string texto) => Regex.Replace(texto, @"\D", "");
 
     // Arma el valor que se guarda en la base: "+54 1180425589"
     public static string Componer(string codigoPais, string digitosNacionales) =>
@@ -45,10 +60,10 @@ public static class TelefonoFormato
             if (espacio > 0)
             {
                 string codigo = valor.Substring(0, espacio);
-                string nacional = new string(valor.Substring(espacio).Where(char.IsDigit).ToArray());
+                string nacional = SoloDigitos(valor.Substring(espacio));
                 return codigo + " " + FormatearNacional(nacional);
             }
         }
-        return FormatearNacional(new string(valor.Where(char.IsDigit).ToArray()));
+        return FormatearNacional(SoloDigitos(valor));
     }
 }

@@ -11,7 +11,7 @@
     <button type="submit">Agregar Expensa</button>
 </form>
 
-@if (Model != null && Model.Any())
+@if (Model != null && Model.Count > 0)
 {
     <table class="table table-striped mt-3">
         <thead>
@@ -41,7 +41,7 @@
                             <form asp-action="PagarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
                                 @Html.AntiForgeryToken()
                                 <input type="hidden" name="idGastoResponsable" value="@expensa.IdGastoResponsable" />
-                                <input type="file" name="comprobanteArchivo" class="form-control form-control-sm" required />
+                                <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
                                 <button type="submit" class="btn btn-success btn-sm">Confirmar pago</button>
                             </form>
                         }

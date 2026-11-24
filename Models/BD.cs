@@ -26,11 +26,11 @@ public class BD
             commandType: CommandType.StoredProcedure);
     }
 
-    public Usuario? verificarUsuario(Usuario usuario)
+    public Usuario? ObtenerUsuarioPorCorreo(string correo)
     {
         using SqlConnection connection = new(connectionString);
         const string query = "SELECT * FROM Usuarios WHERE Correo = @pCorreo";
-        return connection.QueryFirstOrDefault<Usuario>(query, new { pCorreo = usuario.Correo });
+        return connection.QueryFirstOrDefault<Usuario>(query, new { pCorreo = correo });
     }
 
     public List<Propiedades> ObtenerPropiedadesPorIdPropietario(int idPropietario)
@@ -88,6 +88,13 @@ public class BD
         return connection.QueryFirstOrDefault<Propiedades>(query, new { pIdPropiedad = idPropiedad });
     }
 
+    // Devuelve la propiedad sólo si pertenece a ese propietario.
+    public Propiedades? ObtenerPropiedadDePropietario(int idPropiedad, int idPropietario)
+    {
+        Propiedades? propiedad = ObtenerPropiedadPorId(idPropiedad);
+        return propiedad != null && propiedad.IdPropietario == idPropietario ? propiedad : null;
+    }
+
     public Contratos? ObtenerContratoActivoPorPropiedad(int idPropiedad, DateTime? fechaReferencia = null)
     {
         using SqlConnection connection = new(connectionString);
@@ -105,11 +112,6 @@ public class BD
             IdPropiedad = idPropiedad,
             FechaReferencia = fecha.Date
         });
-    }
-
-    public bool ExisteContratoActivoParaPropiedad(int idPropiedad, DateTime? fechaReferencia = null)
-    {
-        return ObtenerContratoActivoPorPropiedad(idPropiedad, fechaReferencia) != null;
     }
 
     public void CrearContrato(Contratos contrato)
@@ -162,30 +164,6 @@ public class BD
             transaction: transaction);
 
         transaction.Commit();
-    }
-
-    public List<Contratos> ObtenerContratosPorPropiedad(int idPropiedad)
-    {
-        using SqlConnection connection = new(connectionString);
-        const string query = @"SELECT *
-                              FROM Contratos
-                              WHERE IdPropiedad = @IdPropiedad
-                              ORDER BY FechaInicio DESC";
-
-        return connection.Query<Contratos>(query, new { IdPropiedad = idPropiedad }).AsList();
-    }
-
-    public void EliminarContrato(int idContrato)
-    {
-        using SqlConnection connection = new(connectionString);
-        connection.Execute("DELETE FROM Contratos WHERE IdContrato = @IdContrato", new { IdContrato = idContrato });
-    }
-
-    public Usuario? ObtenerInquilinoPorId(int idInquilino)
-    {
-        using SqlConnection connection = new(connectionString);
-        const string query = "SELECT * FROM Usuarios WHERE IdUsuario = @IdUsuario";
-        return connection.QueryFirstOrDefault<Usuario>(query, new { IdUsuario = idInquilino });
     }
 
     public List<Usuario> ObtenerInquilinosDisponibles()
@@ -486,12 +464,6 @@ public class BD
         connection.Execute("UPDATE Notificaciones SET Leida = 1 WHERE IdUsuario = @IdUsuario AND Leida = 0", new { IdUsuario = idUsuario });
     }
 
-    public List<Gastos> ObtenerTiposGasto()
-    {
-        using SqlConnection connection = new(connectionString);
-        return connection.Query<Gastos>("SELECT * FROM Gastos ORDER BY TipoGasto").AsList();
-    }
-
     private static int ObtenerOCrearTipoGasto(SqlConnection connection, SqlTransaction? transaction, string nombreTipo, string descripcion)
     {
         string nombre = nombreTipo.Trim();
@@ -575,14 +547,33 @@ public class BD
         return connection.Query<GastoPropiedad>(query, new { IdPropiedad = idPropiedad, TipoGasto = tipoGasto }).AsList();
     }
 
-    public List<GastoPropiedad> ObtenerGastosPorServicio(int idPropiedad)
+    // Tipos de gasto de la propiedad, cada uno con cuántos gastos tiene y cuántos faltan pagar.
+    public List<ServicioPropiedad> ObtenerServiciosDePropiedad(int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
-        string query = SelectGastoPropietario + @"
-            WHERE gp.IdPropiedad = @IdPropiedad
-            ORDER BY gp.Periodo DESC";
+        string queryGastos = SelectGastoPropietario + " WHERE gp.IdPropiedad = @IdPropiedad";
+        List<GastoPropiedad> gastos = connection.Query<GastoPropiedad>(queryGastos, new { IdPropiedad = idPropiedad }).AsList();
 
-        return connection.Query<GastoPropiedad>(query, new { IdPropiedad = idPropiedad }).AsList();
+        var servicios = new List<ServicioPropiedad>();
+        foreach (Gastos tipo in ObtenerTiposGastoPorPropiedad(idPropiedad))
+        {
+            var servicio = new ServicioPropiedad { IdGasto = tipo.IdGasto, Nombre = tipo.TipoGasto };
+            foreach (GastoPropiedad gasto in gastos)
+            {
+                if (gasto.IdGasto == tipo.IdGasto)
+                {
+                    servicio.CantidadGastos++;
+                    if (gasto.Estado != "Pagado")
+                    {
+                        servicio.GastosPendientes++;
+                    }
+                }
+            }
+
+            servicios.Add(servicio);
+        }
+
+        return servicios;
     }
 
     // Pagado: registra el pago de lo que falta. A pagar: anula los pagos de la parte del propietario.
@@ -690,6 +681,25 @@ public class BD
                               ORDER BY g.TipoGasto";
 
         return connection.Query<Gastos>(query, new { IdPropiedad = idPropiedad }).AsList();
+    }
+
+    public Gastos? ObtenerTipoGastoDePropiedad(int idPropiedad, string nombreTipo)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = @"SELECT g.*
+                              FROM Gastos g
+                              INNER JOIN PropiedadTipoGasto ptg ON ptg.IdGasto = g.IdGasto
+                              WHERE ptg.IdPropiedad = @IdPropiedad AND g.TipoGasto = @TipoGasto";
+
+        return connection.QueryFirstOrDefault<Gastos>(query, new { IdPropiedad = idPropiedad, TipoGasto = nombreTipo.Trim() });
+    }
+
+    public bool PropiedadTieneTipoGasto(int idPropiedad, int idGasto)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.ExecuteScalar<int>(
+            "SELECT COUNT(*) FROM PropiedadTipoGasto WHERE IdPropiedad = @IdPropiedad AND IdGasto = @IdGasto",
+            new { IdPropiedad = idPropiedad, IdGasto = idGasto }) > 0;
     }
 
     public void RegistrarTipoGastoEnPropiedad(int idPropiedad, int idGasto)
@@ -812,14 +822,10 @@ public class BD
             evento);
     }
 
-    // Contactos = inquilinos de mis propiedades + propietarios de las propiedades que alquilo
-    // + cualquiera con quien ya tenga mensajes (así la conversación no se pierde si se desvincula).
-    public List<Contacto> ObtenerContactos(int idUsuario, int? idPropietario, int? idInquilino)
-    {
-        using SqlConnection connection = new(connectionString);
-        const string query = @"SELECT u.IdUsuario, u.Nombre, u.Apellido, u.FotoPerfil,
+    private const string SelectContactos = @"SELECT u.IdUsuario, u.Nombre, u.Apellido, u.FotoPerfil,
                                       ult.Texto AS UltimoMensaje, ult.FechaEnvio AS FechaUltimoMensaje,
                                       ult.IdEmisor AS IdEmisorUltimo, ISNULL(ult.Leido, 0) AS UltimoLeido,
+                                      CAST(CASE WHEN ult.IdEmisor = @IdUsuario THEN 1 ELSE 0 END AS bit) AS UltimoEsMio,
                                       (SELECT COUNT(*) FROM Mensajes m
                                        WHERE m.IdEmisor = u.IdUsuario AND m.IdReceptor = @IdUsuario AND m.Leido = 0) AS NoLeidos
                                FROM Usuarios u
@@ -831,9 +837,24 @@ public class BD
                                WHERE u.IdUsuario <> @IdUsuario
                                  AND (u.IdInquilino IN (SELECT p.IdInquilino FROM Propiedades p WHERE p.IdPropietario = @IdPropietario)
                                    OR u.IdPropietario IN (SELECT p.IdPropietario FROM Propiedades p WHERE p.IdInquilino = @IdInquilino)
-                                   OR ult.FechaEnvio IS NOT NULL)
+                                   OR ult.FechaEnvio IS NOT NULL)";
+
+    // Contactos = inquilinos de mis propiedades + propietarios de las propiedades que alquilo
+    // + cualquiera con quien ya tenga mensajes (así la conversación no se pierde si se desvincula).
+    public List<Contacto> ObtenerContactos(int idUsuario, int? idPropietario, int? idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = SelectContactos + @"
                                ORDER BY CASE WHEN ult.FechaEnvio IS NULL THEN 1 ELSE 0 END, ult.FechaEnvio DESC, u.Nombre, u.Apellido";
         return connection.Query<Contacto>(query, new { IdUsuario = idUsuario, IdPropietario = idPropietario, IdInquilino = idInquilino }).AsList();
+    }
+
+    // Devuelve el contacto sólo si el usuario puede chatear con él.
+    public Contacto? ObtenerContacto(int idUsuario, int? idPropietario, int? idInquilino, int idContacto)
+    {
+        using SqlConnection connection = new(connectionString);
+        const string query = SelectContactos + " AND u.IdUsuario = @IdContacto";
+        return connection.QueryFirstOrDefault<Contacto>(query, new { IdUsuario = idUsuario, IdPropietario = idPropietario, IdInquilino = idInquilino, IdContacto = idContacto });
     }
 
     public List<Mensaje> ObtenerConversacion(int idUsuario, int idContacto)

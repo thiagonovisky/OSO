@@ -5,6 +5,12 @@
 
 <h2>Agregar tipo de gasto</h2>
 
+@if (TempData["Error"] != null)
+{
+    <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+
 @if (propiedad != null)
 {
     <p>Propiedad: @propiedad.Direccion</p>
@@ -16,7 +22,7 @@
 
     <div>
         <label>Nombre del tipo de gasto</label>
-        <input type="text" name="nombreTipo" class="form-control" placeholder="Ej: Internet, Mantenimiento, Seguro" required />
+        <input type="text" name="nombreTipo" class="form-control" placeholder="Ej: Internet, Mantenimiento, Seguro" maxlength="@OSO.Models.Gastos.LargoMaximoNombre" required />
     </div>
 
     <button type="submit" class="btn btn-primary">Guardar tipo</button>
