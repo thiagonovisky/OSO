@@ -29,7 +29,7 @@
             @foreach (var expensa in Model)
             {
                 <tr>
-                    <td>@expensa.NombrePropiedad</td>
+                    <td>@expensa.NombrePropiedad<br /><small>@expensa.TipoGasto</small></td>
                     <td>@expensa.Estado</td>
                     <td>@expensa.FechaVencimiento.ToString("dd/MM/yyyy")</td>
                     <td>$@expensa.Monto</td>

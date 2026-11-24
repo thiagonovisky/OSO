@@ -4,7 +4,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSession();
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(opciones =>
+    opciones.ModelBinderProviders.Insert(0, new DecimalInvarianteBinderProvider()));
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<ExtractorContratoGemini>();
 

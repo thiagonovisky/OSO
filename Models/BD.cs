@@ -459,8 +459,36 @@ public class BD
 
     private static DateTime PrimerDiaDelMes(DateTime fecha) => new(fecha.Year, fecha.Month, 1);
 
-    // Crea o actualiza el gasto del período. El total lo paga el propietario o, si se indica, el inquilino.
-    private static int GuardarGastoPropiedad(SqlConnection connection, SqlTransaction transaction, int idPropiedad, int idGasto, GastoPropiedad gasto, bool loPagaElInquilino = false)
+    // Regla vigente para un tipo de gasto en un período: la del contrato Confirmado que cubre ese mes.
+    // Sin contrato devuelve null (el gasto va todo al propietario). Con contrato pero sin regla propia, se usa el responsable por defecto del catálogo.
+    private static ReglaGasto? ObtenerReglaVigente(SqlConnection connection, SqlTransaction? transaction, int idPropiedad, int idGasto, DateTime periodo)
+    {
+        DateTime primerDia = PrimerDiaDelMes(periodo);
+        return connection.QueryFirstOrDefault<ReglaGasto>(
+            @"SELECT TOP 1 g.IdGasto, g.TipoGasto,
+                     ISNULL(r.Responsable, g.ResponsableDefault) AS Responsable,
+                     ISNULL(r.PorcentajeInquilino, CASE g.ResponsableDefault WHEN 'Inquilino' THEN 100 ELSE 0 END) AS PorcentajeInquilino,
+                     ISNULL(r.Origen, 'Default') AS Origen,
+                     r.TextoClausula, r.Confianza
+              FROM Contratos c
+              INNER JOIN Gastos g ON g.IdGasto = @IdGasto
+              LEFT JOIN ContratoResponsabilidadGasto r ON r.IdContrato = c.IdContrato AND r.IdGasto = g.IdGasto
+              WHERE c.IdPropiedad = @IdPropiedad AND c.Estado = 'Confirmado'
+                AND c.FechaInicio <= EOMONTH(@Periodo) AND c.FechaFin >= @Periodo
+              ORDER BY c.FechaInicio DESC",
+            new { IdPropiedad = idPropiedad, IdGasto = idGasto, Periodo = primerDia },
+            transaction);
+    }
+
+    public ReglaGasto? ObtenerReglaVigente(int idPropiedad, int idGasto, DateTime periodo)
+    {
+        using SqlConnection connection = new(connectionString);
+        return ObtenerReglaVigente(connection, null, idPropiedad, idGasto, periodo);
+    }
+
+    // Crea o actualiza el gasto del período y lo reparte. Si se indica un responsable (Propietario | Inquilino) el total
+    // es todo de él (Origen 'Manual'); si no, se reparte según el contrato vigente (Origen 'Regla') o va todo al propietario.
+    private static int GuardarGastoPropiedad(SqlConnection connection, SqlTransaction transaction, int idPropiedad, int idGasto, GastoPropiedad gasto, string? responsableManual = null)
     {
         DateTime periodo = PrimerDiaDelMes(gasto.Periodo);
 
@@ -495,32 +523,55 @@ public class BD
                 transaction);
         }
 
-        decimal montoPropietario = loPagaElInquilino ? 0 : gasto.Monto;
+        // Quién paga y cuánto: elección manual, regla del contrato o todo el propietario.
+        decimal porcentajeInquilino = 0m;
+        string origen = "Manual";
+        string? justificacion = null;
+        if (responsableManual is "Inquilino" or "Propietario")
+        {
+            porcentajeInquilino = responsableManual == "Inquilino" ? 100m : 0m;
+        }
+        else
+        {
+            ReglaGasto? regla = ObtenerReglaVigente(connection, transaction, idPropiedad, idGasto, periodo);
+            if (regla != null)
+            {
+                porcentajeInquilino = regla.PorcentajeEfectivoInquilino;
+                origen = "Regla";
+                justificacion = string.IsNullOrWhiteSpace(regla.TextoClausula) ? "Según el responsable habitual de este tipo de gasto." : regla.TextoClausula;
+                justificacion = justificacion.Length > 500 ? justificacion[..500] : justificacion;
+            }
+        }
+
+        List<ParteGasto> partes = RepartoGasto.Repartir(gasto.Monto, porcentajeInquilino);
+        ParteGasto parteInquilino = partes.First(p => p.Responsable == "Inquilino");
+        ParteGasto partePropietario = partes.First(p => p.Responsable == "Propietario");
+
         connection.Execute(
             @"MERGE GastoResponsables AS destino
               USING (SELECT @IdGastoPropiedad AS IdGastoPropiedad) AS origen
                  ON destino.IdGastoPropiedad = origen.IdGastoPropiedad AND destino.Responsable = 'Propietario'
-              WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = @Porcentaje
-              WHEN NOT MATCHED THEN INSERT (IdGastoPropiedad, Responsable, Monto, Porcentaje, Origen)
-                   VALUES (@IdGastoPropiedad, 'Propietario', @Monto, @Porcentaje, 'Manual');",
-            new { IdGastoPropiedad = idGastoPropiedad, Monto = montoPropietario, Porcentaje = loPagaElInquilino ? 0 : 100 },
+              WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = @Porcentaje, Origen = @Origen, Justificacion = @Justificacion
+              WHEN NOT MATCHED THEN INSERT (IdGastoPropiedad, Responsable, Monto, Porcentaje, Origen, Justificacion)
+                   VALUES (@IdGastoPropiedad, 'Propietario', @Monto, @Porcentaje, @Origen, @Justificacion);",
+            new { IdGastoPropiedad = idGastoPropiedad, partePropietario.Monto, Porcentaje = partePropietario.Porcentaje, Origen = origen, Justificacion = justificacion },
             transaction);
 
-        if (loPagaElInquilino)
+        if (parteInquilino.Monto > 0)
         {
             connection.Execute(
                 @"MERGE GastoResponsables AS destino
                   USING (SELECT @IdGastoPropiedad AS IdGastoPropiedad) AS origen
                      ON destino.IdGastoPropiedad = origen.IdGastoPropiedad AND destino.Responsable = 'Inquilino'
-                  WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = 100
-                  WHEN NOT MATCHED THEN INSERT (IdGastoPropiedad, Responsable, Monto, Porcentaje, Origen)
-                       VALUES (@IdGastoPropiedad, 'Inquilino', @Monto, 100, 'Manual');",
-                new { IdGastoPropiedad = idGastoPropiedad, gasto.Monto },
+                  WHEN MATCHED THEN UPDATE SET Monto = @Monto, Porcentaje = @Porcentaje, Origen = @Origen, Justificacion = @Justificacion
+                  WHEN NOT MATCHED THEN INSERT (IdGastoPropiedad, Responsable, Monto, Porcentaje, Origen, Justificacion)
+                       VALUES (@IdGastoPropiedad, 'Inquilino', @Monto, @Porcentaje, @Origen, @Justificacion);",
+                new { IdGastoPropiedad = idGastoPropiedad, parteInquilino.Monto, Porcentaje = parteInquilino.Porcentaje, Origen = origen, Justificacion = justificacion },
                 transaction);
         }
         else
         {
-            // Vuelve a ser del propietario: se descarta la parte del inquilino salvo que ya haya pagado algo.
+            // Todo es del propietario: se descarta la parte del inquilino salvo que ya haya pagado algo.
             connection.Execute(
                 @"DELETE n FROM Notificaciones n
                   INNER JOIN GastoResponsables gr ON gr.IdGastoResponsable = n.IdGastoResponsable
@@ -556,15 +607,40 @@ public class BD
         return filas > 0;
     }
 
-    public void AgregarExpensa(GastoPropiedad expensa, int idPropiedad)
+    // Una expensa trae dos importes: ordinarias y extraordinarias. Cada una es un gasto con su propio reparto.
+    public void AgregarExpensa(GastoPropiedad expensa, int idPropiedad, decimal montoOrdinarias, decimal montoExtraordinarias)
     {
         using SqlConnection connection = new(connectionString);
         connection.Open();
         using var transaction = connection.BeginTransaction();
 
-        int idGasto = ObtenerOCrearTipoGasto(connection, transaction, TipoExpensas, "Expensas de la propiedad");
         expensa.Periodo = PrimerDiaDelMes(expensa.FechaVencimiento);
-        GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, expensa);
+        var importes = new (string Tipo, string Descripcion, decimal Monto)[]
+        {
+            (TipoExpensas, "Expensas ordinarias", montoOrdinarias),
+            (ReglasContrato.TipoExtraordinarias, "Expensas extraordinarias del edificio", montoExtraordinarias)
+        };
+
+        foreach (var (tipo, descripcion, monto) in importes)
+        {
+            if (monto <= 0)
+            {
+                continue;
+            }
+
+            int idGasto = ObtenerOCrearTipoGasto(connection, transaction, tipo, descripcion);
+            var gasto = new GastoPropiedad
+            {
+                Periodo = expensa.Periodo,
+                Monto = monto,
+                FechaVencimiento = expensa.FechaVencimiento,
+                FechaAlta = expensa.FechaAlta,
+                Aclaracion = expensa.Aclaracion
+            };
+
+            int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto);
+            AvisarGastoNuevoAlInquilino(connection, transaction, idGastoPropiedad);
+        }
 
         transaction.Commit();
     }
@@ -573,10 +649,10 @@ public class BD
     {
         using SqlConnection connection = new(connectionString);
         string query = SelectGastoPropietario + @"
-            WHERE p.IdPropietario = @IdPropietario AND g.TipoGasto = @TipoGasto
+            WHERE p.IdPropietario = @IdPropietario AND g.TipoGasto IN (@TipoGasto, @TipoExtraordinarias)
             ORDER BY gp.FechaAlta DESC, gp.IdGastoPropiedad DESC";
 
-        return connection.Query<GastoPropiedad>(query, new { IdPropietario = idPropietario, TipoGasto = TipoExpensas }).AsList();
+        return connection.Query<GastoPropiedad>(query, new { IdPropietario = idPropietario, TipoGasto = TipoExpensas, TipoExtraordinarias = ReglasContrato.TipoExtraordinarias }).AsList();
     }
 
     // Paga la parte del propietario de un gasto (expensa), validando que la propiedad sea suya.
@@ -738,16 +814,17 @@ public class BD
     }
 
     // Crea (o actualiza) el gasto del mes. Si se indica que está pagado, registra el pago.
-    public void AgregarGasto(int idPropiedad, int idGasto, GastoPropiedad gasto, bool pagado, string? comprobante, bool loPagaElInquilino = false)
+    // responsableManual: "Propietario" o "Inquilino" para que todo sea de uno; null para repartir según el contrato.
+    public void AgregarGasto(int idPropiedad, int idGasto, GastoPropiedad gasto, bool pagado, string? comprobante, string? responsableManual = null)
     {
         using SqlConnection connection = new(connectionString);
         connection.Open();
         using var transaction = connection.BeginTransaction();
 
-        int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto, loPagaElInquilino);
+        int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto, responsableManual);
         FijarEstadoPagado(connection, transaction, idGastoPropiedad, pagado, comprobante);
 
-        if (loPagaElInquilino && !pagado)
+        if (!pagado)
         {
             AvisarGastoNuevoAlInquilino(connection, transaction, idGastoPropiedad);
         }

@@ -29,8 +29,14 @@
 	</div>
 
 	<div class="mb-3">
-		<label asp-for="Monto" class="form-label">Monto</label>
-		<input asp-for="Monto" type="number" step="0.01" min="0.01" class="form-control" required />
+		<label for="montoOrdinarias" class="form-label">Expensas ordinarias</label>
+		<input id="montoOrdinarias" name="montoOrdinarias" type="number" step="0.01" min="0" value="0" class="form-control" />
+	</div>
+
+	<div class="mb-3">
+		<label for="montoExtraordinarias" class="form-label">Expensas extraordinarias</label>
+		<input id="montoExtraordinarias" name="montoExtraordinarias" type="number" step="0.01" min="0" value="0" class="form-control" />
+		<small>Cada importe se reparte según lo que dice el contrato. Si es 0, no se crea ese gasto.</small>
 	</div>
 
 	<div class="mb-3">

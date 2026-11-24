@@ -480,7 +480,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult AgregarExpensa(GastoPropiedad expensa, int idPropiedad)
+    public IActionResult AgregarExpensa(GastoPropiedad expensa, int idPropiedad, decimal montoOrdinarias, decimal montoExtraordinarias)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -494,7 +494,15 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        string? error = expensa.Validar();
+        string? error = montoOrdinarias < 0 || montoExtraordinarias < 0
+            ? "Los importes no pueden ser negativos."
+            : montoOrdinarias + montoExtraordinarias <= 0
+                ? "Cargá al menos un importe: ordinarias o extraordinarias."
+                : null;
+
+        // Validar() controla el resto (vencimiento, aclaración) sobre el total de la expensa.
+        expensa.Monto = montoOrdinarias + montoExtraordinarias;
+        error ??= expensa.Validar();
         if (error != null)
         {
             TempData["Error"] = error;
@@ -504,7 +512,7 @@ public class HomeController : Controller
         expensa.FechaAlta = expensa.FechaAlta == default ? DateTime.Today : expensa.FechaAlta.Date;
         expensa.FechaVencimiento = expensa.FechaVencimiento.Date;
 
-        bd.AgregarExpensa(expensa, idPropiedad);
+        bd.AgregarExpensa(expensa, idPropiedad, montoOrdinarias, montoExtraordinarias);
         return RedirectToAction("Expensas");
     }
 
@@ -1325,10 +1333,15 @@ public class HomeController : Controller
             ? GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"gasto_{idPropiedad}_{idGasto}")
             : null;
 
-        // Sólo se le puede asignar el gasto al inquilino si la propiedad tiene uno.
-        bool loPagaElInquilino = responsable == "Inquilino" && propiedad.IdInquilino.HasValue;
+        // Si no se elige a nadie, el gasto se reparte según el contrato. Al inquilino solo se le asigna si la propiedad tiene uno.
+        string? responsableManual = responsable switch
+        {
+            "Propietario" => "Propietario",
+            "Inquilino" when propiedad.IdInquilino.HasValue => "Inquilino",
+            _ => null
+        };
 
-        bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante, loPagaElInquilino);
+        bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante, responsableManual);
         return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo = tipoGasto.TipoGasto });
     }
 
