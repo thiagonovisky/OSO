@@ -1,0 +1,166 @@
+@model OSO.Models.RevisionContrato
+@{
+    var c = Model.Contrato;
+    var es = new System.Globalization.CultureInfo("es-AR");
+}
+
+<div class="revision-contrato">
+    <h2>Revisar contrato</h2>
+    <p class="revision-subtitulo">
+        <strong>@Model.Propiedad.Direccion</strong> · Inquilino: <strong>@Model.NombreInquilino</strong> · Estado: <span class="revision-estado">Borrador</span>
+        @if (!string.IsNullOrEmpty(c.ArchivoContrato))
+        {
+            <text> · </text><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@c.IdContrato" target="_blank">Ver el archivo</a>
+        }
+    </p>
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    @if (Model.Errores.Count > 0)
+    {
+        <div class="revision-errores" role="alert">
+            <strong>Para confirmar hay que corregir:</strong>
+            <ul>
+                @foreach (var error in Model.Errores)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (Model.Advertencias.Count > 0)
+    {
+        <div class="revision-advertencias" role="status">
+            <strong>Tené en cuenta:</strong>
+            <ul>
+                @foreach (var advertencia in Model.Advertencias)
+                {
+                    <li>@advertencia</li>
+                }
+            </ul>
+        </div>
+    }
+
+    <p class="revision-regimen">
+        <strong>Régimen legal:</strong> @OSO.Models.ReglasContrato.NombreRegimen(c.RegimenLegal)
+        <small>(se calcula con la fecha de firma)</small>
+    </p>
+
+    <form asp-action="GuardarRevision" asp-controller="Home" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="IdContrato" value="@c.IdContrato" />
+
+        @if (Model.CamposDudosos.Count > 0)
+        {
+            <h3>Para revisar primero</h3>
+            <p class="revision-ayuda">La lectura del contrato no fue segura en estos datos.</p>
+            <div class="revision-grid">
+                @foreach (var campo in Model.CamposDudosos)
+                {
+                    <partial name="_CampoContrato" model="campo" />
+                }
+            </div>
+        }
+
+        <h3>Datos del contrato</h3>
+        <div class="revision-grid">
+            @foreach (var campo in Model.Campos)
+            {
+                <partial name="_CampoContrato" model="campo" />
+            }
+        </div>
+
+        <h3>Quién paga cada gasto</h3>
+        <div class="revision-tabla-wrap">
+            <table class="revision-tabla">
+                <thead>
+                    <tr>
+                        <th>Gasto</th>
+                        <th>Responsable</th>
+                        <th>% inquilino</th>
+                        <th>Cláusula del contrato</th>
+                        <th>Origen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < Model.Reglas.Count; i++)
+                    {
+                        var regla = Model.Reglas[i];
+                        bool dudosa = regla.Origen == "IA" && regla.Confianza < OSO.Models.ReglasContrato.UmbralBajaConfianza;
+                        <tr class="@(dudosa ? "campo-dudoso" : "")">
+                            <td>
+                                @regla.TipoGasto
+                                @if (regla.TipoGasto == OSO.Models.ReglasContrato.TipoExtraordinarias)
+                                {
+                                    <small class="revision-ayuda">Antes del DNU 70/2023 las paga el propietario; el DNU permite pactar otra cosa.</small>
+                                }
+                                <input type="hidden" name="reglas[@i].IdGasto" value="@regla.IdGasto" />
+                            </td>
+                            <td>
+                                <select name="reglas[@i].Responsable" class="form-control regla-responsable">
+                                    @foreach (var opcion in new[] { "Inquilino", "Propietario", "Compartido" })
+                                    {
+                                        <option value="@opcion" selected="@(opcion == regla.Responsable)">@opcion</option>
+                                    }
+                                </select>
+                            </td>
+                            <td>
+                                <input type="number" name="reglas[@i].PorcentajeInquilino" class="form-control regla-porcentaje" min="0" max="100" step="0.01"
+                                       value="@regla.PorcentajeEfectivoInquilino.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" />
+                            </td>
+                            <td class="revision-clausula">@(string.IsNullOrEmpty(regla.TextoClausula) ? "—" : regla.TextoClausula)</td>
+                            <td><span class="revision-origen revision-origen--@regla.Origen.ToLower()">@regla.Origen</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.Partes.Count > 0)
+        {
+            <h3>Partes y garantes que leímos</h3>
+            <p class="revision-ayuda">Solo para consultar: por ahora no se guardan como datos del contrato.</p>
+            <ul class="revision-partes">
+                @foreach (var parte in Model.Partes)
+                {
+                    <li>
+                        <strong>@parte.Rol</strong>: @parte.Nombre
+                        @if (!string.IsNullOrEmpty(parte.Documento)) { <text> · Doc. @parte.Documento</text> }
+                        @if (!string.IsNullOrEmpty(parte.Domicilio)) { <text> · @parte.Domicilio</text> }
+                        @if (!string.IsNullOrEmpty(parte.Mail)) { <text> · @parte.Mail</text> }
+                    </li>
+                }
+            </ul>
+        }
+
+        <div class="contrato-actions">
+            <button type="submit" name="accion" value="guardar" class="btn btn-secondary" formnovalidate>Guardar borrador</button>
+            <button type="submit" name="accion" value="confirmar" class="btn btn-primary">Confirmar y enviar al inquilino</button>
+            <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.Propiedad.IdPropiedad" class="btn btn-primary">Volver</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Al elegir Inquilino o Propietario el porcentaje se completa solo; Compartido lo deja editable.
+    document.querySelectorAll('.regla-responsable').forEach(function (select) {
+        var porcentaje = select.closest('tr').querySelector('.regla-porcentaje');
+        function sincronizar(cambio) {
+            if (select.value === 'Inquilino') { porcentaje.value = 100; }
+            else if (select.value === 'Propietario') { porcentaje.value = 0; }
+            else if (cambio && (porcentaje.value === '0' || porcentaje.value === '100')) { porcentaje.value = 50; }
+            porcentaje.readOnly = select.value !== 'Compartido';
+        }
+        select.addEventListener('change', function () { sincronizar(true); });
+        sincronizar(false);
+    });
+</script>

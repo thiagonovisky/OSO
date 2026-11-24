@@ -20,6 +20,22 @@
     <div class="alert alert-danger">@TempData["Error"]</div>
 }
 
+@if (TempData["Success"] != null)
+{
+    <div class="alert alert-success">@TempData["Success"]</div>
+}
+
+@if (esInquilino && ViewBag.ContratosPendientes is List<OSO.Models.Contratos> pendientes && pendientes.Count > 0)
+{
+    foreach (var pendiente in pendientes)
+    {
+        <div class="alert alert-warning contrato-pendiente">
+            Tenés un contrato para aceptar de <strong>@pendiente.Direccion</strong>.
+            <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@pendiente.IdContrato" class="btn btn-primary">Ver contrato</a>
+        </div>
+    }
+}
+
 @if (Model != null && Model.Count > 0)
 {
     foreach (var propiedad in Model)

@@ -30,6 +30,9 @@ public class Contratos
     public bool ConfirmadoPorPropietario { get; set; }
     public bool ConfirmadoPorInquilino { get; set; }
 
+    // Se carga en algunas consultas (no es una columna de Contratos)
+    public string? Direccion { get; set; }
+
     // Devuelve el primer mensaje de error, o null si el contrato es válido.
     public string? Validar(IEnumerable<ReglaGasto>? reglas = null)
     {

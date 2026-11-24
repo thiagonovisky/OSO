@@ -211,6 +211,19 @@ public class BD
         return filas > 0;
     }
 
+    // Contratos que el propietario ya confirmó y el inquilino todavía tiene que aceptar.
+    public List<Contratos> ObtenerContratosPendientesDeInquilino(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<Contratos>(
+            @"SELECT c.*, p.Direccion
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              WHERE c.IdInquilino = @IdInquilino AND c.Estado = 'PendienteInquilino'
+              ORDER BY c.IdContrato DESC",
+            new { IdInquilino = idInquilino }).AsList();
+    }
+
     // Guarda lo que devolvió la IA (o el error) para poder auditar y reprocesar.
     public void GuardarExtraccion(int idContrato, string modelo, string? json, string estado, string? error)
     {

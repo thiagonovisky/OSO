@@ -59,28 +59,39 @@ public class ResultadoExtraccion
     private static readonly string[] Garantias = { "Propietaria", "Caucion", "ReciboSueldo", "Otra" };
     private static readonly string[] Responsables = { "Inquilino", "Propietario", "Compartido" };
 
-    // Nombre del campo -> confianza, para resaltar en la revisión lo que el modelo no tiene claro.
-    public Dictionary<string, decimal> ConfianzaPorCampo() => new()
+    // Nombre del campo (el del formulario de revisión) -> confianza, para resaltar lo que el modelo no tiene claro.
+    // Solo trae los campos que el modelo encontró y los obligatorios (que, si faltan, quedan con confianza 0).
+    public Dictionary<string, decimal> ConfianzaPorCampo()
     {
-        ["FechaFirma"] = FechaFirma.Confianza,
-        ["FechaInicio"] = FechaInicio.Confianza,
-        ["FechaFin"] = FechaFin.Confianza,
-        ["FechaPrimerAjuste"] = FechaPrimerAjuste.Confianza,
-        ["MontoAlquiler"] = MontoInicial.Confianza,
-        ["PorcentajeFijo"] = PorcentajeFijo.Confianza,
-        ["PunitorioDiario"] = PunitorioDiario.Confianza,
-        ["MontoDeposito"] = MontoDeposito.Confianza,
-        ["Moneda"] = Moneda.Confianza,
-        ["IndiceAjuste"] = IndiceAjuste.Confianza,
-        ["Destino"] = Destino.Confianza,
-        ["MedioPago"] = MedioPago.Confianza,
-        ["MonedaDeposito"] = MonedaDeposito.Confianza,
-        ["TipoGarantia"] = TipoGarantia.Confianza,
-        ["CondicionesRescision"] = CondicionesRescision.Confianza,
-        ["FrecuenciaAjusteMeses"] = FrecuenciaAjusteMeses.Confianza,
-        ["DiaVencimiento"] = DiaVencimiento.Confianza,
-        ["PreavisoRescisionDias"] = PreavisoRescisionDias.Confianza
-    };
+        var campos = new Dictionary<string, decimal>();
+        void Agregar<T>(string nombre, CampoExtraido<T> campo, bool obligatorio = false)
+        {
+            if (campo.TieneValor || obligatorio)
+            {
+                campos[nombre] = campo.TieneValor ? campo.Confianza : 0m;
+            }
+        }
+
+        Agregar("FechaFirma", FechaFirma, true);
+        Agregar("FechaInicio", FechaInicio, true);
+        Agregar("FechaFin", FechaFin, true);
+        Agregar("MontoAlquiler", MontoInicial, true);
+        Agregar("FechaPrimerAjuste", FechaPrimerAjuste);
+        Agregar("PorcentajeFijo", PorcentajeFijo);
+        Agregar("PunitorioDiario", PunitorioDiario);
+        Agregar("MontoDeposito", MontoDeposito);
+        Agregar("Moneda", Moneda);
+        Agregar("IndiceAjuste", IndiceAjuste);
+        Agregar("Destino", Destino);
+        Agregar("MedioPago", MedioPago);
+        Agregar("MonedaDeposito", MonedaDeposito);
+        Agregar("TipoGarantia", TipoGarantia);
+        Agregar("CondicionesRescision", CondicionesRescision);
+        Agregar("FrecuenciaAjusteMeses", FrecuenciaAjusteMeses);
+        Agregar("DiaVencimiento", DiaVencimiento);
+        Agregar("PreavisoRescisionDias", PreavisoRescisionDias);
+        return campos;
+    }
 
     public static ResultadoExtraccion Parsear(string? json)
     {

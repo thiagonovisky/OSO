@@ -2555,3 +2555,179 @@ a.cal-cell:hover {
   flex-shrink: 1;
   min-width: 0;
 }
+
+/* ---- Revisión y lectura del contrato ---- */
+.revision-contrato {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.5% 2% 3%;
+}
+
+.revision-contrato h2,
+.revision-contrato h3 {
+  color: var(--blue-dark);
+}
+
+.revision-contrato h3 {
+  margin-top: 1.6rem;
+  font-size: 1.2rem;
+}
+
+.revision-subtitulo {
+  color: var(--blue-dark);
+}
+
+.revision-estado {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--blue-main-12);
+  color: var(--brand-primary-dark);
+  font-weight: 600;
+}
+
+.revision-regimen {
+  margin: 0.8rem 0;
+}
+
+.revision-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+
+.revision-campo label {
+  font-weight: 600;
+  color: var(--blue-dark);
+}
+
+.revision-ayuda {
+  display: block;
+  color: #5b6b7a;
+  font-size: 0.85rem;
+}
+
+.campo-dudoso {
+  padding: 8px 10px;
+  border: 1px solid var(--warning-soft);
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  background: rgba(235, 180, 0, 0.12);
+}
+
+.campo-dudoso-aviso {
+  margin-left: 6px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: var(--white);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.revision-errores,
+.revision-advertencias {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+}
+
+.revision-errores {
+  border: 1px solid var(--danger-soft);
+  background: rgba(217, 74, 74, 0.1);
+  color: var(--danger-strong);
+}
+
+.revision-advertencias {
+  border: 1px solid var(--warning-soft);
+  background: rgba(235, 180, 0, 0.14);
+  color: #7a5200;
+}
+
+.revision-errores ul,
+.revision-advertencias ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.revision-tabla-wrap {
+  overflow-x: auto;
+}
+
+.revision-tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.revision-tabla th,
+.revision-tabla td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--blue-soft-42);
+  vertical-align: top;
+  text-align: left;
+}
+
+.revision-tabla th {
+  background: var(--blue-main-12);
+  color: var(--blue-dark);
+}
+
+.revision-tabla .form-control {
+  min-width: 110px;
+}
+
+.revision-clausula {
+  max-width: 340px;
+  font-size: 0.88rem;
+  color: #3d4f5f;
+}
+
+.revision-origen {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--blue-main-12);
+  color: var(--brand-primary-dark);
+}
+
+.revision-origen--ia {
+  background: rgba(52, 168, 83, 0.14);
+  color: var(--success-alt);
+}
+
+.revision-origen--manual {
+  background: var(--warning-soft);
+  color: #7a5200;
+}
+
+.revision-partes {
+  padding-left: 20px;
+}
+
+.revision-lectura {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+}
+
+.revision-lectura p {
+  margin: 4px 0;
+}
+
+.contrato-pendiente {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+@media (max-width: 700px) {
+  .revision-grid,
+  .revision-lectura {
+    grid-template-columns: 1fr;
+  }
+}

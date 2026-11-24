@@ -1,0 +1,36 @@
+@model OSO.Models.CampoRevision
+
+<div class="form-group revision-campo @(Model.Dudoso ? "campo-dudoso" : "")">
+    <label for="@Model.Clave">
+        @Model.Etiqueta
+        @if (Model.Dudoso)
+        {
+            <span class="campo-dudoso-aviso">revisalo</span>
+        }
+    </label>
+
+    @switch (Model.Tipo)
+    {
+        case "select":
+            <select name="@Model.Clave" id="@Model.Clave" class="form-control" disabled="@Model.Bloqueado">
+                <option value="">Sin especificar</option>
+                @foreach (var opcion in Model.Opciones)
+                {
+                    <option value="@opcion" selected="@(opcion == Model.Valor)">@opcion</option>
+                }
+            </select>
+            break;
+        case "textarea":
+            <textarea name="@Model.Clave" id="@Model.Clave" class="form-control" rows="3" maxlength="1000">@Model.Valor</textarea>
+            break;
+        default:
+            <input type="@Model.Tipo" name="@Model.Clave" id="@Model.Clave" class="form-control" value="@Model.Valor"
+                   step="@Model.Paso" min="@Model.Minimo" max="@Model.Maximo" disabled="@Model.Bloqueado" required="@(Model.Clave == "FechaInicio" || Model.Clave == "FechaFin")" />
+            break;
+    }
+
+    @if (!string.IsNullOrEmpty(Model.Ayuda))
+    {
+        <small class="revision-ayuda">@Model.Ayuda</small>
+    }
+</div>
