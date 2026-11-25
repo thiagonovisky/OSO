@@ -35,6 +35,11 @@ public class GastoPropiedad
     // Sin pagar y con la fecha de vencimiento ya pasada
     public bool Vencido => Estado != "Pagado" && FechaVencimiento.Date < DateTime.Today;
 
+    // Estado de la parte de quien mira el gasto (sin importar si la otra parte ya pagó la suya).
+    public bool MiPartePagada => MontoPagado >= MontoResponsable;
+
+    public string EstadoMiParte => MiPartePagada ? "Pagado" : FechaVencimiento.Date < DateTime.Today ? "Vencido" : "A pagar";
+
     // Devuelve el mensaje de error, o null si el gasto (o la expensa) es válido.
     public string? Validar()
     {

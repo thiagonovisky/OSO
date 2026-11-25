@@ -540,7 +540,6 @@ public class HomeController : Controller
         }
 
         ViewBag.Activo = activo;
-        ViewBag.IdUsuario = idUsuario.Value;
         ViewBag.EsPropietario = idPropietario.HasValue;
         return View(bd.ObtenerContactos(idUsuario.Value, idPropietario, idInquilino));
     }
@@ -914,6 +913,7 @@ public class HomeController : Controller
             var (fecha, _, calculo) = PrepararProximoAjuste(vigente, ajustes);
             ViewBag.Ajustes = ajustes;
             ViewBag.ProximoAjuste = fecha;
+            ViewBag.PuedeAplicarAjuste = fecha.HasValue && CalculadoraAjuste.YaCorresponde(fecha.Value);
             ViewBag.CalculoAjuste = calculo;
         }
 
@@ -958,13 +958,13 @@ public class HomeController : Controller
         }
 
         var (fecha, _, calculo) = PrepararProximoAjuste(contrato, bd.ObtenerAjustes(idContrato));
-        if (fecha == null || calculo == null || fecha.Value.Date > DateTime.Today)
+        if (fecha == null || calculo == null || !CalculadoraAjuste.YaCorresponde(fecha.Value))
         {
             TempData["Error"] = "Todavía no corresponde aplicar un ajuste.";
             return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
         }
 
-        bool puedeCambiarMonto = contrato.RegimenLegal == RegimenesLegales.Dnu70;
+        bool puedeCambiarMonto = contrato.PermiteMontoManual;
         decimal? montoElegido = puedeCambiarMonto && montoManual.HasValue ? Math.Round(montoManual.Value, 2) : calculo.MontoNuevo;
 
         if (montoElegido == null)
@@ -986,7 +986,7 @@ public class HomeController : Controller
             return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
         }
 
-        string aviso = $"Ajuste aplicado: el alquiler pasa a {montoElegido.Value.ToString("C", new System.Globalization.CultureInfo("es-AR"))}.";
+        string aviso = $"Ajuste aplicado: el alquiler pasa a {Formato.Pesos(montoElegido)}.";
         if (esManual && calculo.MontoNuevo.HasValue && CalculadoraAjuste.SeAlejaDelCalculado(montoElegido.Value, calculo.MontoNuevo.Value))
         {
             aviso += " Ojo: el monto se aleja más de un 5% del calculado por el índice.";
@@ -1341,11 +1341,10 @@ public class HomeController : Controller
 
         // Reglas de gasto: solo se acepta responsable y porcentaje de tipos que existen en el contrato.
         List<ReglaGasto> reglasGuardadas = bd.ObtenerReglasGasto(guardado.IdContrato);
-        string[] responsables = { "Inquilino", "Propietario", "Compartido" };
         foreach (ReglaGasto actual in reglasGuardadas)
         {
             ReglaGasto? recibida = reglas?.FirstOrDefault(r => r.IdGasto == actual.IdGasto);
-            if (recibida == null || !responsables.Contains(recibida.Responsable))
+            if (recibida == null || !ReglaGasto.OpcionesResponsable.Contains(recibida.Responsable))
             {
                 continue;
             }
@@ -1538,6 +1537,7 @@ public class HomeController : Controller
         ViewBag.TipoGasto = tipoGasto;
         return View(new GastoPropiedad
         {
+            Periodo = DateTime.Today,
             FechaAlta = DateTime.Today,
             FechaVencimiento = DateTime.Today.AddDays(15)
         });

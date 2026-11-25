@@ -29,7 +29,7 @@
 
     <div>
         <label>Mes</label>
-        <input type="date" name="mes" value="@DateTime.Today.ToString("yyyy-MM-dd")" required class="form-control" />
+        <input type="date" name="mes" value="@Model.Periodo.ToString("yyyy-MM-dd")" required class="form-control" />
     </div>
 
     <div>
@@ -39,7 +39,7 @@
 
     <div>
         <label>Fecha de vencimiento</label>
-        <input type="date" name="fechaVencimiento" value="@DateTime.Today.AddDays(15).ToString("yyyy-MM-dd")" required class="form-control" />
+        <input type="date" name="fechaVencimiento" value="@Model.FechaVencimiento.ToString("yyyy-MM-dd")" required class="form-control" />
     </div>
 
     @if (propiedad?.IdInquilino != null)

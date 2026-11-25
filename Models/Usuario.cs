@@ -22,6 +22,8 @@ public class Usuario
     public DateTime FechaAlta { get; set; } = DateTime.Now;
     public string? FotoPerfil { get; set; } = null;
 
+    public string NombreConCorreo => $"{Nombre} {Apellido} ({Correo})";
+
     // Valida los datos del registro. Si son correctos, deja el correo sin espacios y el teléfono
     // con el formato que se guarda en la base. Devuelve el mensaje de error, o null si está todo bien.
     public string? ValidarYPrepararRegistro(string? confirmarContrasena, string? codigoPais, string? telefono)

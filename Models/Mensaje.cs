@@ -11,6 +11,9 @@ public class Mensaje
     public DateTime FechaEnvio { get; set; }
     public bool Leido { get; set; }
 
+    // Se calcula en la consulta de la conversación: true si lo envió el usuario logueado.
+    public bool EsMio { get; set; }
+
     public string HoraEnvio => FormatearHora(FechaEnvio);
 
     public static bool EsTextoValido(string? texto)

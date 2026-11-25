@@ -2,11 +2,9 @@
 @{
     var contrato = ViewBag.Contrato as OSO.Models.Contratos;
     var enCurso = ViewBag.ContratoEnCurso as OSO.Models.Contratos;
-    var es = new System.Globalization.CultureInfo("es-AR");
     var ajustes = ViewBag.Ajustes as List<OSO.Models.AjusteContrato> ?? new List<OSO.Models.AjusteContrato>();
     var proximoAjuste = ViewBag.ProximoAjuste as DateTime?;
     var calculo = ViewBag.CalculoAjuste as OSO.Models.ResultadoAjuste;
-    bool esDnu = contrato?.RegimenLegal == OSO.Models.RegimenesLegales.Dnu70;
 }
 
 <h2>Contrato</h2>
@@ -23,16 +21,16 @@
 
 @if (contrato != null)
 {
-    @if (contrato.FechaInicio.Date > DateTime.Today)
+    @if (contrato.EmpiezaEnElFuturo)
     {
         <div class="alert alert-info">Este contrato está confirmado y empieza el @contrato.FechaInicio.ToString("dd/MM/yyyy").</div>
     }
     <div class="card p-3 mb-3">
         <p><strong>Propiedad:</strong> @Model.Direccion</p>
-        <p><strong>Inquilino:</strong> @(ViewBag.NombreInquilino ?? contrato.IdInquilino.ToString())</p>
+        <p><strong>Inquilino:</strong> @ViewBag.NombreInquilino</p>
         <p><strong>Fecha inicio:</strong> @contrato.FechaInicio.ToString("dd/MM/yyyy")</p>
         <p><strong>Fecha fin:</strong> @contrato.FechaFin.ToString("dd/MM/yyyy")</p>
-        <p><strong>Alquiler actual:</strong> @string.Format(es, "{0:C}", contrato.MontoAlquiler)</p>
+        <p><strong>Alquiler actual:</strong> @Formato.Pesos(contrato.MontoAlquiler)</p>
         @if (!string.IsNullOrEmpty(contrato.RegimenLegal))
         {
             <p><strong>Régimen legal:</strong> @OSO.Models.ReglasContrato.NombreRegimen(contrato.RegimenLegal)</p>
@@ -53,14 +51,14 @@
         {
             <p>
                 <strong>Próximo ajuste:</strong> @proximoAjuste.Value.ToString("dd/MM/yyyy")
-                (@contrato.IndiceAjuste@(contrato.IndiceAjuste == "Fijo" ? $" {contrato.PorcentajeFijo}%" : ""), cada @contrato.FrecuenciaAjusteMeses meses)
+                (@contrato.IndiceConPorcentaje, cada @contrato.FrecuenciaAjusteMeses meses)
             </p>
             @if (calculo?.MontoNuevo != null)
             {
-                <p><strong>Monto calculado:</strong> @string.Format(es, "{0:C}", calculo.MontoNuevo.Value)
-                    @if (calculo.ValorDesde.HasValue && calculo.ValorHasta.HasValue && calculo.ValorDesde.Value != 1m)
+                <p><strong>Monto calculado:</strong> @Formato.Pesos(calculo.MontoNuevo)
+                    @if (calculo.TieneDetalleIndices)
                     {
-                        <small>(@contrato.IndiceAjuste @calculo.ValorHasta.Value.ToString("0.####", es) / @calculo.ValorDesde.Value.ToString("0.####", es))</small>
+                        <small>(@contrato.IndiceAjuste @Formato.Numero(calculo.ValorHasta, "0.####") / @Formato.Numero(calculo.ValorDesde, "0.####"))</small>
                     }
                 </p>
             }
@@ -74,24 +72,24 @@
                 <p class="revision-ayuda">Cálculo a confirmar: la fuente oficial no detalla cómo se aplica el coeficiente de Casa Propia a los alquileres.</p>
             }
 
-            @if (proximoAjuste.Value.Date <= DateTime.Today)
+            @if (ViewBag.PuedeAplicarAjuste == true)
             {
                 <form asp-action="AplicarAjuste" asp-controller="Home" method="post" class="ajuste-form">
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="idContrato" value="@contrato.IdContrato" />
-                    @if (esDnu)
+                    @if (contrato.PermiteMontoManual)
                     {
                         <label for="montoManual">Monto a aplicar (podés cambiarlo)</label>
                         <input type="number" step="0.01" min="0.01" name="montoManual" id="montoManual" class="form-control"
-                               value="@(calculo?.MontoNuevo?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))"
-                               data-calculado="@(calculo?.MontoNuevo?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))" />
+                               value="@Formato.ParaInput(calculo?.MontoNuevo)"
+                               data-calculado="@Formato.ParaInput(calculo?.MontoNuevo)" />
                         <small id="avisoAjuste" class="ajuste-aviso" hidden>Ese monto se aleja más de un 5% del calculado por el índice. Se puede aplicar igual: el DNU 70/2023 no pone tope.</small>
                     }
                     else
                     {
                         <p class="revision-ayuda">Por la ley, el monto es el calculado: no se puede cambiar.</p>
                     }
-                    <button type="submit" class="btn btn-primary" disabled="@(!esDnu && calculo?.MontoNuevo == null)">Aplicar ajuste</button>
+                    <button type="submit" class="btn btn-primary" disabled="@(!contrato.PermiteMontoManual && calculo?.MontoNuevo == null)">Aplicar ajuste</button>
                 </form>
             }
             else
@@ -111,11 +109,11 @@
                         <tr>
                             <td>@ajuste.Fecha.ToString("dd/MM/yyyy")</td>
                             <td>@ajuste.Indice</td>
-                            <td>@string.Format(es, "{0:C}", ajuste.MontoAnterior)</td>
-                            <td>@string.Format(es, "{0:C}", ajuste.MontoNuevo)
-                                @if (ajuste.Origen == "Manual" && ajuste.MontoCalculado.HasValue)
+                            <td>@Formato.Pesos(ajuste.MontoAnterior)</td>
+                            <td>@Formato.Pesos(ajuste.MontoNuevo)
+                                @if (ajuste.MuestraMontoCalculado)
                                 {
-                                    <small>(calculado: @string.Format(es, "{0:C}", ajuste.MontoCalculado.Value))</small>
+                                    <small>(calculado: @Formato.Pesos(ajuste.MontoCalculado))</small>
                                 }
                             </td>
                             <td>@ajuste.Origen</td>
@@ -142,7 +140,7 @@
 else if (enCurso != null)
 {
     <div class="alert alert-warning">
-        @(enCurso.Estado == "Borrador"
+        @(enCurso.EsBorrador
             ? "Hay un contrato en borrador: falta que lo revises y lo confirmes."
             : "El contrato está esperando que el inquilino lo acepte.")
     </div>
@@ -184,7 +182,7 @@ else
     }
     else if (enCurso != null)
     {
-        <a asp-action="RevisarContrato" asp-controller="Home" asp-route-idContrato="@enCurso.IdContrato" class="btn btn-primary">@(enCurso.Estado == "Borrador" ? "Seguir revisando" : "Ver contrato")</a>
+        <a asp-action="RevisarContrato" asp-controller="Home" asp-route-idContrato="@enCurso.IdContrato" class="btn btn-primary">@(enCurso.EsBorrador ? "Seguir revisando" : "Ver contrato")</a>
     }
     <a asp-action="Propiedades" asp-controller="Home" class="btn btn-primary">Volver</a>
 </div>

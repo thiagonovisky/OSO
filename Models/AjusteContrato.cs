@@ -12,4 +12,7 @@ public class AjusteContrato
     public decimal? ValorIndiceDesde { get; set; }
     public decimal? ValorIndiceHasta { get; set; }
     public string Origen { get; set; } = "Calculado"; // Calculado | Manual
+
+    // Si el propietario puso otro monto, se muestra también el que daba el índice.
+    public bool MuestraMontoCalculado => Origen == "Manual" && MontoCalculado.HasValue;
 }

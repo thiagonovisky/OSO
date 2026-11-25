@@ -1,8 +1,6 @@
 @model OSO.Models.Contratos
 @{
     var propiedad = ViewBag.Propiedad as OSO.Models.Propiedades;
-    bool yaVencio = DateTime.Today >= Model.FechaFin.Date;
-    string maxFecha = (DateTime.Today < Model.FechaFin.Date ? DateTime.Today : Model.FechaFin.Date).ToString("yyyy-MM-dd");
 }
 
 <div class="revision-contrato">
@@ -35,7 +33,7 @@
                     <option value="@motivo">@OSO.Models.ReglasContrato.NombreMotivoFin(motivo)</option>
                 }
             </select>
-            @if (!yaVencio)
+            @if (!Model.YaVencio)
             {
                 <small class="revision-ayuda">El contrato vence el @Model.FechaFin.ToString("dd/MM/yyyy"): "Fin de plazo" recién se puede elegir desde esa fecha.</small>
             }
@@ -45,7 +43,7 @@
             <div class="form-group mb-3">
                 <label for="fechaFinReal">Fecha real de fin</label>
                 <input type="date" name="fechaFinReal" id="fechaFinReal" class="form-control"
-                       min="@Model.FechaInicio.ToString("yyyy-MM-dd")" max="@maxFecha" />
+                       min="@Model.FechaInicio.ToString("yyyy-MM-dd")" max="@Model.FechaMaximaFinReal.ToString("yyyy-MM-dd")" />
                 <small class="revision-ayuda">No puede ser futura ni anterior al inicio del contrato.</small>
             </div>
             <div class="form-group mb-3">

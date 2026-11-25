@@ -54,18 +54,17 @@
 
             @foreach (var gasto in Model ?? new List<OSO.Models.GastoPropiedad>())
             {
-                bool pagado = gasto.MontoPagado >= gasto.MontoResponsable;
                 <tr>
                     <td>@gasto.NombrePropiedad</td>
                     <td>@gasto.TipoGasto <small>(@gasto.Periodo.ToString("MMMM yyyy"))</small></td>
-                    <td>@(pagado ? "Pagado" : gasto.FechaVencimiento.Date < DateTime.Today ? "Vencido" : "A pagar")</td>
+                    <td>@gasto.EstadoMiParte</td>
                     <td>@gasto.FechaVencimiento.ToString("dd/MM/yyyy")</td>
                     <td>$@gasto.Monto</td>
                     <td><strong class="mi-parte">$@gasto.MontoResponsable</strong></td>
                     <td>$@gasto.MontoPropietario</td>
                     <td>@(gasto.FechaPago.HasValue ? gasto.FechaPago.Value.ToString("dd/MM/yyyy") : "-")</td>
                     <td>
-                        @if (!pagado)
+                        @if (!gasto.MiPartePagada)
                         {
                             <form asp-action="PagarGasto" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
                                 @Html.AntiForgeryToken()

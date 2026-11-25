@@ -4,7 +4,6 @@
     var inquilinosPorPropiedad = ViewBag.InquilinosPorPropiedad as Dictionary<int, OSO.Models.Usuario?> ?? new Dictionary<int, OSO.Models.Usuario?>();
     bool esInquilino = ViewBag.EsInquilino == true;
     var contratosConfirmados = ViewBag.ContratosConfirmados as Dictionary<int, int> ?? new Dictionary<int, int>();
-    var es = new System.Globalization.CultureInfo("es-AR");
 }
 
 <h2 class="propiedades-title">@(esInquilino ? "Mi alquiler" : "Mis propiedades")</h2>
@@ -87,18 +86,18 @@
                         </div>
                         <div class="summary-info-row">
                             <span class="label">Alquiler:</span>
-                            <span class="value">@(propiedad.AlquilerActual.HasValue ? string.Format(es, "{0:C}", propiedad.AlquilerActual.Value) : "-")</span>
+                            <span class="value">@Formato.Pesos(propiedad.AlquilerActual)</span>
                         </div>
                         @if (esInquilino)
                         {
                             @* El inquilino sólo ve información: sin acciones sobre la propiedad. *@
                             <div class="summary-info-row">
                                 <span class="label">Contrato hasta:</span>
-                                <span class="value">@(propiedad.FinContrato?.ToString("dd/MM/yyyy") ?? "-")</span>
+                                <span class="value">@Formato.Fecha(propiedad.FinContrato)</span>
                             </div>
                             <div class="summary-info-row">
                                 <span class="label">Propietario:</span>
-                                <span class="value">@(string.IsNullOrWhiteSpace(propiedad.NombrePropietario) ? "-" : propiedad.NombrePropietario)</span>
+                                <span class="value">@Formato.Dato(propiedad.NombrePropietario)</span>
                             </div>
                             @if (!string.IsNullOrWhiteSpace(propiedad.CorreoPropietario))
                             {
@@ -120,7 +119,7 @@
                             var inquilino = inquilinosPorPropiedad.GetValueOrDefault(propiedad.IdPropiedad);
                             <div class="summary-info-row">
                                 <span class="label">Inquilino:</span>
-                                <span class="value">@(inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido} ({inquilino.Correo})" : "Inquilino asignado")</span>
+                                <span class="value">@(inquilino?.NombreConCorreo ?? "Inquilino asignado")</span>
                                 @if (contratosConfirmados.TryGetValue(propiedad.IdPropiedad, out var idContratoVigente))
                                 {
                                     @* Con un contrato confirmado no se desvincula a secas: se termina el contrato, con su motivo. *@

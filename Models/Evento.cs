@@ -19,6 +19,9 @@ public class Evento
     public int? IdGastoPropiedad { get; set; }
     public string Tipo { get; set; } = "Manual";
 
+    // En el calendario del propietario los eventos manuales se identifican por la propiedad.
+    public string TextoEnCalendario => Tipo == "Manual" ? NombrePropiedad ?? Titulo : Titulo;
+
     // Devuelve el mensaje de error, o null si el evento es válido.
     public string? Validar()
     {

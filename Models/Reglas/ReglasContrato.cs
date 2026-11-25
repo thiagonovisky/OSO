@@ -27,6 +27,19 @@ public class ReglaGasto
     };
 
     public bool LoPagaElInquilino => PorcentajeEfectivoInquilino > 0;
+
+    public static readonly string[] OpcionesResponsable = { "Inquilino", "Propietario", "Compartido" };
+
+    // Fila leída por la IA con poca seguridad: se marca para que el propietario la revise.
+    public bool EsDudosa => Origen == "IA" && Confianza < ReglasContrato.UmbralBajaConfianza;
+
+    // Quién paga, contado desde el lado del inquilino.
+    public string QuienPagaParaInquilino => Responsable switch
+    {
+        "Compartido" => $"Compartido ({Formato.Numero(PorcentajeInquilino, "0.##")}% vos)",
+        "Inquilino" => "Vos",
+        _ => "Propietario"
+    };
 }
 
 // Reglas legales de los contratos de alquiler (funciones puras, sin acceso a datos).

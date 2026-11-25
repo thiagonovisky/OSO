@@ -1,7 +1,6 @@
 @model List<OSO.Models.Contacto>
 @{
     ViewData["Title"] = "Mensajería";
-    int idUsuario = (int)ViewBag.IdUsuario;
     bool esPropietario = (bool)ViewBag.EsPropietario;
     var activo = ViewBag.Activo as OSO.Models.Contacto;
     var mensajes = ViewBag.Mensajes as List<OSO.Models.Mensaje> ?? new List<OSO.Models.Mensaje>();
@@ -65,12 +64,11 @@
                     }
                     @foreach (var m in mensajes)
                     {
-                        bool mio = m.IdEmisor == idUsuario;
-                        <div class="msj-bubble @(mio ? "msj-bubble--mine" : "msj-bubble--theirs")">
+                        <div class="msj-bubble @(m.EsMio ? "msj-bubble--mine" : "msj-bubble--theirs")">
                             <span class="msj-bubble__text">@m.Texto</span>
                             <span class="msj-bubble__meta">
                                 <span class="msj-bubble__time">@m.HoraEnvio</span>
-                                @if (mio)
+                                @if (m.EsMio)
                                 {
                                     <svg class="msj-ticks msj-ticks--bubble @(m.Leido ? "is-read" : "")" viewBox="0 0 24 14" aria-label="@(m.Leido ? "Leído" : "Enviado")">
                                         <path d="M1 7.5l4 4L13 3.5M9 10l1.5 1.5L18.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />

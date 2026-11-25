@@ -43,6 +43,42 @@ public class Contratos
     // Se carga en algunas consultas (no es una columna de Contratos)
     public string? Direccion { get; set; }
 
+    public bool EsBorrador => Estado == "Borrador";
+    public bool EmpiezaEnElFuturo => FechaInicio.Date > DateTime.Today;
+    public bool YaVencio => DateTime.Today >= FechaFin.Date;
+
+    // La fecha real de fin no puede ser futura ni posterior al fin del contrato.
+    public DateTime FechaMaximaFinReal => YaVencio ? FechaFin.Date : DateTime.Today;
+
+    // Con el DNU 70/2023 el propietario puede aplicar un monto distinto al calculado.
+    public bool PermiteMontoManual => RegimenLegal == RegimenesLegales.Dnu70;
+
+    public string EstadoParaInquilino => Estado switch
+    {
+        "PendienteInquilino" => "Para aceptar",
+        "Finalizado" => "Terminado",
+        _ => "Vigente"
+    };
+
+    public string IndiceConPorcentaje => IndiceAjuste == "Fijo" ? $"{IndiceAjuste} {PorcentajeFijo}%" : IndiceAjuste ?? string.Empty;
+
+    public string DescripcionAjuste
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(IndiceAjuste))
+            {
+                return "-";
+            }
+
+            string porcentaje = IndiceAjuste == "Fijo" ? $" ({PorcentajeFijo}%)" : string.Empty;
+            string frecuencia = FrecuenciaAjusteMeses.HasValue ? $" cada {FrecuenciaAjusteMeses} meses" : string.Empty;
+            return IndiceAjuste + porcentaje + frecuencia;
+        }
+    }
+
+    public string DepositoTexto => MontoDeposito.HasValue ? $"{Formato.Numero(MontoDeposito)} {MonedaDeposito}" : "-";
+
     // Devuelve el primer mensaje de error, o null si el contrato es válido.
     public string? Validar(IEnumerable<ReglaGasto>? reglas = null)
     {

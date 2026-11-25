@@ -1,12 +1,19 @@
 namespace OSO.Models;
 
 // Resultado de calcular un ajuste. Si falta algún dato, MontoNuevo es null y Faltante dice qué.
-public record ResultadoAjuste(decimal? MontoNuevo, decimal? ValorDesde, decimal? ValorHasta, string? Faltante);
+public record ResultadoAjuste(decimal? MontoNuevo, decimal? ValorDesde, decimal? ValorHasta, string? Faltante)
+{
+    // Con porcentaje fijo no hay valores de índice para mostrar (el "desde" vale 1).
+    public bool TieneDetalleIndices => ValorDesde.HasValue && ValorHasta.HasValue && ValorDesde.Value != 1m;
+}
 
 // Cálculo del ajuste del alquiler (funciones puras: los valores de los índices llegan por parámetro).
 public static class CalculadoraAjuste
 {
     public const decimal UmbralAlejamiento = 0.05m;
+
+    // El ajuste se puede aplicar desde su fecha en adelante.
+    public static bool YaCorresponde(DateTime fechaAjuste) => fechaAjuste.Date <= DateTime.Today;
 
     private static DateTime PrimerDia(DateTime f) => new(f.Year, f.Month, 1);
 

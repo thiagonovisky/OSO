@@ -1,16 +1,13 @@
 @model OSO.Models.RevisionContrato
 @{
     var c = Model.Contrato;
-    var es = new System.Globalization.CultureInfo("es-AR");
-    string Fecha(DateTime? f) => f.HasValue && f.Value != default ? f.Value.ToString("dd/MM/yyyy") : "-";
-    string Dato(object? v) => v == null || string.IsNullOrWhiteSpace(v.ToString()) ? "-" : v.ToString()!;
 }
 
 <div class="revision-contrato">
     <h2>Contrato de alquiler</h2>
     <p class="revision-subtitulo">
         <strong>@Model.Propiedad.Direccion</strong> ·
-        Estado: <span class="revision-estado">@(c.Estado == "PendienteInquilino" ? "Para aceptar" : c.Estado == "Finalizado" ? "Terminado" : "Vigente")</span>
+        Estado: <span class="revision-estado">@c.EstadoParaInquilino</span>
         @if (!string.IsNullOrEmpty(c.ArchivoContrato))
         {
             <text> · </text><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@c.IdContrato" target="_blank">Ver el archivo del contrato</a>
@@ -30,7 +27,7 @@
     @if (c.Estado == "Finalizado")
     {
         <div class="alert alert-warning">
-            <strong>Este contrato terminó el @Fecha(c.FechaFinReal)</strong> · Motivo: @OSO.Models.ReglasContrato.NombreMotivoFin(c.MotivoFin).
+            <strong>Este contrato terminó el @Formato.Fecha(c.FechaFinReal)</strong> · Motivo: @OSO.Models.ReglasContrato.NombreMotivoFin(c.MotivoFin).
             @if (!string.IsNullOrWhiteSpace(c.DescripcionFin))
             {
                 <br /><span>Lo que explicó el propietario: @c.DescripcionFin</span>
@@ -61,16 +58,16 @@
 
     <div class="card p-3 mb-3">
         <div class="revision-lectura">
-            <p><strong>Inicio:</strong> @Fecha(c.FechaInicio)</p>
-            <p><strong>Fin:</strong> @Fecha(c.FechaFin)</p>
-            <p><strong>Alquiler inicial:</strong> @c.MontoAlquiler.ToString("N2", es) @c.Moneda</p>
-            <p><strong>Vence el día:</strong> @Dato(c.DiaVencimiento)</p>
-            <p><strong>Ajuste:</strong> @(string.IsNullOrEmpty(c.IndiceAjuste) ? "-" : c.IndiceAjuste + (c.IndiceAjuste == "Fijo" ? $" ({c.PorcentajeFijo}%)" : "") + (c.FrecuenciaAjusteMeses.HasValue ? $" cada {c.FrecuenciaAjusteMeses} meses" : ""))</p>
-            <p><strong>Medio de pago:</strong> @Dato(c.MedioPago)</p>
-            <p><strong>Punitorio diario:</strong> @(c.PunitorioDiario.HasValue ? c.PunitorioDiario + "%" : "-")</p>
-            <p><strong>Depósito:</strong> @(c.MontoDeposito.HasValue ? c.MontoDeposito.Value.ToString("N2", es) + " " + c.MonedaDeposito : "-")</p>
-            <p><strong>Garantía:</strong> @Dato(c.TipoGarantia)</p>
-            <p><strong>Preaviso para rescindir:</strong> @(c.PreavisoRescisionDias.HasValue ? c.PreavisoRescisionDias + " días" : "-")</p>
+            <p><strong>Inicio:</strong> @Formato.Fecha(c.FechaInicio)</p>
+            <p><strong>Fin:</strong> @Formato.Fecha(c.FechaFin)</p>
+            <p><strong>Alquiler inicial:</strong> @Formato.Numero(c.MontoAlquiler) @c.Moneda</p>
+            <p><strong>Vence el día:</strong> @Formato.Dato(c.DiaVencimiento)</p>
+            <p><strong>Ajuste:</strong> @c.DescripcionAjuste</p>
+            <p><strong>Medio de pago:</strong> @Formato.Dato(c.MedioPago)</p>
+            <p><strong>Punitorio diario:</strong> @Formato.Dato(c.PunitorioDiario, "%")</p>
+            <p><strong>Depósito:</strong> @c.DepositoTexto</p>
+            <p><strong>Garantía:</strong> @Formato.Dato(c.TipoGarantia)</p>
+            <p><strong>Preaviso para rescindir:</strong> @Formato.Dato(c.PreavisoRescisionDias, " días")</p>
             <p><strong>Régimen legal:</strong> @OSO.Models.ReglasContrato.NombreRegimen(c.RegimenLegal)</p>
         </div>
     </div>
@@ -86,11 +83,7 @@
                 {
                     <tr>
                         <td>@regla.TipoGasto</td>
-                        <td>
-                            @(regla.Responsable == "Compartido"
-                                ? $"Compartido ({regla.PorcentajeInquilino.ToString("0.##", es)}% vos)"
-                                : regla.Responsable == "Inquilino" ? "Vos" : "Propietario")
-                        </td>
+                        <td>@regla.QuienPagaParaInquilino</td>
                         <td class="revision-clausula">@(string.IsNullOrEmpty(regla.TextoClausula) ? "—" : regla.TextoClausula)</td>
                     </tr>
                 }

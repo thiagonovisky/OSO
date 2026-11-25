@@ -1827,7 +1827,8 @@ public class BD
     public List<Mensaje> ObtenerConversacion(int idUsuario, int idContacto)
     {
         using SqlConnection connection = new(connectionString);
-        const string query = @"SELECT * FROM Mensajes
+        const string query = @"SELECT *, CAST(CASE WHEN IdEmisor = @IdUsuario THEN 1 ELSE 0 END AS bit) AS EsMio
+                               FROM Mensajes
                                WHERE (IdEmisor = @IdUsuario AND IdReceptor = @IdContacto)
                                   OR (IdEmisor = @IdContacto AND IdReceptor = @IdUsuario)
                                ORDER BY FechaEnvio, IdMensaje";

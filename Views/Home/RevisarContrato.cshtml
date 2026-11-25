@@ -1,7 +1,6 @@
 @model OSO.Models.RevisionContrato
 @{
     var c = Model.Contrato;
-    var es = new System.Globalization.CultureInfo("es-AR");
 }
 
 <div class="revision-contrato">
@@ -95,8 +94,7 @@
                     @for (int i = 0; i < Model.Reglas.Count; i++)
                     {
                         var regla = Model.Reglas[i];
-                        bool dudosa = regla.Origen == "IA" && regla.Confianza < OSO.Models.ReglasContrato.UmbralBajaConfianza;
-                        <tr class="@(dudosa ? "campo-dudoso" : "")">
+                        <tr class="@(regla.EsDudosa ? "campo-dudoso" : "")">
                             <td>
                                 @regla.TipoGasto
                                 @if (regla.TipoGasto == OSO.Models.ReglasContrato.TipoExtraordinarias)
@@ -107,7 +105,7 @@
                             </td>
                             <td>
                                 <select name="reglas[@i].Responsable" class="form-control regla-responsable">
-                                    @foreach (var opcion in new[] { "Inquilino", "Propietario", "Compartido" })
+                                    @foreach (var opcion in OSO.Models.ReglaGasto.OpcionesResponsable)
                                     {
                                         <option value="@opcion" selected="@(opcion == regla.Responsable)">@opcion</option>
                                     }
@@ -115,7 +113,7 @@
                             </td>
                             <td>
                                 <input type="number" name="reglas[@i].PorcentajeInquilino" class="form-control regla-porcentaje" min="0" max="100" step="0.01"
-                                       value="@regla.PorcentajeEfectivoInquilino.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" />
+                                       value="@Formato.ParaInput(regla.PorcentajeEfectivoInquilino, "0.##")" />
                             </td>
                             <td class="revision-clausula">@(string.IsNullOrEmpty(regla.TextoClausula) ? "—" : regla.TextoClausula)</td>
                             <td><span class="revision-origen revision-origen--@regla.Origen.ToLower()">@regla.Origen</span></td>
