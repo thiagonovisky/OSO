@@ -14,7 +14,7 @@
             <div class="service-header-row">
                 <h3>Pendientes del inquilino</h3>
             </div>
-            <p>Según el contrato, este gasto lo paga el inquilino. Estos meses siguen pendientes hasta que suba el comprobante con el monto de la factura.</p>
+            <p>Según el contrato, este gasto corre por cuenta del inquilino (todo o en parte). Estos meses siguen pendientes hasta que suba el comprobante con el monto de la factura.</p>
             <div class="months-grid">
                 @foreach (var pendiente in pendientesInquilino)
                 {
@@ -22,6 +22,10 @@
                         <div class="month-name">@pendiente.Periodo.ToString("MMMM yyyy")</div>
                         <div class="month-meta">
                             <span class="service-status warn">Pendiente</span>
+                            @if (pendiente.EsCompartido)
+                            {
+                                <span>Compartido (@OSO.Models.Formato.Numero(pendiente.PorcentajeInquilino, "0.##")% inquilino)</span>
+                            }
                         </div>
                     </div>
                 }
@@ -49,6 +53,14 @@
                             <span>Monto: $@gasto.Monto</span>
                             <span>Vto: @gasto.FechaVencimiento.ToString("dd/MM/yyyy")</span>
                         </div>
+
+                        @if (gasto.CargadoPorInquilino)
+                        {
+                            <div class="month-meta">
+                                <span class="service-status warn">Monto declarado por el inquilino, sin verificar</span>
+                                <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@tipo" asp-route-periodo="@gasto.Periodo.ToString("yyyy-MM-dd")" class="btn btn-primary">Revisar o corregir monto</a>
+                            </div>
+                        }
 
                         <form asp-action="GuardarEstadoGasto" asp-controller="Home" method="post" class="month-form">
                             @Html.AntiForgeryToken()

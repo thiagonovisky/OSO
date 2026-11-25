@@ -1,6 +1,85 @@
 @model List<OSO.Models.GastoPropiedad>
 @{
     var pendientesContrato = ViewBag.PendientesContrato as List<OSO.Models.PendienteContrato> ?? new List<OSO.Models.PendienteContrato>();
+    var gastos = Model ?? new List<OSO.Models.GastoPropiedad>();
+
+    var aPagarPendientes = pendientesContrato.Where(p => p.EsReciente).ToList();
+    var anteriores = pendientesContrato.Where(p => !p.EsReciente).ToList();
+    var aPagarGastos = gastos.Where(g => !g.MiPartePagada).ToList();
+    var historial = gastos.Where(g => g.MiPartePagada).ToList();
+    bool hayAlgo = gastos.Count > 0 || pendientesContrato.Count > 0;
+
+    void Encabezado()
+    {
+        <tr>
+            <th>Propiedad</th>
+            <th>Gasto</th>
+            <th>Estado</th>
+            <th>Vencimiento</th>
+            <th>Total del gasto</th>
+            <th>Tu parte</th>
+            <th>Parte del propietario</th>
+            <th>Fecha de pago</th>
+            <th>Comprobante</th>
+        </tr>
+    }
+
+    async Task FilaPendiente(OSO.Models.PendienteContrato pendiente)
+    {
+        <tr>
+            <td>@pendiente.NombrePropiedad</td>
+            <td>@pendiente.TipoGasto <small>(@pendiente.Periodo.ToString("MMMM yyyy"))</small></td>
+            <td>A pagar</td>
+            <td>-</td>
+            <td colspan="2">Lo cargás al pagar (@pendiente.TextoACargo)</td>
+            <td>-</td>
+            <td>-</td>
+            <td>
+                <form asp-action="PagarPendienteContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="idPropiedad" value="@pendiente.IdPropiedad" />
+                    <input type="hidden" name="idGasto" value="@pendiente.IdGasto" />
+                    <input type="hidden" name="periodo" value="@pendiente.Periodo.ToString("yyyy-MM-dd")" />
+                    <input type="number" name="monto" min="0.01" step="0.01" placeholder="@pendiente.TextoMonto" class="form-control form-control-sm" required />
+                    <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
+                    <button type="submit" class="btn btn-success btn-sm">Pagar</button>
+                </form>
+            </td>
+        </tr>
+    }
+
+    async Task FilaGasto(OSO.Models.GastoPropiedad gasto)
+    {
+        <tr>
+            <td>@gasto.NombrePropiedad</td>
+            <td>@gasto.TipoGasto <small>(@gasto.Periodo.ToString("MMMM yyyy"))</small></td>
+            <td>@gasto.EstadoMiParte</td>
+            <td>@gasto.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+            <td>$@gasto.Monto</td>
+            <td><strong class="mi-parte">$@gasto.MontoResponsable</strong></td>
+            <td>$@gasto.MontoPropietario</td>
+            <td>@(gasto.FechaPago.HasValue ? gasto.FechaPago.Value.ToString("dd/MM/yyyy") : "-")</td>
+            <td>
+                @if (!gasto.MiPartePagada)
+                {
+                    <form asp-action="PagarGasto" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="idGastoResponsable" value="@gasto.IdGastoResponsable" />
+                        <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
+                        <button type="submit" class="btn btn-success btn-sm">Pagar</button>
+                    </form>
+                }
+                else if (!string.IsNullOrWhiteSpace(gasto.Comprobante))
+                {
+                    <a href="@Url.Content("~/comprobantes/" + gasto.Comprobante)" target="_blank" class="btn">Ver comprobante</a>
+                }
+                else
+                {
+                    <span>-</span>
+                }
+            </td>
+        </tr>
+    }
 }
 
 <h2>Mis gastos</h2>
@@ -10,82 +89,52 @@
     <p>@TempData["Mensaje"]</p>
 }
 
-@if ((Model != null && Model.Count > 0) || pendientesContrato.Count > 0)
+@if (hayAlgo)
 {
-    <table class="table table-striped mt-3">
-        <thead>
-            <tr>
-                <th>Propiedad</th>
-                <th>Gasto</th>
-                <th>Estado</th>
-                <th>Vencimiento</th>
-                <th>Total del gasto</th>
-                <th>Tu parte</th>
-                <th>Parte del propietario</th>
-                <th>Fecha de pago</th>
-                <th>Comprobante</th>
-            </tr>
-        </thead>
-        <tbody>
-            @* Meses de los gastos que el contrato pone a tu cargo y que todavía no pagaste: el monto lo cargás vos al pagar. *@
-            @foreach (var pendiente in pendientesContrato)
-            {
-                <tr>
-                    <td>@pendiente.NombrePropiedad</td>
-                    <td>@pendiente.TipoGasto <small>(@pendiente.Periodo.ToString("MMMM yyyy"))</small></td>
-                    <td>A pagar</td>
-                    <td>-</td>
-                    <td colspan="2">Lo cargás al pagar (100% a tu cargo)</td>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>
-                        <form asp-action="PagarPendienteContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="idPropiedad" value="@pendiente.IdPropiedad" />
-                            <input type="hidden" name="idGasto" value="@pendiente.IdGasto" />
-                            <input type="hidden" name="periodo" value="@pendiente.Periodo.ToString("yyyy-MM-dd")" />
-                            <input type="number" name="monto" min="0.01" step="0.01" placeholder="Monto $" class="form-control form-control-sm" required />
-                            <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
-                            <button type="submit" class="btn btn-success btn-sm">Pagar</button>
-                        </form>
-                    </td>
-                </tr>
-            }
+    @* A pagar: lo que está sin pagar y los últimos meses de los gastos que el contrato pone a tu cargo. El monto de estos últimos lo cargás vos al pagar. *@
+    <h3 class="mt-3">A pagar</h3>
+    @if (aPagarPendientes.Count > 0 || aPagarGastos.Count > 0)
+    {
+        <table class="table table-striped mt-2">
+            <thead>@{ Encabezado(); }</thead>
+            <tbody>
+                @foreach (var pendiente in aPagarPendientes) { await FilaPendiente(pendiente); }
+                @foreach (var gasto in aPagarGastos) { await FilaGasto(gasto); }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>No tenés nada para pagar por ahora.</p>
+    }
 
-            @foreach (var gasto in Model ?? new List<OSO.Models.GastoPropiedad>())
-            {
-                <tr>
-                    <td>@gasto.NombrePropiedad</td>
-                    <td>@gasto.TipoGasto <small>(@gasto.Periodo.ToString("MMMM yyyy"))</small></td>
-                    <td>@gasto.EstadoMiParte</td>
-                    <td>@gasto.FechaVencimiento.ToString("dd/MM/yyyy")</td>
-                    <td>$@gasto.Monto</td>
-                    <td><strong class="mi-parte">$@gasto.MontoResponsable</strong></td>
-                    <td>$@gasto.MontoPropietario</td>
-                    <td>@(gasto.FechaPago.HasValue ? gasto.FechaPago.Value.ToString("dd/MM/yyyy") : "-")</td>
-                    <td>
-                        @if (!gasto.MiPartePagada)
-                        {
-                            <form asp-action="PagarGasto" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="idGastoResponsable" value="@gasto.IdGastoResponsable" />
-                                <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
-                                <button type="submit" class="btn btn-success btn-sm">Pagar</button>
-                            </form>
-                        }
-                        else if (!string.IsNullOrWhiteSpace(gasto.Comprobante))
-                        {
-                            <a href="@Url.Content("~/comprobantes/" + gasto.Comprobante)" target="_blank" class="btn">Ver comprobante</a>
-                        }
-                        else
-                        {
-                            <span>-</span>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    @if (anteriores.Count > 0)
+    {
+        <details class="mt-3">
+            <summary><strong>Meses anteriores sin pagar (@anteriores.Count)</strong></summary>
+            <table class="table table-striped mt-2">
+                <thead>@{ Encabezado(); }</thead>
+                <tbody>
+                    @foreach (var pendiente in anteriores) { await FilaPendiente(pendiente); }
+                </tbody>
+            </table>
+        </details>
+    }
+
+    <h3 class="mt-4">Historial de pagos</h3>
+    @if (historial.Count > 0)
+    {
+        <table class="table table-striped mt-2">
+            <thead>@{ Encabezado(); }</thead>
+            <tbody>
+                @foreach (var gasto in historial) { await FilaGasto(gasto); }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>Todavía no hay gastos pagados.</p>
+    }
 }
 else
 {

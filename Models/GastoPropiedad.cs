@@ -11,6 +11,12 @@ public class GastoPropiedad
     public DateTime FechaAlta { get; set; }
     public string? Aclaracion { get; set; }
 
+    // Marca del gasto que creó el inquilino al pagar: el monto es el que él declaró y el propietario todavía no lo revisó.
+    // Cuando el propietario guarda el gasto, la aclaración se pisa y deja de figurar como declarado.
+    public const string AclaracionCargaInquilino = "Monto cargado por el inquilino al pagar.";
+
+    public bool CargadoPorInquilino => Aclaracion == AclaracionCargaInquilino;
+
     // Datos de la parte del propietario (por ahora es el único responsable)
     public int IdGastoResponsable { get; set; }
     public decimal MontoResponsable { get; set; }

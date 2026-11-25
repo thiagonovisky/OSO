@@ -905,6 +905,8 @@ public class BD
         public string Direccion { get; set; } = string.Empty;
         public int IdGasto { get; set; }
         public string TipoGasto { get; set; } = string.Empty;
+        public string Responsable { get; set; } = "Inquilino";
+        public decimal PorcentajeInquilino { get; set; }
         public DateTime FechaInicio { get; set; }
         public DateTime FechaFin { get; set; }
     }
@@ -917,10 +919,11 @@ public class BD
         parametrosReglas.Add("TipoExtraordinarias", ReglasContrato.TipoExtraordinarias);
 
         List<ReglaInquilinoContrato> reglas = connection.Query<ReglaInquilinoContrato>(
-            @"SELECT c.IdPropiedad, p.Direccion, r.IdGasto, g.TipoGasto, c.FechaInicio, ISNULL(c.FechaFinReal, c.FechaFin) AS FechaFin
+            @"SELECT c.IdPropiedad, p.Direccion, r.IdGasto, g.TipoGasto, r.Responsable, r.PorcentajeInquilino,
+                     c.FechaInicio, ISNULL(c.FechaFinReal, c.FechaFin) AS FechaFin
               FROM Contratos c
               INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
-              INNER JOIN ContratoResponsabilidadGasto r ON r.IdContrato = c.IdContrato AND r.Responsable = 'Inquilino'
+              INNER JOIN ContratoResponsabilidadGasto r ON r.IdContrato = c.IdContrato AND r.Responsable IN ('Inquilino', 'Compartido') AND r.PorcentajeInquilino > 0
               INNER JOIN Gastos g ON g.IdGasto = r.IdGasto
               WHERE c.Estado = 'Confirmado' AND g.TipoGasto NOT IN (@TipoExpensas, @TipoExtraordinarias) AND " + filtro,
             parametrosReglas,
@@ -952,6 +955,8 @@ public class BD
                         NombrePropiedad = regla.Direccion,
                         IdGasto = regla.IdGasto,
                         TipoGasto = regla.TipoGasto,
+                        Responsable = regla.Responsable,
+                        PorcentajeInquilino = regla.Responsable == "Inquilino" ? 100m : regla.PorcentajeInquilino,
                         Periodo = mes
                     });
                 }
@@ -975,6 +980,15 @@ public class BD
     {
         using SqlConnection connection = new(connectionString);
         return CalcularPendientesContrato(connection, null, "c.IdPropiedad = @IdPropiedad", new { IdPropiedad = idPropiedad });
+    }
+
+    // El gasto ya cargado de un tipo en un mes (para corregirlo), con la parte del propietario; null si no existe.
+    public GastoPropiedad? ObtenerGastoDePropiedadPorPeriodo(int idPropiedad, int idGasto, DateTime periodo)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.QueryFirstOrDefault<GastoPropiedad>(
+            SelectGastoPropietario + " WHERE gp.IdPropiedad = @IdPropiedad AND gp.IdGasto = @IdGasto AND gp.Periodo = @Periodo",
+            new { IdPropiedad = idPropiedad, IdGasto = idGasto, Periodo = PrimerDiaDelMes(periodo) });
     }
 
     // El inquilino paga un pendiente del contrato: carga el monto de la factura y el comprobante.
@@ -1007,7 +1021,7 @@ public class BD
             Monto = monto,
             FechaVencimiento = DateTime.Today,
             FechaAlta = DateTime.Today,
-            Aclaracion = "Monto cargado por el inquilino al pagar."
+            Aclaracion = GastoPropiedad.AclaracionCargaInquilino
         };
         int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto);
 
@@ -1274,10 +1288,9 @@ public class BD
         int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto, responsableManual);
         FijarEstadoPagado(connection, transaction, idGastoPropiedad, pagado, comprobante);
 
-        if (!pagado)
-        {
-            AvisarGastoNuevoAlInquilino(connection, transaction, idGastoPropiedad);
-        }
+        // El aviso depende de la parte del inquilino (solo si le queda algo sin pagar), no de que el propietario haya pagado la suya:
+        // así también se entera si el propietario corrige hacia arriba el monto que él había declarado.
+        AvisarGastoNuevoAlInquilino(connection, transaction, idGastoPropiedad);
 
         transaction.Commit();
     }
@@ -1288,7 +1301,7 @@ public class BD
         connection.Execute(
             @"INSERT INTO Notificaciones (IdUsuario, IdGastoResponsable, Texto)
               SELECT u.IdUsuario, gr.IdGastoResponsable,
-                     LEFT(CONCAT('Nuevo gasto: ', g.TipoGasto, ' de ', p.Direccion, ' por $', CONVERT(varchar(20), gr.Monto),
+                     LEFT(CONCAT('Nuevo gasto: ', g.TipoGasto, ' de ', p.Direccion, ' por $', CONVERT(varchar(20), gr.Monto - ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0)),
                                  ', vence el ', CONVERT(varchar(10), gp.FechaVencimiento, 103),
                                  '. Subí el comprobante para marcarlo como pagado.'), 300)
               FROM GastoResponsables gr

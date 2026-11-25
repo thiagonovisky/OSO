@@ -3,9 +3,12 @@
     var propiedad = ViewBag.Propiedad as OSO.Models.Propiedades;
     var tipoGasto = ViewBag.TipoGasto as OSO.Models.Gastos;
     var tipo = tipoGasto?.TipoGasto;
+    bool corrigiendo = ViewBag.Corrigiendo == true;
+    bool declarado = ViewBag.DeclaradoPorInquilino == true;
+    bool propietarioPago = ViewBag.PartePropietarioPagada == true;
 }
 
-<h2>Agregar gasto para @tipo</h2>
+<h2>@(corrigiendo ? "Corregir gasto de" : "Agregar gasto para") @tipo</h2>
 
 @if (propiedad != null)
 {
@@ -15,6 +18,14 @@
 @if (TempData["Error"] != null)
 {
     <div class="alert alert-danger">@TempData["Error"]</div>
+}
+
+@if (declarado)
+{
+    <div class="alert alert-warning">
+        Este monto lo cargó el inquilino al pagar y no está verificado. Si coincide con la factura, guardalo igual para darlo por revisado;
+        si no, poné el monto correcto: el reparto se recalcula y, si el monto sube, el inquilino ve la diferencia a pagar.
+    </div>
 }
 
 <form asp-action="GuardarGasto" asp-controller="Home" method="post" enctype="multipart/form-data">
@@ -34,7 +45,7 @@
 
     <div>
         <label>Monto</label>
-        <input type="number" name="monto" step="0.01" min="0.01" required class="form-control" />
+        <input type="number" name="monto" step="0.01" min="0.01" value="@(corrigiendo ? OSO.Models.Formato.ParaInput(Model.Monto) : "")" required class="form-control" />
     </div>
 
     <div>
@@ -57,8 +68,8 @@
     <div>
         <label>Estado</label>
         <select name="estado" class="form-control">
-            <option value="A pagar">A pagar</option>
-            <option value="Pagado">Pagado</option>
+            <option value="A pagar" selected="@(!propietarioPago)">A pagar</option>
+            <option value="Pagado" selected="@propietarioPago">Pagado</option>
         </select>
     </div>
 
@@ -67,6 +78,6 @@
         <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
     </div>
 
-    <button type="submit" class="btn btn-primary">Guardar gasto</button>
+    <button type="submit" class="btn btn-primary">@(corrigiendo ? "Guardar corrección" : "Guardar gasto")</button>
     <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-primary">Cancelar</a>
 </form>

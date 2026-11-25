@@ -1512,7 +1512,7 @@ public class HomeController : Controller
     }
 
     [HttpGet]
-    public IActionResult AgregarGasto(int idPropiedad, string? tipo)
+    public IActionResult AgregarGasto(int idPropiedad, string? tipo, DateTime? periodo)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -1535,6 +1535,17 @@ public class HomeController : Controller
 
         ViewBag.Propiedad = propiedad;
         ViewBag.TipoGasto = tipoGasto;
+
+        // Con un mes indicado, el formulario abre con el gasto ya cargado para corregirlo (por ejemplo el monto que declaró el inquilino).
+        GastoPropiedad? existente = periodo.HasValue ? bd.ObtenerGastoDePropiedadPorPeriodo(idPropiedad, tipoGasto.IdGasto, periodo.Value) : null;
+        if (existente != null)
+        {
+            ViewBag.Corrigiendo = true;
+            ViewBag.DeclaradoPorInquilino = existente.CargadoPorInquilino;
+            ViewBag.PartePropietarioPagada = existente.MiPartePagada;
+            return View(existente);
+        }
+
         return View(new GastoPropiedad
         {
             Periodo = DateTime.Today,
