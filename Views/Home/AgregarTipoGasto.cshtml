@@ -1,6 +1,7 @@
 @model dynamic
 @{
     var propiedad = ViewBag.Propiedad as OSO.Models.Propiedades;
+    var sugeridos = ViewBag.TiposSugeridos as List<string> ?? new List<string>();
 }
 
 <h2>Agregar tipo de gasto</h2>
@@ -22,7 +23,15 @@
 
     <div>
         <label>Nombre del tipo de gasto</label>
-        <input type="text" name="nombreTipo" class="form-control" placeholder="Ej: Internet, Mantenimiento, Seguro" maxlength="@OSO.Models.Gastos.LargoMaximoNombre" required />
+        <input type="text" name="nombreTipo" class="form-control" list="tiposSugeridos" autocomplete="off"
+               placeholder="Ej: Internet, Mantenimiento, Seguro" maxlength="@OSO.Models.Gastos.LargoMaximoNombre" required />
+        <datalist id="tiposSugeridos">
+            @foreach (var tipo in sugeridos)
+            {
+                <option value="@tipo"></option>
+            }
+        </datalist>
+        <small>Elegí uno de la lista para que tome lo que dice el contrato sobre quién lo paga; si no está, escribí el nombre.</small>
     </div>
 
     <button type="submit" class="btn btn-primary">Guardar tipo</button>

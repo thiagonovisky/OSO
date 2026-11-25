@@ -4,6 +4,9 @@ public class Gastos
 {
     public const int LargoMaximoNombre = 50;
 
+    // Descripción de los tipos que crea un propietario (los distingue de los del catálogo).
+    public const string DescripcionTipoPropio = "Gasto adicional";
+
     public int IdGasto { get; set; }
     public string TipoGasto { get; set; } = string.Empty;
     public string? Descripcion { get; set; }

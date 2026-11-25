@@ -376,6 +376,18 @@ public class BD
             new { IdContrato = idContrato });
     }
 
+    // Tipos del catálogo (no los que crearon otros propietarios) que la propiedad todavía no tiene: se sugieren al agregar uno.
+    public List<string> ObtenerTiposSugeridosParaPropiedad(int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<string>(
+            @"SELECT g.TipoGasto FROM Gastos g
+              WHERE ISNULL(g.Descripcion, '') <> @DescripcionTipoPropio
+                AND NOT EXISTS (SELECT 1 FROM PropiedadTipoGasto pt WHERE pt.IdPropiedad = @IdPropiedad AND pt.IdGasto = g.IdGasto)
+              ORDER BY g.TipoGasto",
+            new { IdPropiedad = idPropiedad, DescripcionTipoPropio = Gastos.DescripcionTipoPropio }).AsList();
+    }
+
     public List<Gastos> ObtenerCatalogoGastos()
     {
         using SqlConnection connection = new(connectionString);
@@ -587,7 +599,6 @@ public class BD
                                SET Direccion = @Direccion,
                                    Superficie = @Superficie,
                                    Ambientes = @Ambientes,
-                                   Estado = @Estado,
                                    Foto = @Foto
                                WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario";
 
@@ -1367,7 +1378,7 @@ public class BD
     public int CrearTipoGasto(string nombreTipo)
     {
         using SqlConnection connection = new(connectionString);
-        return ObtenerOCrearTipoGasto(connection, null, nombreTipo, "Gasto adicional");
+        return ObtenerOCrearTipoGasto(connection, null, nombreTipo, Gastos.DescripcionTipoPropio);
     }
 
     public Gastos? ObtenerTipoGastoPorId(int idGasto)

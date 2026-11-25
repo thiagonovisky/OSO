@@ -11,6 +11,9 @@ public class GastoPropiedad
     public DateTime FechaAlta { get; set; }
     public string? Aclaracion { get; set; }
 
+    // Plazo que se propone para pagar un gasto nuevo cuando no se leyó el vencimiento de la factura.
+    public const int DiasVencimientoPropuesto = 15;
+
     // Marca del gasto que creó el inquilino al pagar: el monto es el que él declaró y el propietario todavía no lo revisó.
     // Cuando el propietario guarda el gasto, la aclaración se pisa y deja de figurar como declarado.
     public const string AclaracionCargaInquilino = "Monto cargado por el inquilino al pagar.";

@@ -80,8 +80,8 @@
                         </div>
                         <div class="summary-info-row">
                             <span class="label">Estado:</span>
-                            <span class="summary-estado @(propiedad.Estado == "Ocupada" ? "al-dia" : "pendiente")">
-                                @(propiedad.Estado == "Ocupada" ? "✓ Ocupada" : "○ No ocupada")
+                            <span class="summary-estado @(propiedad.EstaOcupada ? "al-dia" : "pendiente")">
+                                @(propiedad.EstaOcupada ? "✓ Ocupada" : "○ Disponible")
                             </span>
                         </div>
                         <div class="summary-info-row">

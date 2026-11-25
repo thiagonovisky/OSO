@@ -21,7 +21,12 @@ public class Propiedades
     public string? TelefonoPropietario { get; set; }
     public DateTime? FinContrato { get; set; }
 
-    public static readonly string[] EstadosValidos = { "Disponible", "Desocupado", "Ocupado", "Ocupada" };
+    // El estado no lo elige el propietario: una propiedad nueva está disponible y pasa a ocupada cuando se vincula
+    // un inquilino (y vuelve a disponible al desvincularlo o terminar el contrato).
+    public const string EstadoDisponible = "Disponible";
+    public const string EstadoOcupada = "Ocupada";
+
+    public bool EstaOcupada => IdInquilino.HasValue;
 
     // Devuelve el mensaje de error, o null si la propiedad es válida.
     public string? Validar()
@@ -44,11 +49,6 @@ public class Propiedades
         if (Ambientes <= 0)
         {
             return "La cantidad de ambientes debe ser mayor a cero.";
-        }
-
-        if (!string.IsNullOrWhiteSpace(Estado) && Array.IndexOf(EstadosValidos, Estado) < 0)
-        {
-            return "El estado elegido no es válido.";
         }
 
         return null;

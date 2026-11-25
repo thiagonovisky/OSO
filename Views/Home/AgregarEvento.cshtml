@@ -40,14 +40,14 @@
             <label for="Ubicacion" class="evt-label evt-label--icon">
                 <img src="~/img/evento/ubicacion.svg" alt="" />Ubicación
             </label>
-            <input id="Ubicacion" name="Ubicacion" type="text" class="evt-input" maxlength="150" placeholder="Av. Callao 921" />
+            <input id="Ubicacion" name="Ubicacion" type="text" class="evt-input" maxlength="150" placeholder="Av. Callao 921" value="@Model.Ubicacion" />
 
             <label for="IdPropiedad" class="evt-label">Propiedad (opcional)</label>
             <select id="IdPropiedad" name="IdPropiedad" class="evt-input">
                 <option value="">Ninguna</option>
                 @foreach (var p in propiedades)
                 {
-                    <option value="@p.IdPropiedad">@p.Direccion</option>
+                    <option value="@p.IdPropiedad" data-direccion="@p.Direccion" selected="@(p.IdPropiedad == Model.IdPropiedad)">@p.Direccion</option>
                 }
             </select>
 
@@ -80,5 +80,34 @@
                 }
             });
         });
+
+        // La hora de fin acompaña a la de inicio (@((int)OSO.Models.Evento.DuracionPropuesta.TotalMinutes) minutos después) hasta que la cambies a mano.
+        (function () {
+            var inicio = document.getElementById('HoraInicio');
+            var fin = document.getElementById('HoraFin');
+            var minutos = @((int)OSO.Models.Evento.DuracionPropuesta.TotalMinutes);
+            var finTocado = false;
+            fin.addEventListener('input', function () { finTocado = true; });
+            inicio.addEventListener('change', function () {
+                if (finTocado || !inicio.value) { return; }
+                var partes = inicio.value.split(':');
+                var total = Math.min(parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10) + minutos, 23 * 60 + 59);
+                fin.value = String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+            });
+        })();
+
+        // Al elegir una propiedad, la ubicación toma su dirección si todavía está vacía o era la de otra propiedad.
+        (function () {
+            var propiedad = document.getElementById('IdPropiedad');
+            var ubicacion = document.getElementById('Ubicacion');
+            var anterior = ubicacion.value;
+            propiedad.addEventListener('change', function () {
+                var direccion = propiedad.selectedOptions[0].dataset.direccion || '';
+                if (ubicacion.value === '' || ubicacion.value === anterior) {
+                    ubicacion.value = direccion;
+                    anterior = direccion;
+                }
+            });
+        })();
     </script>
 }

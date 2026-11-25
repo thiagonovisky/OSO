@@ -1,6 +1,7 @@
 @model OSO.Models.GastoPropiedad
 @{
 	var propiedades = ViewBag.Propiedades as List<OSO.Models.Propiedades>;
+	int? idPropiedadElegida = ViewBag.IdPropiedadElegida as int?;
 }
 
 <h2>Agregar expensa extraordinaria</h2>
@@ -22,7 +23,7 @@
 			{
 				foreach (var propiedad in propiedades)
 				{
-					<option value="@propiedad.IdPropiedad">@propiedad.Direccion</option>
+					<option value="@propiedad.IdPropiedad" selected="@(propiedad.IdPropiedad == idPropiedadElegida)">@propiedad.Direccion</option>
 				}
 			}
 		</select>
@@ -42,13 +43,9 @@
 	</div>
 
 	<div class="mb-3">
-		<label asp-for="FechaAlta" class="form-label">Fecha de alta</label>
-		<input asp-for="FechaAlta" type="date" class="form-control" required />
-	</div>
-
-	<div class="mb-3">
 		<label asp-for="FechaVencimiento" class="form-label">Fecha de vencimiento</label>
 		<input asp-for="FechaVencimiento" type="date" class="form-control" required />
+		<small>Si leés la liquidación se completa sola; si no, te proponemos @OSO.Models.GastoPropiedad.DiasVencimientoPropuesto días desde hoy.</small>
 	</div>
 
 	<div class="mb-3">

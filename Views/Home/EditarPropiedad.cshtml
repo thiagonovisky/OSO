@@ -26,13 +26,7 @@
 		<input asp-for="Ambientes" type="number" min="1" class="form-control" required />
 	</div>
 
-	<div class="mb-3">
-		<label asp-for="Estado" class="form-label">Estado</label>
-		<select asp-for="Estado" class="form-control">
-			<option value="Desocupado">Desocupado</option>
-			<option value="Ocupada">Ocupada</option>
-		</select>
-	</div>
+	<p class="form-text">Estado: @(Model.EstaOcupada ? "ocupada" : "disponible"). Se actualiza solo cuando vinculás o desvinculás un inquilino.</p>
 
 	<div class="mb-3">
 		<label class="form-label">Foto actual</label>

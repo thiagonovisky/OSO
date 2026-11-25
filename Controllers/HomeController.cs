@@ -484,8 +484,17 @@ public class HomeController : Controller
             return RedirectToAction("Calendario");
         }
 
-        ViewBag.Propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
-        return View(new Evento { Fecha = (fecha ?? DateTime.Today).Date, HoraInicio = new TimeSpan(9, 0, 0), HoraFin = new TimeSpan(10, 0, 0) });
+        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
+        ViewBag.Propiedades = propiedades;
+        Propiedades? unica = propiedades.Count == 1 ? propiedades[0] : null;
+        return View(new Evento
+        {
+            Fecha = (fecha ?? DateTime.Today).Date,
+            HoraInicio = new TimeSpan(9, 0, 0),
+            HoraFin = new TimeSpan(9, 0, 0).Add(Evento.DuracionPropuesta),
+            IdPropiedad = unica?.IdPropiedad,
+            Ubicacion = unica?.Direccion
+        });
     }
 
     [HttpPost]
@@ -593,8 +602,11 @@ public class HomeController : Controller
             return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
         }
 
-        ViewBag.Propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
-        return View();
+        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
+        ViewBag.Propiedades = propiedades;
+        // Con una sola propiedad ya viene elegida; el vencimiento se propone y se pisa si se lee la liquidación.
+        ViewBag.IdPropiedadElegida = propiedades.Count == 1 ? propiedades[0].IdPropiedad : (int?)null;
+        return View(new GastoPropiedad { FechaVencimiento = DateTime.Today.AddDays(GastoPropiedad.DiasVencimientoPropuesto) });
     }
 
     [HttpPost]
@@ -626,7 +638,8 @@ public class HomeController : Controller
             return RedirectToAction("AgregarExpensa");
         }
 
-        expensa.FechaAlta = expensa.FechaAlta == default ? DateTime.Today : expensa.FechaAlta.Date;
+        // La fecha de alta es la de carga: no la elige el propietario.
+        expensa.FechaAlta = DateTime.Today;
         expensa.FechaVencimiento = expensa.FechaVencimiento.Date;
 
         bd.AgregarExpensa(expensa, idPropiedad, 0, montoExtraordinarias);
@@ -833,7 +846,7 @@ public class HomeController : Controller
             ? GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"propiedad_{idPropietario.Value}")
             : "default.jpg";
         propiedad.FechaDeAlta = DateTime.Today;
-        propiedad.Estado = string.IsNullOrWhiteSpace(propiedad.Estado) ? "Disponible" : propiedad.Estado;
+        propiedad.Estado = OSO.Models.Propiedades.EstadoDisponible;
 
         bd.AgregarPropiedad(propiedad);
         return RedirectToAction("Propiedades");
@@ -1628,7 +1641,7 @@ public class HomeController : Controller
         {
             Periodo = DateTime.Today,
             FechaAlta = DateTime.Today,
-            FechaVencimiento = DateTime.Today.AddDays(15)
+            FechaVencimiento = DateTime.Today.AddDays(GastoPropiedad.DiasVencimientoPropuesto)
         });
     }
 
@@ -1649,6 +1662,7 @@ public class HomeController : Controller
         }
 
         ViewBag.Propiedad = propiedad;
+        ViewBag.TiposSugeridos = bd.ObtenerTiposSugeridosParaPropiedad(idPropiedad);
         return View();
     }
 

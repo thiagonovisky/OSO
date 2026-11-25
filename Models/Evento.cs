@@ -19,6 +19,9 @@ public class Evento
     public int? IdGastoPropiedad { get; set; }
     public string Tipo { get; set; } = "Manual";
 
+    // Al crear un evento, la hora de fin se propone a esta distancia de la de inicio.
+    public static readonly TimeSpan DuracionPropuesta = TimeSpan.FromHours(1);
+
     // En el calendario del propietario los eventos manuales se identifican por la propiedad.
     public string TextoEnCalendario => Tipo == "Manual" ? NombrePropiedad ?? Titulo : Titulo;
 
