@@ -100,6 +100,13 @@
                 <button type="submit" class="btn btn-primary">Aceptar contrato</button>
             </form>
         }
-        <a asp-action="Propiedades" asp-controller="Home" class="btn btn-primary">Volver</a>
+        @if (ViewBag.VolverANotificaciones == true)
+        {
+            <a asp-action="Notificaciones" asp-controller="Home" class="btn btn-primary">Volver a notificaciones</a>
+        }
+        else
+        {
+            <a asp-action="Propiedades" asp-controller="Home" class="btn btn-primary">Volver</a>
+        }
     </div>
 </div>

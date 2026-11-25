@@ -333,6 +333,10 @@ public class BD
         return true;
     }
 
+    // Empieza el aviso que recibe el inquilino cuando el propietario confirma el contrato; la pantalla de avisos lo reconoce
+    // para mostrar el botón que lleva directo a ese contrato (no hay otra forma de saber a qué contrato se refiere el aviso).
+    public const string TextoContratoCargado = "Tu propietario cargó el contrato de ";
+
     // Contratos que el propietario ya confirmó y el inquilino todavía tiene que aceptar.
     public List<Contratos> ObtenerContratosPendientesDeInquilino(int idInquilino)
     {
@@ -479,12 +483,12 @@ public class BD
             connection.Execute(
                 @"INSERT INTO Notificaciones (IdUsuario, Texto)
                   SELECT u.IdUsuario,
-                         LEFT(CONCAT('Tu propietario cargó el contrato de ', p.Direccion, '. Revisalo y aceptalo para dejarlo vigente.'), 300)
+                         LEFT(CONCAT(@Prefijo, p.Direccion, '. Revisalo y aceptalo para dejarlo vigente.'), 300)
                   FROM Contratos c
                   INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
                   INNER JOIN Usuarios u ON u.IdInquilino = c.IdInquilino
                   WHERE c.IdContrato = @IdContrato",
-                new { IdContrato = idContrato },
+                new { IdContrato = idContrato, Prefijo = TextoContratoCargado },
                 transaction);
         }
 

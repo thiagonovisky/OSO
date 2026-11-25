@@ -765,6 +765,10 @@ public class HomeController : Controller
 
         List<Notificacion> notificaciones = bd.ObtenerNotificaciones(idUsuario.Value);
         bd.MarcarNotificacionesComoLeidas(idUsuario.Value);
+
+        // Contratos que el inquilino todavía tiene que aceptar: el aviso de "el propietario cargó el contrato" lleva directo a ellos.
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        ViewBag.ContratosPendientes = idInquilino.HasValue ? bd.ObtenerContratosPendientesDeInquilino(idInquilino.Value) : new List<Contratos>();
         return View(notificaciones);
     }
 
@@ -1460,7 +1464,7 @@ public class HomeController : Controller
 
     // El inquilino ve el contrato en solo lectura y, si está pendiente, lo acepta.
     [HttpGet]
-    public IActionResult VerContrato(int idContrato)
+    public IActionResult VerContrato(int idContrato, string? desde)
     {
         int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
 
@@ -1484,6 +1488,7 @@ public class HomeController : Controller
         RevisionContrato revision = ArmarRevision(contrato, propiedad);
         revision.Errores.Clear();
         revision.Advertencias.Clear();
+        ViewBag.VolverANotificaciones = desde == "notificaciones";
         return View(revision);
     }
 

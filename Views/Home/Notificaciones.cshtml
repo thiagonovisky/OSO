@@ -1,4 +1,7 @@
 @model List<OSO.Models.Notificacion>
+@{
+    var contratosPendientes = ViewBag.ContratosPendientes as List<OSO.Models.Contratos> ?? new List<OSO.Models.Contratos>();
+}
 
 <h2>Notificaciones</h2>
 
@@ -10,7 +13,19 @@
             <li class="list-group-item @(n.Leida ? "" : "fw-bold")">
                 <div>@n.Texto</div>
                 <small class="text-muted">@n.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</small>
-                @if (n.IdGastoResponsable.HasValue && Context.Session.GetInt32("IdInquilino").HasValue)
+                @{
+                    // El aviso "el propietario cargó el contrato de <dirección>" lleva al contrato que sigue esperando que lo acepte.
+                    var contratoDelAviso = n.Texto.StartsWith(OSO.Models.BD.TextoContratoCargado)
+                        ? contratosPendientes.FirstOrDefault(c => !string.IsNullOrEmpty(c.Direccion) && n.Texto.Contains(c.Direccion))
+                        : null;
+                }
+                @if (contratoDelAviso != null)
+                {
+                    <div>
+                        <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@contratoDelAviso.IdContrato" asp-route-desde="notificaciones" class="btn btn-primary">Ver contrato y aceptarlo</a>
+                    </div>
+                }
+                else if (n.IdGastoResponsable.HasValue && Context.Session.GetInt32("IdInquilino").HasValue)
                 {
                     <div><a asp-action="MisGastos" asp-controller="Home" class="btn">Ir a pagar</a></div>
                 }
