@@ -8,6 +8,7 @@ builder.Services.AddControllersWithViews(opciones =>
     opciones.ModelBinderProviders.Insert(0, new DecimalInvarianteBinderProvider()));
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<ExtractorContratoGemini>();
+builder.Services.AddScoped<ExtractorFacturaGemini>();
 builder.Services.AddHostedService<ActualizadorIndices>();
 
 var app = builder.Build();

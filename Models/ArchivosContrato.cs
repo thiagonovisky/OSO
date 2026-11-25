@@ -35,6 +35,27 @@ public static class ArchivosContrato
         return null;
     }
 
+    // Igual que Validar, para una factura que solo se lee (no se guarda): mensajes sin hablar de contrato.
+    public static string? ValidarFactura(IFormFile? archivo)
+    {
+        if (archivo == null || archivo.Length == 0)
+        {
+            return "Elegí el archivo de la factura (PDF o foto).";
+        }
+
+        if (Array.IndexOf(Extensiones, ObtenerExtension(archivo.FileName)) < 0)
+        {
+            return "La factura tiene que ser un PDF o una imagen (jpg, png o webp).";
+        }
+
+        if (archivo.Length > TamanoMaximo)
+        {
+            return "El archivo supera los 10 MB.";
+        }
+
+        return FirmaCoincide(archivo) ? null : "El archivo no parece ser un PDF o una imagen válida.";
+    }
+
     // Guarda con nombre contrato_{id}_{guid}.ext (nunca el nombre original) y devuelve el nombre guardado.
     public static string Guardar(int idContrato, IFormFile archivo)
     {

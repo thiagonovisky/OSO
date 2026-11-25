@@ -13,7 +13,12 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
 
     public string Modelo => configuration["Gemini:Modelo"] ?? "gemini-3.5-flash";
 
-    public async Task<(string? Json, string? Error)> ExtraerAsync(byte[] archivo, string mimeType, IEnumerable<string> tiposGasto)
+    public Task<(string? Json, string? Error)> ExtraerAsync(byte[] archivo, string mimeType, IEnumerable<string> tiposGasto) =>
+        EnviarAsync(ArmarPedido(archivo, mimeType, tiposGasto.ToList()), "el contrato");
+
+    // Manda un pedido ya armado a Gemini y devuelve el texto JSON de la respuesta. queLee: "el contrato", "la factura"...
+    // Lo usa también el lector de facturas, para no repetir la conexión, el tiempo máximo ni el manejo de errores.
+    public async Task<(string? Json, string? Error)> EnviarAsync(object pedidoGemini, string queLee)
     {
         string? key = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
         if (string.IsNullOrWhiteSpace(key))
@@ -21,7 +26,7 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
             return (null, "Falta configurar GEMINI_API_KEY");
         }
 
-        string cuerpo = JsonSerializer.Serialize(ArmarPedido(archivo, mimeType, tiposGasto.ToList()));
+        string cuerpo = JsonSerializer.Serialize(pedidoGemini);
 
         try
         {
@@ -39,12 +44,12 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
                 logger.LogWarning("Gemini respondió con el código {Codigo}", (int)respuesta.StatusCode);
                 return (null, respuesta.StatusCode == HttpStatusCode.TooManyRequests
                     ? "Se alcanzó el límite de uso gratuito de Gemini. Probá de nuevo en unos minutos."
-                    : $"Gemini no pudo procesar el contrato (código {(int)respuesta.StatusCode}).");
+                    : $"Gemini no pudo procesar {queLee} (código {(int)respuesta.StatusCode}).");
             }
 
             string texto = await respuesta.Content.ReadAsStringAsync(cts.Token);
             string? json = ExtraerTextoDeRespuesta(texto);
-            return json == null ? (null, "Gemini no devolvió datos del contrato.") : (json, null);
+            return json == null ? (null, $"Gemini no devolvió datos para {queLee}.") : (json, null);
         }
         catch (OperationCanceledException)
         {

@@ -35,8 +35,13 @@
             <td>-</td>
             <td>-</td>
             <td>
-                <form asp-action="PagarPendienteContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                <form asp-action="PagarPendienteContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex flex-wrap align-items-center gap-2">
                     @Html.AntiForgeryToken()
+                    <div class="factura-lector w-100">
+                        <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm mb-1" aria-label="Factura del servicio" />
+                        <button type="button" class="btn btn-secondary btn-sm btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="@pendiente.TipoGasto">Leer monto de la factura</button>
+                        <small class="factura-estado d-block"></small>
+                    </div>
                     <input type="hidden" name="idPropiedad" value="@pendiente.IdPropiedad" />
                     <input type="hidden" name="idGasto" value="@pendiente.IdGasto" />
                     <input type="hidden" name="periodo" value="@pendiente.Periodo.ToString("yyyy-MM-dd")" />
@@ -139,4 +144,8 @@
 else
 {
     <p class="mt-3 text-center">@(ViewBag.TieneContrato == true ? "No tenés gastos a tu cargo." : "Todavía no hay un contrato confirmado, por eso no hay gastos para mostrar.")</p>
+}
+
+@section Scripts {
+    <script src="~/js/factura.js" asp-append-version="true"></script>
 }

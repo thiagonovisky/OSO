@@ -13,11 +13,13 @@ public class HomeController : Controller
     private readonly IDataProtector _protectorInvitaciones;
     private readonly BD bd = new();
     private readonly ExtractorContratoGemini _extractor;
+    private readonly ExtractorFacturaGemini _extractorFactura;
 
-    public HomeController(ILogger<HomeController> logger, IDataProtectionProvider dataProtectionProvider, ExtractorContratoGemini extractor)
+    public HomeController(ILogger<HomeController> logger, IDataProtectionProvider dataProtectionProvider, ExtractorContratoGemini extractor, ExtractorFacturaGemini extractorFactura)
     {
         _logger = logger;
         _extractor = extractor;
+        _extractorFactura = extractorFactura;
         _protectorInvitaciones = dataProtectionProvider.CreateProtector("OSO.InvitacionPropiedad");
     }
 
@@ -1138,6 +1140,50 @@ public class HomeController : Controller
 
         TempData["Success"] = "Leímos el contrato. Revisá los datos marcados antes de confirmar.";
         return RedirectToAction("RevisarContrato", new { idContrato });
+    }
+
+    // Lee una factura (PDF o foto) con la IA y devuelve el monto, el vencimiento y el mes para completar el formulario.
+    // La factura no se guarda: solo se lee. Pueden usarla el propietario y el inquilino.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(11_534_336)]
+    public async Task<IActionResult> LeerFactura(IFormFile? factura, string? tipo)
+    {
+        if (!HttpContext.Session.GetInt32("IdPropietario").HasValue && !HttpContext.Session.GetInt32("IdInquilino").HasValue)
+        {
+            return Unauthorized(new { ok = false, mensaje = "Iniciá sesión para leer la factura." });
+        }
+
+        string? error = ArchivosContrato.ValidarFactura(factura);
+        if (error != null)
+        {
+            return Json(new { ok = false, mensaje = error });
+        }
+
+        using var memoria = new MemoryStream();
+        await factura!.CopyToAsync(memoria);
+
+        string? tipoGasto = tipo?.Trim();
+        if (tipoGasto != null && tipoGasto.Length > 50)
+        {
+            tipoGasto = tipoGasto[..50];
+        }
+
+        var (lectura, errorIa) = await _extractorFactura.LeerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(factura.FileName), tipoGasto);
+        if (lectura == null)
+        {
+            return Json(new { ok = false, mensaje = errorIa ?? "No pudimos leer la factura; cargá los datos a mano." });
+        }
+
+        return Json(new
+        {
+            ok = true,
+            monto = lectura.Monto,
+            vencimiento = lectura.Vencimiento?.ToString("yyyy-MM-dd"),
+            periodo = lectura.Periodo?.ToString("yyyy-MM-dd"),
+            proveedor = lectura.Proveedor,
+            dudosa = lectura.EsDudosa
+        });
     }
 
     // El archivo solo lo bajan el propietario de la propiedad o el inquilino del contrato.

@@ -38,6 +38,13 @@
         <input type="text" value="@tipo" disabled class="form-control" />
     </div>
 
+    <div class="factura-lector mb-3">
+        <label>Factura (opcional)</label>
+        <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
+        <button type="button" class="btn btn-secondary mt-1 btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="@tipo">Leer monto y vencimiento de la factura</button>
+        <small class="factura-estado d-block"></small>
+    </div>
+
     <div>
         <label>Mes</label>
         <input type="date" name="mes" value="@Model.Periodo.ToString("yyyy-MM-dd")" required class="form-control" />
@@ -81,3 +88,7 @@
     <button type="submit" class="btn btn-primary">@(corrigiendo ? "Guardar corrección" : "Guardar gasto")</button>
     <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-primary">Cancelar</a>
 </form>
+
+@section Scripts {
+    <script src="~/js/factura.js" asp-append-version="true"></script>
+}
