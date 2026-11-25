@@ -291,6 +291,9 @@ App_Data/
 wwwroot/comprobantes/
 wwwroot/imagenes/perfil_*
 wwwroot/imagenes/propiedad_*
+# Excepción: las fotos de perfil de los usuarios de ejemplo (prop@gmail.com e inq@gmail.com) sí se suben
+!wwwroot/imagenes/perfil_prop@gmail.com_20261119083614524.jfif
+!wwwroot/imagenes/perfil_inq@gmail.com_20261119084917425.jfif
 
 # Secretos y backups
 .env
