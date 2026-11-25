@@ -1,31 +1,30 @@
 <div class="auth-page">
-<h1>Inicia Sesión</h1>
+    <h1 class="auth-title">Iniciá sesión</h1>
 
-@if (ViewBag.Error != null)
-{
-    <div class="alert alert-danger">@ViewBag.Error</div>
-}
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
+    <div class="auth-card">
+        @if (ViewBag.Error != null)
+        {
+            <div class="alert alert-danger" role="alert">@ViewBag.Error</div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+        }
 
-<form action='@Url.Action("IniciarSesion", "Home")' method="post">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
-    <div>
-        <label for="correo">Correo electrónico:</label>
-        <input type="email" id="correo" name="correo" required />
-    </div>
-    <div>
-        <label for="contrasena">Contraseña:</label>
-        <input type="password" id="contrasena" name="contrasena" required />
-    </div>
-    <div class="auth-actions">
-        <button type="submit">Iniciar Sesión</button>
-        <button type="reset">Limpiar</button>
-    </div>
-</form>
+        <form action='@Url.Action("IniciarSesion", "Home")' method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+            <div class="auth-campo">
+                <label for="correo">Mail</label>
+                <input type="email" id="correo" name="correo" autocomplete="email" required />
+            </div>
+            <div class="auth-campo">
+                <label for="contrasena">Contraseña</label>
+                <input type="password" id="contrasena" name="contrasena" autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="btn btn-primary auth-enviar">Iniciar sesión</button>
+        </form>
 
-<p class="auth-switch">¿No tenés cuenta? <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl" class="btn">Registrate</a></p>
+        <p class="auth-switch">¿No tenés cuenta? <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Registrate</a></p>
+    </div>
 </div>

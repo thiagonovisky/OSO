@@ -1366,63 +1366,146 @@ input[type="file"]::file-selector-button:hover {
   padding: 0;
 }
 
-/* Login / Registro */
+/* Login / Registro: el título como el de las demás pantallas y el formulario en el mismo panel que las tarjetas */
 .auth-page {
   display: flex;
   flex-direction: column;
-  max-width: 780px;
-  padding: 2.22% 1.39% 3.33%;
+  align-items: center;
+  max-width: 480px;
+  padding: 0 16px 48px;
 }
-.auth-page h1 {
-  margin-bottom: 1.67%;
+.auth-page--registro {
+  max-width: 640px;
 }
-.auth-page .alert {
-  margin: 0 0 1.11%;
+.auth-card {
+  width: 100%;
+  padding: 28px;
+  border: 1px solid var(--blue-soft);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.auth-card .alert {
+  margin: 0 0 16px;
 }
 .auth-page form {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-.auth-page form label {
-  margin-bottom: 0.42%;
-}
-.auth-roles {
+.auth-campo {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
-.auth-roles label {
-  display: inline-flex;
-  margin: 0 1.67% 0 0;
-  font-weight: 400;
-}
-.auth-roles label:last-child {
-  margin-right: 0;
-}
-.auth-roles input[type="radio"] {
+.auth-page .auth-campo > label {
   margin: 0;
+  color: var(--blue-main);
+  font-size: 0.92rem;
+  font-weight: 600;
 }
-.auth-actions {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 0.56%;
+.auth-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.auth-enviar {
+  width: 100%;
+  height: 46px;
+  margin-top: 4px;
+  font-size: 1.05rem;
 }
 .auth-switch {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 1.94%;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--linea);
+  color: rgba(30, 51, 72, 0.75);
   text-align: center;
 }
-.auth-switch .btn {
-  min-width: 120px;
-  height: 40px;
+.auth-switch a {
+  color: var(--blue-main);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-switch a:hover {
+  color: var(--blue-dark);
+}
+.auth-aviso {
+  padding: 10px 14px;
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: var(--niebla);
+}
+/* Rol: dos tarjetas elegibles; la elegida toma el borde y el fondo de la sección activa */
+.auth-roles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.auth-roles legend {
+  grid-column: 1 / -1;
+  margin-bottom: 6px;
+  color: var(--blue-main);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.auth-page .auth-rol {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 14px 14px 14px 42px;
+  border: 1px solid var(--blue-main-35);
+  border-radius: 12px;
+  background: var(--white);
+  font-weight: 400;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.auth-rol:hover {
+  border-color: var(--blue-main);
+}
+.auth-rol input[type="radio"] {
+  position: absolute;
+  top: 16px;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--blue-main);
+}
+.auth-rol:has(input:checked) {
+  border-color: var(--blue-main);
+  background: var(--niebla);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.auth-rol:has(input:focus-visible) {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.auth-rol__titulo {
+  color: var(--blue-dark);
+  font-size: 1rem;
+  font-weight: 700;
+}
+.auth-rol__detalle {
+  color: rgba(30, 51, 72, 0.7);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+@media (max-width: 560px) {
+  .auth-card {
+    padding: 20px;
+  }
+  .auth-fila, .auth-roles {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Perfil */
@@ -1614,14 +1697,14 @@ input[type="file"]::file-selector-button:hover {
 }
 
 /* Títulos de sección */
-.propiedades-title, .invitacion-title, .cal-title, .evt-title, .msj-title, .gastos-title {
+.propiedades-title, .invitacion-title, .cal-title, .evt-title, .msj-title, .gastos-title, .auth-title {
   margin: 0;
   padding: 0;
   color: var(--blue-main);
   font-size: 2.5rem;
   font-weight: 400;
 }
-.propiedades-title, .gastos-title {
+.propiedades-title, .gastos-title, .auth-title {
   margin-bottom: 1.67%;
   padding-top: 1.67%;
 }
@@ -2408,7 +2491,7 @@ a.cal-cell:hover {
 }
 .password-rules li {
   color: #777;
-  padding-left: 1.67%;
+  padding-left: 18px;
   position: relative;
 }
 .password-rules li::before {

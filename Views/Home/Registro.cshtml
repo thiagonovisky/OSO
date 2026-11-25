@@ -1,79 +1,96 @@
 @{
     bool desdeInvitacion = !string.IsNullOrWhiteSpace(ViewBag.ReturnUrl as string);
 }
-<div class="auth-page">
-<h1>Registrate</h1>
+<div class="auth-page auth-page--registro">
+    <h1 class="auth-title">Creá tu cuenta</h1>
 
-@if (ViewBag.Error != null)
-{
-    <div class="alert alert-danger">@ViewBag.Error</div>
-}
+    <div class="auth-card">
+        @if (ViewBag.Error != null)
+        {
+            <div class="alert alert-danger" role="alert">@ViewBag.Error</div>
+        }
 
-<form action='@Url.Action("Registrar", "Home")' method="post" enctype="multipart/form-data">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
-    <div>
-        <label for="nombre">Nombre:</label>
-        <input type="text" id="nombre" name="nombre" maxlength="50" required />
-    </div>
-    <div>
-        <label for="apellido">Apellido:</label>
-        <input type="text" id="apellido" name="apellido" maxlength="50" required />
-    </div>
-    <div>
-        <label for="correo">Correo electrónico:</label>
-        <input type="email" id="correo" name="correo" maxlength="100" required />
-    </div>
-    <div>
-        <label for="telefono">Teléfono:</label>
-        <div class="phone-field">
-            <select id="codigoPais" name="codigoPais" aria-label="País">
-                @foreach (var pais in OSO.Models.TelefonoFormato.Paises)
-                {
-                    <option value="@pais.Codigo" data-digitos="@pais.Digitos" data-ejemplo="@pais.Ejemplo">@pais.Nombre (+@pais.Codigo)</option>
-                }
-            </select>
-            <input type="tel" id="telefono" name="telefono" required inputmode="numeric"
-                   placeholder="11-2345-6789"
-                   title="Ingresá el número con código de área; los guiones se agregan solos" />
-        </div>
-    </div>
-    <div>
-        <label for="contrasena">Contraseña:</label>
-        <input type="password" id="contrasena" name="contrasena" required minlength="8" />
-        <ul class="password-rules" id="passwordRules">
-            <li data-rule="len">Mínimo 8 caracteres</li>
-            <li data-rule="special">Al menos 1 carácter especial (ej: ! * # $ %)</li>
-        </ul>
-    </div>
-    <div>
-        <label for="confirmarContrasena">Confirmar Contraseña:</label>
-        <input type="password" id="confirmarContrasena" name="confirmarContrasena" required />
-    </div>
-    <div>
-        <label for="fotoPerfil">Foto de perfil:</label>
-        <input type="file" id="fotoPerfil" name="fotoPerfil" accept=".jpg,.jpeg,.png,.webp,.gif,.jfif" />
-    </div>
-    @if (desdeInvitacion)
-    {
-        <input type="hidden" name="esPropietario" value="false" />
-        <p>Te vas a registrar como <strong>inquilino</strong> de la propiedad a la que te invitaron.</p>
-    }
-    else
-    {
-        <div class="auth-roles">
-            <input type="radio" id="inquilino" name="esPropietario" value="false" checked />
-            <label for="inquilino">Soy inquilino</label>
+        <form action='@Url.Action("Registrar", "Home")' method="post" enctype="multipart/form-data">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
 
-            <input type="radio" id="propietario" name="esPropietario" value="true" />
-            <label for="propietario">Soy propietario</label>
-        </div>
-    }
-    <div class="auth-actions">
-        <button type="submit">Registrarse</button>
-        <button type="reset">Limpiar</button>
-    </div>
-</form>
+            @if (desdeInvitacion)
+            {
+                <input type="hidden" name="esPropietario" value="false" />
+                <p class="auth-aviso">Te vas a registrar como <strong>inquilino/a</strong> de la propiedad a la que te invitaron.</p>
+            }
+            else
+            {
+                @* El rol define qué ve cada uno en la app: se elige con dos tarjetas en vez de radios sueltos. *@
+                <fieldset class="auth-roles">
+                    <legend>¿Cómo vas a usar OSO?</legend>
+                    <label class="auth-rol">
+                        <input type="radio" name="esPropietario" value="false" checked />
+                        <span class="auth-rol__titulo">Soy inquilino/a</span>
+                        <span class="auth-rol__detalle">Veo mi contrato y pago el alquiler y los gastos que me tocan.</span>
+                    </label>
+                    <label class="auth-rol">
+                        <input type="radio" name="esPropietario" value="true" />
+                        <span class="auth-rol__titulo">Soy propietario/a</span>
+                        <span class="auth-rol__detalle">Administro mis propiedades, contratos y gastos.</span>
+                    </label>
+                </fieldset>
+            }
 
-<p class="auth-switch">¿Ya tenés cuenta? <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl" class="btn">Iniciá sesión</a></p>
+            <div class="auth-fila">
+                <div class="auth-campo">
+                    <label for="nombre">Nombre</label>
+                    <input type="text" id="nombre" name="nombre" maxlength="50" autocomplete="given-name" required />
+                </div>
+                <div class="auth-campo">
+                    <label for="apellido">Apellido</label>
+                    <input type="text" id="apellido" name="apellido" maxlength="50" autocomplete="family-name" required />
+                </div>
+            </div>
+
+            <div class="auth-campo">
+                <label for="correo">Mail</label>
+                <input type="email" id="correo" name="correo" maxlength="100" autocomplete="email" required />
+            </div>
+
+            <div class="auth-campo">
+                <label for="telefono">Teléfono</label>
+                <div class="phone-field">
+                    <select id="codigoPais" name="codigoPais" aria-label="País">
+                        @foreach (var pais in OSO.Models.TelefonoFormato.Paises)
+                        {
+                            <option value="@pais.Codigo" data-digitos="@pais.Digitos" data-ejemplo="@pais.Ejemplo">@pais.Nombre (+@pais.Codigo)</option>
+                        }
+                    </select>
+                    <input type="tel" id="telefono" name="telefono" required inputmode="numeric" autocomplete="tel-national"
+                           placeholder="11-2345-6789"
+                           title="Ingresá el número con código de área; los guiones se agregan solos" />
+                </div>
+            </div>
+
+            <div class="auth-fila">
+                <div class="auth-campo">
+                    <label for="contrasena">Contraseña</label>
+                    <input type="password" id="contrasena" name="contrasena" required minlength="8" autocomplete="new-password" />
+                </div>
+                <div class="auth-campo">
+                    <label for="confirmarContrasena">Repetí la contraseña</label>
+                    <input type="password" id="confirmarContrasena" name="confirmarContrasena" required autocomplete="new-password" />
+                </div>
+            </div>
+            <ul class="password-rules" id="passwordRules">
+                <li data-rule="len">Mínimo 8 caracteres</li>
+                <li data-rule="special">Al menos 1 carácter especial (ej: ! * # $ %)</li>
+            </ul>
+
+            <div class="auth-campo">
+                <label for="fotoPerfil">Foto de perfil (opcional)</label>
+                <input type="file" id="fotoPerfil" name="fotoPerfil" accept=".jpg,.jpeg,.png,.webp,.gif,.jfif" />
+            </div>
+
+            <button type="submit" class="btn btn-primary auth-enviar">Crear cuenta</button>
+        </form>
+
+        <p class="auth-switch">¿Ya tenés cuenta? <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@ViewBag.ReturnUrl">Iniciá sesión</a></p>
+    </div>
 </div>
