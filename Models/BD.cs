@@ -378,6 +378,34 @@ public class BD
         return connection.Query<Gastos>("SELECT * FROM Gastos ORDER BY IdGasto").AsList();
     }
 
+    // Descarta un contrato que todavía es Borrador, con sus reglas y lecturas de la IA. Devuelve el nombre del archivo
+    // subido (para borrarlo del disco) o null si no se descartó nada. Un contrato ya confirmado no se toca.
+    public (bool Descartado, string? Archivo) DescartarBorrador(int idContrato)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        string? archivo = connection.QueryFirstOrDefault<string?>(
+            "SELECT ISNULL(ArchivoContrato, '') FROM Contratos WITH (UPDLOCK) WHERE IdContrato = @IdContrato AND Estado = 'Borrador'",
+            new { IdContrato = idContrato },
+            transaction);
+
+        if (archivo == null)
+        {
+            transaction.Rollback();
+            return (false, null);
+        }
+
+        var parametros = new { IdContrato = idContrato };
+        connection.Execute("DELETE FROM ContratoResponsabilidadGasto WHERE IdContrato = @IdContrato", parametros, transaction);
+        connection.Execute("DELETE FROM ExtraccionesContrato WHERE IdContrato = @IdContrato", parametros, transaction);
+        connection.Execute("DELETE FROM Contratos WHERE IdContrato = @IdContrato AND Estado = 'Borrador'", parametros, transaction);
+
+        transaction.Commit();
+        return (true, archivo.Length == 0 ? null : archivo);
+    }
+
     public void GuardarNombreArchivoContrato(int idContrato, string nombreArchivo)
     {
         using SqlConnection connection = new(connectionString);

@@ -1239,6 +1239,34 @@ public class HomeController : Controller
         return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
     }
 
+    // Cancela el borrador sin guardar nada: se borra el contrato, lo que leyó la IA y el archivo subido.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult DescartarBorrador(int idContrato)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        var (contrato, propiedad) = ObtenerBorradorDelPropietario(idContrato, idPropietario.Value);
+        if (contrato == null || propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        var (descartado, archivo) = bd.DescartarBorrador(idContrato);
+        if (descartado)
+        {
+            ArchivosContrato.Borrar(archivo);
+            TempData["Success"] = "Cancelaste el borrador del contrato.";
+        }
+
+        return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+    }
+
     // El inquilino ve el contrato en solo lectura y, si está pendiente, lo acepta.
     [HttpGet]
     public IActionResult VerContrato(int idContrato)

@@ -59,6 +59,15 @@ public static class ArchivosContrato
         return File.Exists(ruta) ? ruta : null;
     }
 
+    public static void Borrar(string? nombreGuardado)
+    {
+        string? ruta = ObtenerRuta(nombreGuardado);
+        if (ruta != null)
+        {
+            File.Delete(ruta);
+        }
+    }
+
     public static string ObtenerTipoMime(string nombreArchivo) => ObtenerExtension(nombreArchivo) switch
     {
         ".pdf" => "application/pdf",

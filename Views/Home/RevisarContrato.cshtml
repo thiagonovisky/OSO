@@ -148,6 +148,13 @@
             <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.Propiedad.IdPropiedad" class="btn btn-primary">Volver</a>
         </div>
     </form>
+
+    <form asp-action="DescartarBorrador" asp-controller="Home" method="post" class="contrato-actions"
+          onsubmit="return confirm('¿Cancelar este borrador? Se pierde lo que cargaste y el archivo subido.');">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="idContrato" value="@c.IdContrato" />
+        <button type="submit" class="btn btn-danger">Cancelar borrador sin guardar</button>
+    </form>
 </div>
 
 <script>
