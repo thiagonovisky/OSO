@@ -24,7 +24,13 @@
   --danger: #D94A4A;
   --danger-soft: #D9534F;
   --danger-strong: #C9302C;
-  --header-height: 111px;
+  --header-height: 84px;
+  /* Del logo: el dorado de la torre marca dónde estás; niebla y línea arman superficies y separadores. */
+  --gold: #E2A63B;
+  --niebla: #EEF4F9;
+  --linea: rgba(30, 51, 72, 0.12);
+  --radio-control: 10px;
+  --radio-panel: 14px;
 }
 
 * {
@@ -125,16 +131,25 @@ button, .btn, .oso-nav__item, .oso-icon, .landing-hero__btn, .landing-cta__btn, 
   align-items: center;
   justify-content: center;
 }
+
+/* Botones: un primario (acero, con un leve relieve abajo), secundario de contorno, éxito para pagar y peligro de contorno.
+   Bootstrap también define .btn-*: acá se fijan los colores propios para que no se pisen entre sí. */
 button, .btn {
+  gap: 8px;
   min-width: 140px;
-  height: 44px;
-  padding: 0.69% 1.25%;
-  border: none;
-  border-radius: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radio-control);
   background: var(--blue-main);
   color: var(--white);
-  font-weight: bold;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
+  box-shadow: inset 0 -2px 0 rgba(30, 51, 72, 0.28);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 button:hover, .btn:hover, .evt-btn:hover, .msj-add-btn:hover {
   background: var(--blue-dark);
@@ -142,34 +157,271 @@ button:hover, .btn:hover, .evt-btn:hover, .msj-add-btn:hover {
 .btn:hover, .evt-btn:hover {
   color: var(--white);
 }
+button:active, .btn:active {
+  box-shadow: inset 0 2px 0 rgba(30, 51, 72, 0.25);
+}
+button:focus-visible, .btn:focus-visible, .oso-nav__item:focus-visible, .oso-icon:focus-visible, .oso-brand:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+button:disabled, .btn:disabled, .btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.btn-primary {
+  background: var(--blue-main);
+  border-color: transparent;
+  color: var(--white);
+}
+.btn-primary:hover {
+  background: var(--blue-dark);
+}
 button[type="reset"], .btn-secondary {
-  background: var(--blue-soft-30);
-  color: var(--blue-dark);
-  border: 1px solid var(--blue-main-45);
+  background: var(--white);
+  border-color: var(--blue-main-45);
+  color: var(--blue-main);
+  box-shadow: none;
 }
 button[type="reset"]:hover, .btn-secondary:hover {
-  background: var(--blue-soft-42);
+  background: var(--niebla);
+  border-color: var(--blue-main);
   color: var(--blue-dark);
+}
+.btn-success {
+  background: var(--success);
+  border-color: transparent;
+  color: var(--white);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+}
+.btn-success:hover {
+  background: #17803F;
+  color: var(--white);
+}
+.btn-danger {
+  background: var(--white);
+  border-color: rgba(201, 48, 44, 0.55);
+  color: var(--danger-strong);
+  box-shadow: none;
+}
+.btn-danger:hover {
+  background: var(--danger-strong);
+  border-color: var(--danger-strong);
+  color: var(--white);
+}
+.btn-sm {
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+}
+
+/* Botón para elegir archivo (comprobantes, facturas, contratos): se ve como un secundario chico */
+input[type="file"] {
+  padding: 4px;
+  color: rgba(30, 51, 72, 0.7);
+  font-size: 0.9rem;
+}
+input[type="file"]::file-selector-button {
+  height: 30px;
+  margin-right: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--blue-main-45);
+  border-radius: 6px;
+  background: var(--niebla);
+  color: var(--blue-main);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+input[type="file"]::file-selector-button:hover {
+  background: var(--blue-soft-30);
+}
+
+/* Tablas: planilla limpia. Encabezado chico y gris, filas separadas por una línea, montos alineados a la derecha. */
+.tabla-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-panel);
+  background: var(--white);
+  box-shadow: 0 1px 2px rgba(30, 51, 72, 0.06);
+}
+.tabla-wrap .table {
+  margin: 0;
+  border: none;
 }
 .table {
   width: 100%;
   border-collapse: collapse;
-  border: 2px solid var(--blue-main-45);
+  border: 1px solid var(--linea);
+  font-size: 0.95rem;
 }
 .table th, .table td {
-  padding: 1.11% 1.25%;
-  border-bottom: 1px solid rgba(55, 103, 139, 0.2);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--linea);
   color: var(--blue-dark);
   text-align: left;
+  vertical-align: top;
 }
 .table th {
-  background: rgba(125, 167, 198, 0.12);
-  font-size: 1.15rem;
-  font-weight: bold;
+  background: var(--niebla);
+  color: rgba(30, 51, 72, 0.72);
+  font-size: 0.85rem;
+  font-weight: 600;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+.table tbody tr:hover {
+  background: rgba(238, 244, 249, 0.6);
 }
 .table-striped tbody tr:nth-child(odd) {
-  background: rgba(125, 167, 198, 0.06);
+  background: transparent;
 }
+.table .col-monto {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.table .mi-parte {
+  padding: 2px 8px;
+  color: var(--blue-dark);
+  font-weight: 700;
+}
+.celda-sub {
+  display: block;
+  margin-top: 2px;
+  color: rgba(30, 51, 72, 0.6);
+  font-size: 0.82rem;
+}
+.celda-nota {
+  color: rgba(30, 51, 72, 0.7);
+  font-size: 0.88rem;
+}
+
+/* Estado de un gasto: etiqueta de color (a pagar, vencido, pagado) */
+.estado-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.estado-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.estado-pill--pagar {
+  background: rgba(201, 132, 0, 0.12);
+  color: #9A6500;
+}
+.estado-pill--vencido {
+  background: rgba(201, 48, 44, 0.1);
+  color: var(--danger-strong);
+}
+.estado-pill--pagado {
+  background: rgba(31, 157, 85, 0.12);
+  color: #17803F;
+}
+
+/* Formulario de pago dentro de una fila: bloques apilados con su etiqueta */
+.pago-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 250px;
+  max-width: 340px;
+  margin: 0;
+  padding: 0;
+}
+.pago-form input[type="number"], .pago-form input[type="file"] {
+  min-height: 36px;
+}
+.pago-form__label {
+  margin: 4px 0 0;
+  color: rgba(30, 51, 72, 0.65);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.pago-form .btn-success {
+  align-self: flex-start;
+}
+.table .col-accion {
+  text-align: right;
+  white-space: nowrap;
+}
+/* Fila que se despliega debajo de un gasto con el formulario de pago, en horizontal */
+.table .fila-pago td {
+  padding: 16px;
+  background: var(--niebla);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.table tbody tr.fila-pago:hover {
+  background: transparent;
+}
+.fila-pago[hidden] {
+  display: none !important;
+}
+.pago-form--fila {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 20px;
+  max-width: none;
+}
+.pago-form--fila > .btn {
+  align-self: flex-end;
+  margin-left: auto;
+}
+.pago-campo {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+}
+.pago-campo .btn {
+  align-self: flex-start;
+}
+.factura-estado {
+  color: rgba(30, 51, 72, 0.75);
+  font-size: 0.82rem;
+}
+.aviso-pagina {
+  max-width: 1200px;
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  background: var(--niebla);
+}
+.seccion-gastos {
+  max-width: 1200px;
+  margin: 0 auto 28px;
+  padding: 0 16px;
+}
+.seccion-gastos h3 {
+  margin: 28px 0 12px;
+  color: var(--blue-dark);
+  font-size: 1.35rem;
+  font-weight: 600;
+  text-align: left;
+}
+.seccion-gastos details summary {
+  margin: 20px 0 10px;
+  color: var(--blue-main);
+  cursor: pointer;
+}
+
 .card {
   border: 1px solid var(--blue-main-35);
   border-radius: 12px;
@@ -177,16 +429,17 @@ button[type="reset"]:hover, .btn-secondary:hover {
   box-shadow: 0 8px 18px var(--shadow);
 }
 
-/* Header */
+/* Header: claro, para que se lea el logo (oso y torre). La sección activa lleva la franja dorada de la torre. */
 .oso-header {
   position: sticky;
   top: 0;
   z-index: 1000;
   width: 100%;
   min-height: var(--header-height);
-  background: var(--blue-soft);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--linea);
+  box-shadow: 0 6px 18px rgba(30, 51, 72, 0.06);
+  backdrop-filter: saturate(1.2) blur(6px);
 }
 .oso-header__inner {
   display: grid;
@@ -195,74 +448,130 @@ button[type="reset"]:hover, .btn-secondary:hover {
   gap: 24px;
   width: 100%;
   min-height: var(--header-height);
-  padding-left: 1.25%;
+  padding: 0 24px;
 }
 .oso-brand {
   display: inline-flex;
   align-items: center;
-  min-width: 170px;
-  color: var(--blue-main);
-  font-size: 5.1rem;
-  font-weight: 400;
-  text-transform: uppercase;
-  transform: translateY(-2px);
+  gap: 12px;
+  justify-self: start;
+  padding: 4px 8px 4px 0;
+  border-radius: 10px;
+  color: var(--blue-dark);
+}
+/* El logo original tiene mucho aire alrededor: se recorta para mostrar solo el oso y la torre. */
+.oso-brand__marca {
+  position: relative;
+  width: 40px;
+  height: 58px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.oso-brand__marca img {
+  position: absolute;
+  top: -8px;
+  left: -21px;
+  width: 80px;
+  height: 80px;
+  max-width: none;
+}
+.oso-brand__texto {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.oso-brand__nombre {
+  color: var(--blue-dark);
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+.oso-brand__bajada {
+  margin-top: 4px;
+  color: rgba(30, 51, 72, 0.6);
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 .oso-nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  padding-top: 0.42%;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--linea);
+  border-radius: 14px;
+  background: var(--niebla);
 }
 .oso-nav__item {
-  min-width: 143px;
-  height: 53px;
-  padding: 0.97% 1.39% 1.11%;
-  border-radius: 7px;
-  background: rgba(55, 103, 139, 0.82);
-  color: var(--white);
-  font-size: 1.5rem;
-  font-weight: 400;
+  position: relative;
+  min-width: 128px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  color: var(--blue-main);
+  font-size: 1.05rem;
+  font-weight: 600;
   text-align: center;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.08);
-  transition: background 0.2s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
-.oso-nav__item:hover, .oso-nav__item:focus, .oso-nav__item.active {
-  background: var(--blue-main);
-  color: var(--white);
+.oso-nav__item:hover {
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--blue-dark);
+}
+.oso-nav__item.active {
+  background: var(--white);
+  color: var(--blue-dark);
+  box-shadow: 0 1px 3px rgba(30, 51, 72, 0.14);
+}
+.oso-nav__item.active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--gold);
+  transform: translateX(-50%);
 }
 .oso-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 18px;
+  gap: 10px;
   min-width: 200px;
-  padding-right: 1.25%;
 }
 .oso-icon {
-  width: 60px;
-  height: 60px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--linea);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--white);
   color: var(--blue-main);
   overflow: hidden;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.oso-icon:hover {
+  border-color: var(--blue-main-45);
+  background: var(--niebla);
+  color: var(--blue-dark);
 }
 .oso-icon svg {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   stroke: currentColor;
 }
 .oso-icon--user svg {
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
 }
 .oso-icon--notification {
   position: relative;
   overflow: visible;
 }
 .oso-icon--notification svg {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
 }
 .oso-header-avatar {
   width: 100%;
@@ -272,59 +581,75 @@ button[type="reset"]:hover, .btn-secondary:hover {
 }
 .oso-badge {
   position: absolute;
-  top: -4px;
-  right: -6px;
+  top: -3px;
+  right: -3px;
   min-width: 18px;
   height: 18px;
-  padding: 0 0.35%;
+  padding: 0 5px;
   border-radius: 9px;
   background: #D93025;
   color: var(--white);
   font-size: 11px;
   font-weight: 700;
+  line-height: 18px;
   text-align: center;
   box-shadow: 0 0 0 2px var(--white);
 }
 .oso-menu {
   flex-direction: column;
-  gap: 7px;
-  width: 52px;
+  gap: 5px;
+  width: 44px;
   min-width: 0;
-  height: 52px;
+  height: 44px;
   padding: 0;
+  border: 1px solid var(--linea);
   border-radius: 12px;
-  background: transparent;
+  background: var(--white);
   color: var(--blue-main);
-  transition: background 0.15s ease;
-}
-.oso-menu:focus {
-  outline: none;
+  box-shadow: none;
 }
 .oso-menu:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--niebla);
+  color: var(--blue-dark);
 }
 .oso-menu span {
   display: block;
-  width: 34px;
-  height: 5px;
-  border-radius: 3px;
+  width: 20px;
+  height: 2px;
+  border-radius: 2px;
   background: currentColor;
 }
 .oso-actions--landing {
   grid-column: 3;
-  gap: 52px;
-  padding-right: 3.61%;
+  gap: 12px;
 }
 .oso-nav__item--landing {
   min-width: 150px;
-  padding: 1.25% 1.11%;
-  background: var(--blue-main);
-  font-size: 24px;
+  padding: 0 20px;
+  border: 1px solid var(--blue-main-45);
+  background: var(--white);
+  color: var(--blue-main);
   white-space: nowrap;
-  box-shadow: none;
+}
+.oso-nav__item--landing:last-child {
+  border-color: transparent;
+  background: var(--blue-main);
+  color: var(--white);
+  box-shadow: inset 0 -2px 0 rgba(30, 51, 72, 0.28);
 }
 .oso-nav__item--landing:hover, .oso-nav__item--landing:focus {
-  background: var(--brand-primary-deep);
+  background: var(--niebla);
+  color: var(--blue-dark);
+}
+.oso-nav__item--landing:last-child:hover, .oso-nav__item--landing:last-child:focus {
+  background: var(--blue-dark);
+  color: var(--white);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button, .btn, .oso-nav__item, .oso-icon, input[type="file"]::file-selector-button {
+    transition: none;
+  }
 }
 
 /* Menú lateral */
@@ -1063,13 +1388,6 @@ button[type="reset"]:hover, .btn-secondary:hover {
   margin: 0;
   padding: 0.56% 0.83%;
   white-space: nowrap;
-}
-.btn-danger.property-action-btn {
-  border: 1px solid var(--danger-strong);
-  background: var(--danger-soft);
-}
-.btn-danger.property-action-btn:hover {
-  background: var(--danger-strong);
 }
 .page-title {
   margin: 2.22% 0 1.94%;
@@ -1935,17 +2253,13 @@ a.cal-cell:hover {
     gap: 12px;
     padding-left: 1.09%;
   }
-  .oso-brand {
-    min-width: 120px;
-    font-size: 3.6rem;
-  }
-  .oso-nav {
-    gap: 10px;
+  .oso-brand__bajada {
+    display: none;
   }
   .oso-nav__item {
-    min-width: 120px;
-    padding-inline: 1.09%;
-    font-size: 1.1rem;
+    min-width: 104px;
+    padding-inline: 12px;
+    font-size: 0.98rem;
   }
   .landing-hero {
     flex-direction: column;
@@ -2018,9 +2332,8 @@ a.cal-cell:hover {
     justify-content: space-between;
     padding: 1.56% 2.08% 2.08%;
   }
-  .oso-brand {
-    min-width: unset;
-    font-size: 2.8rem;
+  .oso-brand__nombre {
+    font-size: 1.5rem;
   }
   .oso-nav {
     order: 3;
@@ -2143,6 +2456,9 @@ a.cal-cell:hover {
   button, .btn, .landing-hero__btn, .msj-add-btn {
     width: 100%;
   }
+  .oso-menu, .oso-icon {
+    width: 44px;
+  }
   .table, .table thead, .table tbody, .table tr, .table th, .table td {
     display: block;
     width: 100%;
@@ -2157,6 +2473,28 @@ a.cal-cell:hover {
   .table td {
     border: none;
     padding: 1.54% 2.69%;
+  }
+  /* En el celular cada celda muestra a qué columna corresponde */
+  .table td[data-label] {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 14px;
+    text-align: right;
+  }
+  .table td[data-label]::before {
+    content: attr(data-label);
+    color: rgba(30, 51, 72, 0.6);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: left;
+  }
+  .table td:first-child {
+    padding: 12px 14px 4px;
+  }
+  .table td.col-accion {
+    padding: 8px 14px 12px;
   }
   .invitacion-title {
     font-size: 1.8rem;

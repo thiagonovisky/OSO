@@ -7,60 +7,77 @@ Acá cargás las extraordinarias cuando el consorcio las decide; se reparten seg
 
 @if (TempData["Mensaje"] != null)
 {
-    <p>@TempData["Mensaje"]</p>
+    <p class="aviso-pagina mt-3" role="status">@TempData["Mensaje"]</p>
 }
 
-<form action='@Url.Action("AgregarExpensa", "Home")' method="get" class="text-center">
-    <button type="submit">Agregar expensa extraordinaria</button>
-</form>
+<div class="oso-center-row mt-3">
+    <a asp-action="AgregarExpensa" asp-controller="Home" class="btn btn-primary">Agregar expensa extraordinaria</a>
+</div>
 
 @if (Model != null && Model.Count > 0)
 {
-    <table class="table table-striped mt-3">
+    <div class="seccion-gastos mt-3"><div class="tabla-wrap"><table class="table">
         <thead>
             <tr>
-                <th>Propiedad</th>
+                <th>Expensa</th>
                 <th>Estado</th>
-                <th>Fecha de vencimiento</th>
-                <th>Monto</th>
-                <th>Tu parte</th>
-                <th>Parte del inquilino</th>
-                <th>Aclaración</th>
-                <th>Fecha de pago</th>
-                <th>Acción</th>
+                <th>Vencimiento</th>
+                <th class="col-monto">Total</th>
+                <th class="col-monto">Tu parte</th>
+                <th class="col-monto">Parte del inquilino</th>
+                <th><span class="visually-hidden">Acciones</span></th>
             </tr>
         </thead>
         <tbody>
             @foreach (var expensa in Model)
             {
+                string id = $"pago-e-{expensa.IdGastoResponsable}";
+                bool falta = expensa.MontoPagado < expensa.MontoResponsable;
                 <tr>
-                    <td>@expensa.NombrePropiedad<br /><small>@expensa.TipoGasto</small></td>
-                    <td>@expensa.Estado</td>
-                    <td>@expensa.FechaVencimiento.ToString("dd/MM/yyyy")</td>
-                    <td>$@expensa.Monto</td>
-                    <td>$@expensa.MontoResponsable</td>
-                    <td>$@expensa.MontoInquilino</td>
-                    <td>@(string.IsNullOrWhiteSpace(expensa.Aclaracion) ? "-" : expensa.Aclaracion)</td>
-                    <td>@(expensa.FechaPago.HasValue ? expensa.FechaPago.Value.ToString("dd/MM/yyyy") : "-")</td>
                     <td>
-                        @if (expensa.MontoPagado < expensa.MontoResponsable)
+                        <strong>@expensa.NombrePropiedad</strong>
+                        @if (!string.IsNullOrWhiteSpace(expensa.Aclaracion))
                         {
-                            <form asp-action="PagarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="idGastoResponsable" value="@expensa.IdGastoResponsable" />
-                                <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
-                                <button type="submit" class="btn btn-success btn-sm">Confirmar pago</button>
-                            </form>
+                            <small class="celda-sub">@expensa.Aclaracion</small>
                         }
-                        else
+                    </td>
+                    <td data-label="Estado">
+                        <span class="estado-pill estado-pill--@expensa.EstadoCss">@expensa.Estado</span>
+                        @if (expensa.FechaPago.HasValue)
                         {
-                            <span>-</span>
+                            <small class="celda-sub">pagaste el @expensa.FechaPago.Value.ToString("dd/MM/yyyy")</small>
+                        }
+                    </td>
+                    <td data-label="Vencimiento">@expensa.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                    <td data-label="Total" class="col-monto">@OSO.Models.Formato.Pesos(expensa.Monto)</td>
+                    <td data-label="Tu parte" class="col-monto"><span class="mi-parte">@OSO.Models.Formato.Pesos(expensa.MontoResponsable)</span></td>
+                    <td data-label="Parte del inquilino" class="col-monto">@OSO.Models.Formato.Pesos(expensa.MontoInquilino)</td>
+                    <td class="col-accion">
+                        @if (falta)
+                        {
+                            <button type="button" class="btn btn-success btn-sm" data-despliega="@id" aria-expanded="false" aria-controls="@id">Pagar</button>
                         }
                     </td>
                 </tr>
+                @if (falta)
+                {
+                    <tr class="fila-pago" id="@id" hidden>
+                        <td colspan="7">
+                            <form asp-action="PagarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data" class="pago-form pago-form--fila">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="idGastoResponsable" value="@expensa.IdGastoResponsable" />
+                                <div class="pago-campo">
+                                    <span class="pago-form__label">Comprobante de pago de @OSO.Models.Formato.Pesos(expensa.MontoResponsable - expensa.MontoPagado)</span>
+                                    <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Comprobante de pago" required />
+                                </div>
+                                <button type="submit" class="btn btn-success">Confirmar pago</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
-    </table>
+    </table></div></div>
 }
 else
 {

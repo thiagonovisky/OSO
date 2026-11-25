@@ -11,13 +11,27 @@
 <body>
     <header class="oso-header">
         <div class="oso-header__inner">
-            <a class="oso-brand" asp-area="" asp-controller="Home" asp-action="Bienvenida" aria-label="Inicio">O.S.O</a>
-
             @{
                 string? accionActual = ViewContext.RouteData.Values["action"]?.ToString();
                 bool esPaginaPublica = accionActual == "Index" || accionActual == "Login" || accionActual == "Registro";
                 bool esLanding = accionActual == "Index";
+
+                // Sección del menú principal a la que pertenece la página (la que lleva la franja dorada).
+                string[] deCalendario = { "Calendario", "AgregarEvento", "EditarEvento" };
+                string[] deMensajeria = { "Mensajeria" };
+                string seccion = deCalendario.Contains(accionActual) ? "Calendario"
+                    : deMensajeria.Contains(accionActual) ? "Mensajeria"
+                    : accionActual is "Bienvenida" or "Perfil" or "Notificaciones" or "MisGastos" or "Expensas" or "AgregarExpensa" ? ""
+                    : "Propiedades";
             }
+
+            <a class="oso-brand" asp-area="" asp-controller="Home" asp-action="@(esPaginaPublica ? "Index" : "Bienvenida")" aria-label="OSO, ir al inicio">
+                <span class="oso-brand__marca" aria-hidden="true"><img src="~/imagenes/Logo colores.png" alt="" /></span>
+                <span class="oso-brand__texto">
+                    <span class="oso-brand__nombre">OSO</span>
+                    <span class="oso-brand__bajada">Alquileres en orden</span>
+                </span>
+            </a>
 
             @if (esLanding)
             {
@@ -30,9 +44,9 @@
             @if (!esPaginaPublica)
             {
                 <nav class="oso-nav" aria-label="Navegación principal">
-                    <a class="oso-nav__item" asp-area="" asp-controller="Home" asp-action="Calendario">Calendario</a>
-                    <a class="oso-nav__item active" asp-area="" asp-controller="Home" asp-action="Propiedades">Propiedades</a>
-                    <a class="oso-nav__item" asp-area="" asp-controller="Home" asp-action="Mensajeria">Mensajería</a>
+                    <a class="oso-nav__item @(seccion == "Calendario" ? "active" : "")" aria-current="@(seccion == "Calendario" ? "page" : null)" asp-area="" asp-controller="Home" asp-action="Calendario">Calendario</a>
+                    <a class="oso-nav__item @(seccion == "Propiedades" ? "active" : "")" aria-current="@(seccion == "Propiedades" ? "page" : null)" asp-area="" asp-controller="Home" asp-action="Propiedades">Propiedades</a>
+                    <a class="oso-nav__item @(seccion == "Mensajeria" ? "active" : "")" aria-current="@(seccion == "Mensajeria" ? "page" : null)" asp-area="" asp-controller="Home" asp-action="Mensajeria">Mensajería</a>
                 </nav>
             }
 

@@ -46,6 +46,11 @@ public class GastoPropiedad
 
     public string EstadoMiParte => MiPartePagada ? "Pagado" : FechaVencimiento.Date < DateTime.Today ? "Vencido" : "A pagar";
 
+    // Clase de la etiqueta de estado (estado-pill--pagar | --vencido | --pagado).
+    public string EstadoMiParteCss => MiPartePagada ? "pagado" : FechaVencimiento.Date < DateTime.Today ? "vencido" : "pagar";
+
+    public string EstadoCss => Estado == "Pagado" ? "pagado" : Vencido ? "vencido" : "pagar";
+
     // Devuelve el mensaje de error, o null si el gasto (o la expensa) es válido.
     public string? Validar()
     {

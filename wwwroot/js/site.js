@@ -104,3 +104,24 @@
     input.addEventListener('input', formatear);
     input.placeholder = paisActual().ejemplo;
 })();
+
+// Botones con data-despliega="id": muestran u ocultan ese elemento (ej. el formulario de pago debajo de un gasto).
+document.addEventListener('click', function (e) {
+    var boton = e.target.closest('[data-despliega]');
+    if (!boton) { return; }
+
+    var destino = document.getElementById(boton.dataset.despliega);
+    if (!destino) { return; }
+
+    var abrir = destino.hidden;
+    destino.hidden = !abrir;
+    boton.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    boton.textContent = abrir ? 'Cancelar' : 'Pagar';
+    boton.classList.toggle('btn-success', !abrir);
+    boton.classList.toggle('btn-secondary', abrir);
+
+    if (abrir) {
+        var primero = destino.querySelector('input:not([type="hidden"])');
+        if (primero) { primero.focus(); }
+    }
+});
