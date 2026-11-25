@@ -399,29 +399,74 @@ input[type="file"]::file-selector-button:hover {
   font-size: 0.82rem;
 }
 .aviso-pagina {
-  max-width: 1200px;
+  max-width: 1100px;
   margin: 0 auto 12px;
   padding: 10px 14px;
   border-left: 3px solid var(--gold);
   border-radius: 8px;
   background: var(--niebla);
 }
+/* Mis gastos y Expensas extraordinarias: mismo panel que la tarjeta de una propiedad */
 .seccion-gastos {
-  max-width: 1200px;
-  margin: 0 auto 28px;
-  padding: 0 16px;
+  max-width: 1100px;
+  margin: 0 auto 32px;
+  padding: 8px 24px 24px;
+  border: 1px solid var(--blue-soft);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 2px 8px var(--shadow);
 }
 .seccion-gastos h3 {
-  margin: 28px 0 12px;
-  color: var(--blue-dark);
-  font-size: 1.35rem;
-  font-weight: 600;
+  margin: 20px 0 12px;
+  color: var(--brand-primary-dark);
+  font-size: 1.6rem;
+  font-weight: 500;
   text-align: left;
+}
+.seccion-gastos .tabla-wrap {
+  border-color: var(--linea);
+  box-shadow: none;
 }
 .seccion-gastos details summary {
   margin: 20px 0 10px;
   color: var(--blue-main);
   cursor: pointer;
+}
+.seccion-gastos__vacio {
+  padding: 16px;
+  border: 1px dashed var(--blue-main-35);
+  border-radius: 12px;
+  color: rgba(30, 51, 72, 0.7);
+  text-align: center;
+}
+.gastos-bajada {
+  max-width: 720px;
+  margin: 0 auto 1.67%;
+  color: rgba(30, 51, 72, 0.75);
+  line-height: 1.5;
+  text-align: center;
+}
+.gastos-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 640px;
+  padding: 36px 24px;
+  text-align: center;
+}
+.gastos-vacio p {
+  max-width: 480px;
+  color: rgba(30, 51, 72, 0.75);
+  line-height: 1.5;
+}
+.gastos-vacio .gastos-vacio__titulo {
+  color: var(--brand-primary-dark);
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+.gastos-vacio .btn {
+  margin-top: 6px;
 }
 
 .card {
@@ -1355,14 +1400,14 @@ input[type="file"]::file-selector-button:hover {
 }
 
 /* Títulos de sección */
-.propiedades-title, .invitacion-title, .cal-title, .evt-title, .msj-title {
+.propiedades-title, .invitacion-title, .cal-title, .evt-title, .msj-title, .gastos-title {
   margin: 0;
   padding: 0;
   color: var(--blue-main);
   font-size: 2.5rem;
   font-weight: 400;
 }
-.propiedades-title {
+.propiedades-title, .gastos-title {
   margin-bottom: 1.67%;
   padding-top: 1.67%;
 }

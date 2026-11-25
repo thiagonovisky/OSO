@@ -122,7 +122,7 @@
     }
 }
 
-<h2>Mis gastos</h2>
+<h2 class="gastos-title">Mis gastos</h2>
 
 @if (TempData["Mensaje"] != null)
 {
@@ -133,7 +133,7 @@
 {
     <div class="seccion-gastos">
     @* A pagar: lo que está sin pagar y los últimos meses de los gastos que el contrato pone a tu cargo. El monto de estos últimos lo cargás vos al pagar. *@
-    <h3 class="mt-3">A pagar</h3>
+    <h3>A pagar</h3>
     @if (aPagarPendientes.Count > 0 || aPagarGastos.Count > 0)
     {
         <div class="tabla-wrap"><table class="table">
@@ -146,12 +146,12 @@
     }
     else
     {
-        <p>No tenés nada para pagar por ahora.</p>
+        <p class="seccion-gastos__vacio">No tenés nada para pagar por ahora.</p>
     }
 
     @if (anteriores.Count > 0)
     {
-        <details class="mt-3">
+        <details>
             <summary><strong>Meses anteriores sin pagar (@anteriores.Count)</strong></summary>
             <div class="tabla-wrap"><table class="table">
                 <thead>@{ Encabezado(); }</thead>
@@ -162,7 +162,7 @@
         </details>
     }
 
-    <h3 class="mt-4">Historial de pagos</h3>
+    <h3>Historial de pagos</h3>
     @if (historial.Count > 0)
     {
         <div class="tabla-wrap"><table class="table">
@@ -174,13 +174,22 @@
     }
     else
     {
-        <p>Todavía no hay gastos pagados.</p>
+        <p class="seccion-gastos__vacio">Todavía no hay gastos pagados.</p>
     }
     </div>
 }
 else
 {
-    <p class="mt-3 text-center">@(esPropietario ? "No tenés gastos a tu cargo: lo que te toca pagar según tus contratos aparece acá." : ViewBag.TieneContrato == true ? "No tenés gastos a tu cargo." : "Todavía no hay un contrato confirmado, por eso no hay gastos para mostrar.")</p>
+    <div class="seccion-gastos gastos-vacio">
+        <span class="bienvenida__icon"><partial name="_IconoMenu" model="@("MisGastos")" /></span>
+        <p class="gastos-vacio__titulo">@(esPropietario || ViewBag.TieneContrato == true ? "No tenés gastos a tu cargo" : "Todavía no hay un contrato confirmado")</p>
+        <p>@(esPropietario
+            ? "Cuando un contrato te ponga a cargo de un servicio o de una expensa extraordinaria, lo vas a ver acá para pagarlo."
+            : ViewBag.TieneContrato == true
+                ? "Cuando haya un gasto a tu cargo según el contrato, lo vas a ver acá para pagarlo."
+                : "Cuando aceptes el contrato de tu alquiler, acá vas a ver los servicios y expensas que te tocan pagar.")</p>
+        <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">@(esPropietario ? "Ver mis propiedades" : "Ver mi alquiler")</a>
+    </div>
 }
 
 @section Scripts {
