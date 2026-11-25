@@ -46,6 +46,10 @@ public class ReglaGasto
 public static class ReglasContrato
 {
     public const string TipoExtraordinarias = "Expensas extraordinarias";
+
+    // Servicios que llegan todos los meses: con contrato, aparecen solos como pendientes de quien los paga.
+    // El resto (extraordinarias, reparaciones, seguro, fondo de reserva, tipos propios) se carga cuando ocurre.
+    public static readonly string[] TiposMensuales = { "Expensas", "Luz", "Gas", "Agua", "Internet", "ABL", "Impuesto inmobiliario" };
     public const decimal UmbralBajaConfianza = 0.7m;
 
     private static readonly DateTime FinLey27551 = new(2023, 10, 17);

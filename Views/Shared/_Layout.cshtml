@@ -91,13 +91,10 @@
                 <a asp-controller="Home" asp-action="Propiedades">Propiedades</a>
                 @if (Context.Session.GetString("EsPropietario") == "true")
                 {
-                    <a asp-controller="Home" asp-action="Expensas">Expensas</a>
+                    <a asp-controller="Home" asp-action="Expensas">Expensas extraordinarias</a>
                 }
                 <a asp-controller="Home" asp-action="Mensajeria">Mensajería</a>
-                @if (Context.Session.GetInt32("IdInquilino").HasValue)
-                {
-                    <a asp-controller="Home" asp-action="MisGastos">Mis gastos</a>
-                }
+                <a asp-controller="Home" asp-action="MisGastos">Mis gastos</a>
                 <a asp-controller="Home" asp-action="Notificaciones">Notificaciones</a>
                 <a asp-controller="Home" asp-action="Calendario">Calendario</a>
             </nav>

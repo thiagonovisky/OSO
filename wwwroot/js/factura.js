@@ -39,8 +39,9 @@
                 return;
             }
 
-            completar(formulario, 'monto', r.monto);
-            completar(formulario, 'fechaVencimiento', r.vencimiento);
+            // Algunos formularios nombran distinto sus campos (ej. Agregar expensa): se indican con data-campo-*.
+            completar(formulario, boton.dataset.campoMonto || 'monto', r.monto);
+            completar(formulario, boton.dataset.campoVencimiento || 'fechaVencimiento', r.vencimiento);
             completar(formulario, 'mes', r.periodo);
 
             var texto = r.dudosa

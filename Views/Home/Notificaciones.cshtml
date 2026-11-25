@@ -25,6 +25,10 @@
                         <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@contratoDelAviso.IdContrato" asp-route-desde="notificaciones" class="btn btn-primary">Ver contrato y aceptarlo</a>
                     </div>
                 }
+                else if (n.Texto.StartsWith(OSO.Models.BD.TextoRecordatorioFacturas))
+                {
+                    <div><a asp-action="MisGastos" asp-controller="Home" class="btn">Ir a Mis gastos</a></div>
+                }
                 else if (n.IdGastoResponsable.HasValue && Context.Session.GetInt32("IdInquilino").HasValue)
                 {
                     <div><a asp-action="MisGastos" asp-controller="Home" class="btn">Ir a pagar</a></div>

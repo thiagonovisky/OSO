@@ -43,6 +43,7 @@ public class HomeController : Controller
                 if (idInquilino.HasValue || idPropietario.HasValue)
                 {
                     bd.GenerarNotificacionesEventos(idUsuario.Value, idPropietario, idInquilino);
+                    bd.GenerarRecordatorioFacturas(idUsuario.Value, idInquilino, idPropietario);
                 }
             }
             catch (Exception ex)
@@ -598,7 +599,7 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult AgregarExpensa(GastoPropiedad expensa, int idPropiedad, decimal montoOrdinarias, decimal montoExtraordinarias)
+    public IActionResult AgregarExpensa(GastoPropiedad expensa, int idPropiedad, decimal montoExtraordinarias)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -612,14 +613,12 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        string? error = montoOrdinarias < 0 || montoExtraordinarias < 0
-            ? "Los importes no pueden ser negativos."
-            : montoOrdinarias + montoExtraordinarias <= 0
-                ? "Cargá al menos un importe: ordinarias o extraordinarias."
-                : null;
+        // Las ordinarias son un servicio mensual: las carga y paga quien corresponde desde Mis gastos.
+        // Acá solo se cargan las extraordinarias, que llegan cuando el consorcio las decide.
+        string? error = montoExtraordinarias <= 0 ? "Ingresá el monto de la expensa extraordinaria (mayor a cero)." : null;
 
-        // Validar() controla el resto (vencimiento, aclaración) sobre el total de la expensa.
-        expensa.Monto = montoOrdinarias + montoExtraordinarias;
+        // Validar() controla el resto (vencimiento, aclaración).
+        expensa.Monto = montoExtraordinarias;
         error ??= expensa.Validar();
         if (error != null)
         {
@@ -630,7 +629,8 @@ public class HomeController : Controller
         expensa.FechaAlta = expensa.FechaAlta == default ? DateTime.Today : expensa.FechaAlta.Date;
         expensa.FechaVencimiento = expensa.FechaVencimiento.Date;
 
-        bd.AgregarExpensa(expensa, idPropiedad, montoOrdinarias, montoExtraordinarias);
+        bd.AgregarExpensa(expensa, idPropiedad, 0, montoExtraordinarias);
+        TempData["Mensaje"] = "Expensa extraordinaria cargada. Cada uno ve su parte en Mis gastos (según el contrato) y la paga con el comprobante.";
         return RedirectToAction("Expensas");
     }
 
@@ -654,7 +654,7 @@ public class HomeController : Controller
 
         string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_expensa_{idGastoResponsable}");
 
-        if (bd.MarcarExpensaComoPagada(idGastoResponsable, idPropietario.Value, comprobante))
+        if (bd.PagarParteDelPropietario(idGastoResponsable, idPropietario.Value, comprobante))
         {
             TempData["Mensaje"] = "Pago confirmado correctamente.";
         }
@@ -667,31 +667,47 @@ public class HomeController : Controller
         return RedirectToAction("Expensas");
     }
 
+    // Lo que le toca pagar a quien entra: al inquilino, su parte; al propietario, la suya (de todas sus propiedades).
+    // Incluye los servicios del mes que el contrato le pone a cargo y que todavía nadie cargó.
     public IActionResult MisGastos()
     {
         int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
-        if (!idInquilino.HasValue)
+        if (idPropietario.HasValue)
         {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdPropietario").HasValue ? "Propiedades" : "Login");
+            ViewBag.EsPropietario = true;
+            ViewBag.TieneContrato = true;
+            ViewBag.PendientesContrato = bd.ObtenerPendientesContratoPropietario(idPropietario.Value);
+            return View(bd.ObtenerGastosPorIdPropietario(idPropietario.Value));
         }
-
-        ViewBag.TieneContrato = bd.InquilinoTieneContratoConfirmado(idInquilino.Value);
-        ViewBag.PendientesContrato = bd.ObtenerPendientesContratoInquilino(idInquilino.Value);
-        return View(bd.ObtenerGastosPorIdInquilino(idInquilino.Value));
-    }
-
-    // Paga un pendiente que sale del contrato (sin gasto cargado): el inquilino pone el monto de la factura y el comprobante.
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult PagarPendienteContrato(int idPropiedad, int idGasto, DateTime periodo, decimal monto, IFormFile? comprobanteArchivo)
-    {
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
 
         if (!idInquilino.HasValue)
         {
             return RedirectToAction("Login");
         }
+
+        ViewBag.EsPropietario = false;
+        ViewBag.TieneContrato = bd.InquilinoTieneContratoConfirmado(idInquilino.Value);
+        ViewBag.PendientesContrato = bd.ObtenerPendientesContratoInquilino(idInquilino.Value);
+        return View(bd.ObtenerGastosPorIdInquilino(idInquilino.Value));
+    }
+
+    // Paga un pendiente que sale del contrato (sin gasto cargado): quien paga (inquilino o propietario) pone el monto
+    // de la factura y el comprobante.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult PagarPendienteContrato(int idPropiedad, int idGasto, DateTime periodo, decimal monto, IFormFile? comprobanteArchivo)
+    {
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idInquilino.HasValue && !idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        bool esPropietario = idPropietario.HasValue;
 
         if (monto <= 0)
         {
@@ -708,9 +724,15 @@ public class HomeController : Controller
 
         string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_contrato_{idPropiedad}_{idGasto}_{periodo:yyyyMM}");
 
-        if (bd.PagarPendienteContrato(idInquilino.Value, idPropiedad, idGasto, periodo, monto, comprobante))
+        bool pagado = esPropietario
+            ? bd.PagarPendienteContrato(BD.LadoPropietario, idPropietario!.Value, idPropiedad, idGasto, periodo, monto, comprobante)
+            : bd.PagarPendienteContrato(BD.LadoInquilino, idInquilino!.Value, idPropiedad, idGasto, periodo, monto, comprobante);
+
+        if (pagado)
         {
-            TempData["Mensaje"] = "Pago registrado. El propietario ya puede ver el comprobante.";
+            TempData["Mensaje"] = esPropietario
+                ? "Pago registrado. Si el gasto es compartido, al inquilino le queda su parte para pagar."
+                : "Pago registrado. El propietario ya puede ver el comprobante.";
         }
         else
         {
@@ -726,8 +748,9 @@ public class HomeController : Controller
     public IActionResult PagarGasto(int idGastoResponsable, IFormFile? comprobanteArchivo)
     {
         int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
-        if (!idInquilino.HasValue)
+        if (!idInquilino.HasValue && !idPropietario.HasValue)
         {
             return RedirectToAction("Login");
         }
@@ -741,9 +764,13 @@ public class HomeController : Controller
 
         string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_gasto_{idGastoResponsable}");
 
-        if (bd.PagarGastoInquilino(idGastoResponsable, idInquilino.Value, comprobante))
+        bool pagado = idPropietario.HasValue
+            ? bd.PagarParteDelPropietario(idGastoResponsable, idPropietario.Value, comprobante)
+            : bd.PagarGastoInquilino(idGastoResponsable, idInquilino!.Value, comprobante);
+
+        if (pagado)
         {
-            TempData["Mensaje"] = "Pago registrado. El comprobante quedó pendiente de verificación.";
+            TempData["Mensaje"] = idPropietario.HasValue ? "Pago registrado." : "Pago registrado. El comprobante quedó pendiente de verificación.";
         }
         else
         {

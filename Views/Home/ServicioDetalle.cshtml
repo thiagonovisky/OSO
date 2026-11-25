@@ -12,9 +12,9 @@
     {
         <div class="service-detail-panel">
             <div class="service-header-row">
-                <h3>Pendientes del inquilino</h3>
+                <h3>Meses sin cargar</h3>
             </div>
-            <p>Según el contrato, este gasto corre por cuenta del inquilino (todo o en parte). Estos meses siguen pendientes hasta que suba el comprobante con el monto de la factura.</p>
+            <p>Estos meses del contrato todavía no tienen la factura cargada. Quien paga (vos o el inquilino) la carga desde Mis gastos al pagar su parte.</p>
             <div class="months-grid">
                 @foreach (var pendiente in pendientesInquilino)
                 {
@@ -22,10 +22,7 @@
                         <div class="month-name">@pendiente.Periodo.ToString("MMMM yyyy")</div>
                         <div class="month-meta">
                             <span class="service-status warn">Pendiente</span>
-                            @if (pendiente.EsCompartido)
-                            {
-                                <span>Compartido (@OSO.Models.Formato.Numero(pendiente.PorcentajeInquilino, "0.##")% inquilino)</span>
-                            }
+                            <span>@pendiente.QuienPaga</span>
                         </div>
                     </div>
                 }
