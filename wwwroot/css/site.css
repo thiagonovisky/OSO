@@ -1289,7 +1289,7 @@ input[type="file"]::file-selector-button:hover {
   flex-direction: column;
   align-items: center;
   width: 100%;
-  margin-bottom: 1.94%;
+  margin-bottom: 4%;
 }
 .bienvenida__header img {
   width: 18%;
