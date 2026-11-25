@@ -1,0 +1,13 @@
+@* Foto de perfil del usuario logueado, o el ícono de usuario si no tiene (o si la foto no carga). Se usa en el header y en el menú lateral. *@
+@{
+    string? foto = Context.Session.GetString("FotoPerfil");
+}
+@if (!string.IsNullOrWhiteSpace(foto))
+{
+    <img src="@Url.Content("~/imagenes/" + foto)" alt="" class="oso-header-avatar"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+}
+<svg viewBox="0 0 64 64" aria-hidden="true" style="@(string.IsNullOrWhiteSpace(foto) ? null : "display:none")">
+    <circle cx="32" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="4" />
+    <path d="M15 52c3.5-8.5 11.2-13 17-13s13.5 4.5 17 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+</svg>

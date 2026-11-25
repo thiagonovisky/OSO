@@ -50,22 +50,7 @@
             {
             <div class="oso-actions" aria-label="Acciones del usuario">
                 <a class="oso-icon oso-icon--user" asp-area="" asp-controller="Home" asp-action="Perfil" aria-label="Perfil">
-                    @if (!string.IsNullOrWhiteSpace(Context.Session.GetString("FotoPerfil")))
-                    {
-                        <img src="@Url.Content("~/imagenes/" + Context.Session.GetString("FotoPerfil"))" alt="" class="oso-header-avatar"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-                        <svg viewBox="0 0 64 64" aria-hidden="true" style="display:none">
-                            <circle cx="32" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="4" />
-                            <path d="M15 52c3.5-8.5 11.2-13 17-13s13.5 4.5 17 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                        </svg>
-                    }
-                    else
-                    {
-                        <svg viewBox="0 0 64 64" aria-hidden="true">
-                            <circle cx="32" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="4" />
-                            <path d="M15 52c3.5-8.5 11.2-13 17-13s13.5 4.5 17 13" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-                        </svg>
-                    }
+                    <partial name="_AvatarUsuario" />
                 </a>
 
                 <a class="oso-icon oso-icon--notification" asp-area="" asp-controller="Home" asp-action="Notificaciones" aria-label="Notificaciones">
@@ -92,21 +77,54 @@
     @if (!esPaginaPublica)
     {
         var nombreMenu = Context.Session.GetString("NombreUsuario");
+        bool esPropietario = Context.Session.GetString("EsPropietario") == "true";
+        int notificacionesNoLeidas = ViewBag.NotificacionesNoLeidas as int? ?? 0;
+        // Accesos de la cuenta, debajo del menú principal.
+        var deLaCuenta = new[] { ("Bienvenida", "Inicio"), ("Perfil", "Perfil"), ("Notificaciones", "Notificaciones") };
+
         <span class="oso-sidemenu-backdrop" id="osoSidemenuBackdrop" hidden></span>
-        <aside class="oso-sidemenu" id="osoSidemenu" aria-label="Menú de usuario" aria-hidden="true">
-            <h2 class="oso-sidemenu__title">Hola, @(string.IsNullOrWhiteSpace(nombreMenu) ? "Usuario" : nombreMenu)!</h2>
-            <nav class="oso-sidemenu__nav" aria-label="Menú de usuario">
-                <a asp-controller="Home" asp-action="Bienvenida">Inicio</a>
-                <a asp-controller="Home" asp-action="Perfil">Perfil</a>
+        <aside class="oso-sidemenu" id="osoSidemenu" aria-label="Menú" aria-hidden="true">
+            <div class="oso-sidemenu__cabecera">
+                <span class="oso-sidemenu__avatar"><partial name="_AvatarUsuario" /></span>
+                <div class="oso-sidemenu__saludo">
+                    <p class="oso-sidemenu__nombre">Hola, @(string.IsNullOrWhiteSpace(nombreMenu) ? "Usuario" : nombreMenu)</p>
+                    <p class="oso-sidemenu__rol">@(esPropietario ? "Propietario" : "Inquilino")</p>
+                </div>
+                <button type="button" class="oso-sidemenu__cerrar" aria-label="Cerrar menú">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+
+            <nav class="oso-sidemenu__nav" aria-label="Menú">
                 @foreach (var item in menu)
                 {
-                    <a asp-controller="Home" asp-action="@item.Accion">@item.Texto</a>
+                    bool activo = seccion == item.Accion;
+                    <a class="oso-sidemenu__item @(activo ? "active" : "")" aria-current="@(activo ? "page" : null)" asp-controller="Home" asp-action="@item.Accion">
+                        <span class="oso-sidemenu__icono"><partial name="_IconoMenu" model="item.Accion" /></span>
+                        <span>@item.Texto</span>
+                    </a>
                 }
-                <a asp-controller="Home" asp-action="Notificaciones">Notificaciones</a>
+
+                <hr class="oso-sidemenu__separador" />
+
+                @foreach (var (accion, texto) in deLaCuenta)
+                {
+                    bool activo = accionActual == accion;
+                    <a class="oso-sidemenu__item @(activo ? "active" : "")" aria-current="@(activo ? "page" : null)" asp-controller="Home" asp-action="@accion">
+                        <span class="oso-sidemenu__icono"><partial name="_IconoMenu" model="accion" /></span>
+                        <span>@texto</span>
+                        @if (accion == "Notificaciones" && notificacionesNoLeidas > 0)
+                        {
+                            <span class="oso-sidemenu__contador" aria-label="@notificacionesNoLeidas sin leer">@notificacionesNoLeidas</span>
+                        }
+                    </a>
+                }
             </nav>
+
             <form asp-controller="Home" asp-action="CerrarSesion" method="post" class="oso-sidemenu__logout">
-                <button type="submit">Cerrar sesión
-                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <button type="submit" class="oso-sidemenu__salir">
+                    <span class="oso-sidemenu__icono"><partial name="_IconoMenu" model="@("CerrarSesion")" /></span>
+                    Cerrar sesión
                 </button>
             </form>
         </aside>

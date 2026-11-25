@@ -3,18 +3,33 @@
 
 // Write your JavaScript code.
 
+// Menú lateral: se abre con la hamburguesa y se cierra con la X, el fondo o Escape.
+// Al abrir, el foco pasa al menú; al cerrar, vuelve a la hamburguesa.
 (function () {
     var btn = document.querySelector('.oso-menu');
     var menu = document.getElementById('osoSidemenu');
     var backdrop = document.getElementById('osoSidemenuBackdrop');
     if (!btn || !menu) return;
+    var cerrar = menu.querySelector('.oso-sidemenu__cerrar');
+
+    function estaAbierto() { return menu.classList.contains('is-open'); }
+
     function setOpen(open) {
+        if (open === estaAbierto()) return;
         menu.classList.toggle('is-open', open);
         menu.setAttribute('aria-hidden', open ? 'false' : 'true');
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         backdrop.hidden = !open;
+        if (open) {
+            var primero = menu.querySelector('.oso-sidemenu__item.active') || menu.querySelector('.oso-sidemenu__item');
+            if (primero) primero.focus();
+        } else {
+            btn.focus();
+        }
     }
-    btn.addEventListener('click', function () { setOpen(!menu.classList.contains('is-open')); });
+
+    btn.addEventListener('click', function () { setOpen(!estaAbierto()); });
+    if (cerrar) cerrar.addEventListener('click', function () { setOpen(false); });
     backdrop.addEventListener('click', function () { setOpen(false); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
 })();
