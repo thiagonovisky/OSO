@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,29 +8,22 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
+@{
+    string? accionActual = ViewContext.RouteData.Values["action"]?.ToString();
+    bool esPaginaPublica = accionActual == "Index" || accionActual == "Login" || accionActual == "Registro";
+    bool esLanding = accionActual == "Index";
+
+    // Menú principal (Models/MenuPrincipal): el mismo en el header, la bienvenida y el menú lateral.
+    var menu = OSO.Models.MenuPrincipal.Para(Context.Session.GetString("EsPropietario") == "true");
+    string? seccion = OSO.Models.MenuPrincipal.SeccionDe(accionActual);
+}
 <body>
+    <a class="oso-saltar" href="#contenido">Saltar al contenido</a>
     <header class="oso-header">
         <div class="oso-header__inner">
-            @{
-                string? accionActual = ViewContext.RouteData.Values["action"]?.ToString();
-                bool esPaginaPublica = accionActual == "Index" || accionActual == "Login" || accionActual == "Registro";
-                bool esLanding = accionActual == "Index";
-
-                // Sección del menú principal a la que pertenece la página (la que lleva la franja dorada).
-                string[] deCalendario = { "Calendario", "AgregarEvento", "EditarEvento" };
-                string[] deMensajeria = { "Mensajeria" };
-                string seccion = deCalendario.Contains(accionActual) ? "Calendario"
-                    : deMensajeria.Contains(accionActual) ? "Mensajeria"
-                    : accionActual is "Bienvenida" or "Perfil" or "Notificaciones" or "MisGastos" or "Expensas" or "AgregarExpensa" ? ""
-                    : "Propiedades";
-            }
-
             <a class="oso-brand" asp-area="" asp-controller="Home" asp-action="@(esPaginaPublica ? "Index" : "Bienvenida")" aria-label="OSO, ir al inicio">
                 <span class="oso-brand__marca" aria-hidden="true"><img src="~/imagenes/Logo colores.png" alt="" /></span>
-                <span class="oso-brand__texto">
-                    <span class="oso-brand__nombre">OSO</span>
-                    <span class="oso-brand__bajada">Alquileres en orden</span>
-                </span>
+                <span class="oso-brand__nombre">OSO</span>
             </a>
 
             @if (esLanding)
@@ -44,9 +37,12 @@
             @if (!esPaginaPublica)
             {
                 <nav class="oso-nav" aria-label="Navegación principal">
-                    <a class="oso-nav__item @(seccion == "Calendario" ? "active" : "")" aria-current="@(seccion == "Calendario" ? "page" : null)" asp-area="" asp-controller="Home" asp-action="Calendario">Calendario</a>
-                    <a class="oso-nav__item @(seccion == "Propiedades" ? "active" : "")" aria-current="@(seccion == "Propiedades" ? "page" : null)" asp-area="" asp-controller="Home" asp-action="Propiedades">Propiedades</a>
-                    <a class="oso-nav__item @(seccion == "Mensajeria" ? "active" : "")" aria-current="@(seccion == "Mensajeria" ? "page" : null)" asp-area="" asp-controller="Home" asp-action="Mensajeria">Mensajería</a>
+                    @foreach (var item in menu)
+                    {
+                        bool activo = seccion == item.Accion;
+                        <a class="oso-nav__item @(activo ? "active" : "")" aria-current="@(activo ? "page" : null)" title="@(item.TextoCorto != item.Texto ? item.Texto : null)"
+                           asp-area="" asp-controller="Home" asp-action="@item.Accion">@item.TextoCorto</a>
+                    }
                 </nav>
             }
 
@@ -99,18 +95,14 @@
         <span class="oso-sidemenu-backdrop" id="osoSidemenuBackdrop" hidden></span>
         <aside class="oso-sidemenu" id="osoSidemenu" aria-label="Menú de usuario" aria-hidden="true">
             <h2 class="oso-sidemenu__title">Hola, @(string.IsNullOrWhiteSpace(nombreMenu) ? "Usuario" : nombreMenu)!</h2>
-            <nav class="oso-sidemenu__nav">
+            <nav class="oso-sidemenu__nav" aria-label="Menú de usuario">
                 <a asp-controller="Home" asp-action="Bienvenida">Inicio</a>
                 <a asp-controller="Home" asp-action="Perfil">Perfil</a>
-                <a asp-controller="Home" asp-action="Propiedades">Propiedades</a>
-                @if (Context.Session.GetString("EsPropietario") == "true")
+                @foreach (var item in menu)
                 {
-                    <a asp-controller="Home" asp-action="Expensas">Expensas extraordinarias</a>
+                    <a asp-controller="Home" asp-action="@item.Accion">@item.Texto</a>
                 }
-                <a asp-controller="Home" asp-action="Mensajeria">Mensajería</a>
-                <a asp-controller="Home" asp-action="MisGastos">Mis gastos</a>
                 <a asp-controller="Home" asp-action="Notificaciones">Notificaciones</a>
-                <a asp-controller="Home" asp-action="Calendario">Calendario</a>
             </nav>
             <form asp-controller="Home" asp-action="CerrarSesion" method="post" class="oso-sidemenu__logout">
                 <button type="submit">Cerrar sesión
@@ -119,9 +111,40 @@
             </form>
         </aside>
     }
-    <main class="@(esLanding ? "main main--landing" : "main")">
+    <main id="contenido" class="@(esLanding ? "main main--landing" : "main")">
         @RenderBody()
     </main>
+
+    <footer class="oso-footer">
+        <div class="oso-footer__inner">
+            <div class="oso-footer__marca">
+                <a class="oso-brand" asp-area="" asp-controller="Home" asp-action="@(esPaginaPublica ? "Index" : "Bienvenida")" aria-label="OSO, ir al inicio">
+                    <span class="oso-brand__marca" aria-hidden="true"><img src="~/imagenes/Logo colores.png" alt="" /></span>
+                    <span class="oso-brand__nombre">OSO</span>
+                </a>
+                <p>Contratos, gastos y pagos de tus alquileres en un solo lugar, para propietarios e inquilinos.</p>
+            </div>
+
+            <nav class="oso-footer__nav" aria-label="Enlaces del pie de página">
+                @if (esPaginaPublica)
+                {
+                    <a asp-controller="Home" asp-action="Index">Inicio</a>
+                    <a asp-controller="Home" asp-action="Login">Iniciar sesión</a>
+                    <a asp-controller="Home" asp-action="Registro">Registrarse</a>
+                }
+                else
+                {
+                    @foreach (var item in menu)
+                    {
+                        <a asp-controller="Home" asp-action="@item.Accion">@item.Texto</a>
+                    }
+                    <a asp-controller="Home" asp-action="Perfil">Perfil</a>
+                    <a asp-controller="Home" asp-action="Notificaciones">Notificaciones</a>
+                }
+            </nav>
+        </div>
+        <p class="oso-footer__legal">&copy; @DateTime.Now.Year OSO. Todos los derechos reservados.</p>
+    </footer>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>

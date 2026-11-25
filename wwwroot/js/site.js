@@ -125,3 +125,12 @@ document.addEventListener('click', function (e) {
         if (primero) { primero.focus(); }
     }
 });
+
+// En pantallas chicas el menú principal se desliza de costado: se acomoda para que se vea la sección activa.
+(function () {
+    var activo = document.querySelector('.oso-nav__item.active');
+    var nav = activo && activo.parentElement;
+    if (nav && nav.scrollWidth > nav.clientWidth) {
+        nav.scrollLeft = activo.offsetLeft - (nav.clientWidth - activo.offsetWidth) / 2;
+    }
+})();
