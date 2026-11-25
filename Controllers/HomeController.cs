@@ -676,7 +676,48 @@ public class HomeController : Controller
         }
 
         ViewBag.TieneContrato = bd.InquilinoTieneContratoConfirmado(idInquilino.Value);
+        ViewBag.PendientesContrato = bd.ObtenerPendientesContratoInquilino(idInquilino.Value);
         return View(bd.ObtenerGastosPorIdInquilino(idInquilino.Value));
+    }
+
+    // Paga un pendiente que sale del contrato (sin gasto cargado): el inquilino pone el monto de la factura y el comprobante.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult PagarPendienteContrato(int idPropiedad, int idGasto, DateTime periodo, decimal monto, IFormFile? comprobanteArchivo)
+    {
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+
+        if (!idInquilino.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        if (monto <= 0)
+        {
+            TempData["Mensaje"] = "Ingresá el monto de la factura (mayor a cero).";
+            return RedirectToAction("MisGastos");
+        }
+
+        string? error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
+        if (error != null)
+        {
+            TempData["Mensaje"] = error;
+            return RedirectToAction("MisGastos");
+        }
+
+        string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_contrato_{idPropiedad}_{idGasto}_{periodo:yyyyMM}");
+
+        if (bd.PagarPendienteContrato(idInquilino.Value, idPropiedad, idGasto, periodo, monto, comprobante))
+        {
+            TempData["Mensaje"] = "Pago registrado. El propietario ya puede ver el comprobante.";
+        }
+        else
+        {
+            GestorArchivos.Borrar(GestorArchivos.CarpetaComprobantes, comprobante);
+            TempData["Mensaje"] = "No se pudo registrar el pago: ese gasto ya no está pendiente.";
+        }
+
+        return RedirectToAction("MisGastos");
     }
 
     [HttpPost]
@@ -1467,6 +1508,7 @@ public class HomeController : Controller
         ViewBag.IdPropiedad = idPropiedad;
         ViewBag.Propiedad = propiedad;
         ViewBag.Gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
+        ViewBag.PendientesInquilino = bd.ObtenerPendientesContratoPropiedad(idPropiedad).Where(x => x.TipoGasto == tipo).ToList();
         return View(propiedad);
     }
 

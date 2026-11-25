@@ -1,4 +1,7 @@
 @model List<OSO.Models.GastoPropiedad>
+@{
+    var pendientesContrato = ViewBag.PendientesContrato as List<OSO.Models.PendienteContrato> ?? new List<OSO.Models.PendienteContrato>();
+}
 
 <h2>Mis gastos</h2>
 
@@ -7,7 +10,7 @@
     <p>@TempData["Mensaje"]</p>
 }
 
-@if (Model != null && Model.Count > 0)
+@if ((Model != null && Model.Count > 0) || pendientesContrato.Count > 0)
 {
     <table class="table table-striped mt-3">
         <thead>
@@ -24,12 +27,37 @@
             </tr>
         </thead>
         <tbody>
-            @foreach (var gasto in Model)
+            @* Meses de los gastos que el contrato pone a tu cargo y que todavía no pagaste: el monto lo cargás vos al pagar. *@
+            @foreach (var pendiente in pendientesContrato)
+            {
+                <tr>
+                    <td>@pendiente.NombrePropiedad</td>
+                    <td>@pendiente.TipoGasto <small>(@pendiente.Periodo.ToString("MMMM yyyy"))</small></td>
+                    <td>A pagar</td>
+                    <td>-</td>
+                    <td colspan="2">Lo cargás al pagar (100% a tu cargo)</td>
+                    <td>-</td>
+                    <td>-</td>
+                    <td>
+                        <form asp-action="PagarPendienteContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="idPropiedad" value="@pendiente.IdPropiedad" />
+                            <input type="hidden" name="idGasto" value="@pendiente.IdGasto" />
+                            <input type="hidden" name="periodo" value="@pendiente.Periodo.ToString("yyyy-MM-dd")" />
+                            <input type="number" name="monto" min="0.01" step="0.01" placeholder="Monto $" class="form-control form-control-sm" required />
+                            <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" required />
+                            <button type="submit" class="btn btn-success btn-sm">Pagar</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+
+            @foreach (var gasto in Model ?? new List<OSO.Models.GastoPropiedad>())
             {
                 bool pagado = gasto.MontoPagado >= gasto.MontoResponsable;
                 <tr>
                     <td>@gasto.NombrePropiedad</td>
-                    <td>@gasto.TipoGasto</td>
+                    <td>@gasto.TipoGasto <small>(@gasto.Periodo.ToString("MMMM yyyy"))</small></td>
                     <td>@(pagado ? "Pagado" : gasto.FechaVencimiento.Date < DateTime.Today ? "Vencido" : "A pagar")</td>
                     <td>@gasto.FechaVencimiento.ToString("dd/MM/yyyy")</td>
                     <td>$@gasto.Monto</td>

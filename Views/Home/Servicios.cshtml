@@ -20,6 +20,11 @@
                     <div class="service-body">
                         <span class="service-status @servicio.EstadoCss">@servicio.Estado</span>
 
+                        @if (!string.IsNullOrEmpty(servicio.QuienPaga))
+                        {
+                            <small class="service-payer">@servicio.QuienPaga</small>
+                        }
+
                         <div class="service-actions">
                             <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-primary">Ver detalle</a>
 

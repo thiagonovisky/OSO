@@ -23,6 +23,10 @@
 
 @if (contrato != null)
 {
+    @if (contrato.FechaInicio.Date > DateTime.Today)
+    {
+        <div class="alert alert-info">Este contrato está confirmado y empieza el @contrato.FechaInicio.ToString("dd/MM/yyyy").</div>
+    }
     <div class="card p-3 mb-3">
         <p><strong>Propiedad:</strong> @Model.Direccion</p>
         <p><strong>Inquilino:</strong> @(ViewBag.NombreInquilino ?? contrato.IdInquilino.ToString())</p>

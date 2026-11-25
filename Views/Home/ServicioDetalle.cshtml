@@ -2,10 +2,32 @@
 @{
     var tipo = ViewBag.Tipo as string;
     var gastos = ViewBag.Gastos as List<OSO.Models.GastoPropiedad>;
+    var pendientesInquilino = ViewBag.PendientesInquilino as List<OSO.Models.PendienteContrato>;
 }
 
 <div class="service-detail-page">
     <h2 class="page-title">@tipo</h2>
+
+    @if (pendientesInquilino != null && pendientesInquilino.Count > 0)
+    {
+        <div class="service-detail-panel">
+            <div class="service-header-row">
+                <h3>Pendientes del inquilino</h3>
+            </div>
+            <p>Según el contrato, este gasto lo paga el inquilino. Estos meses siguen pendientes hasta que suba el comprobante con el monto de la factura.</p>
+            <div class="months-grid">
+                @foreach (var pendiente in pendientesInquilino)
+                {
+                    <div class="month-item">
+                        <div class="month-name">@pendiente.Periodo.ToString("MMMM yyyy")</div>
+                        <div class="month-meta">
+                            <span class="service-status warn">Pendiente</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
 
     <div class="service-detail-panel">
         <div class="service-header-row">

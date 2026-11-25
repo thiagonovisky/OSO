@@ -1,16 +1,25 @@
 @model OSO.Models.Usuario
 @{
     ViewData["Title"] = "Perfil";
-    var fotoPerfil = !string.IsNullOrWhiteSpace(Model.FotoPerfil)
-        ? Url.Content("~/imagenes/" + Model.FotoPerfil)
-        : "https://placehold.co/200x200/CFD8DC/607D8B?text=Perfil";
+    var tieneFoto = !string.IsNullOrWhiteSpace(Model.FotoPerfil);
 }
 
 <div class="perfil-page">
     <div class="perfil-card">
         <div class="perfil-header-row">
             <div class="perfil-avatar-wrap">
-                <img src="@fotoPerfil" alt="Foto de perfil" class="perfil-avatar" />
+                @if (tieneFoto)
+                {
+                    @* Si el archivo no existe o no carga, se oculta la imagen (sin mostrar el alt) y aparece la silueta. *@
+                    <img src="@Url.Content("~/imagenes/" + Model.FotoPerfil)" alt="" class="perfil-avatar"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                }
+                <svg class="perfil-avatar perfil-avatar--vacio" viewBox="0 0 64 64" role="img" aria-label="Sin foto de perfil"
+                     style="@(tieneFoto ? "display:none" : "")">
+                    <rect width="64" height="64" fill="#CFD8DC" />
+                    <circle cx="32" cy="24" r="11" fill="#607D8B" />
+                    <path d="M10 64c2-14 11-22 22-22s20 8 22 22z" fill="#607D8B" />
+                </svg>
             </div>
 
             <div class="perfil-fields">

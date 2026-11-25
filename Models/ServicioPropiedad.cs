@@ -7,6 +7,7 @@ public class ServicioPropiedad
     public string Nombre { get; set; } = string.Empty;
     public int CantidadGastos { get; set; }
     public int GastosPendientes { get; set; }
+    public string? QuienPaga { get; set; } // según el contrato vigente; null si no hay
 
     public string Estado => GastosPendientes > 0 ? "Pendiente" : (CantidadGastos > 0 ? "Al día" : "Sin registros");
 

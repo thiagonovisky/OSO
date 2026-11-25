@@ -39,8 +39,8 @@ public class BD
         const string query = @"SELECT p.*,
                                       (SELECT TOP 1 c.MontoAlquiler FROM Contratos c
                                        WHERE c.IdPropiedad = p.IdPropiedad AND c.Estado = 'Confirmado'
-                                         AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
-                                       ORDER BY c.FechaInicio DESC) AS AlquilerActual
+                                         AND c.FechaFin >= CAST(GETDATE() AS date)
+                                       ORDER BY CASE WHEN c.FechaInicio <= CAST(GETDATE() AS date) THEN 0 ELSE 1 END, c.FechaInicio DESC) AS AlquilerActual
                                FROM Propiedades p
                                WHERE p.IdPropietario = @pIdPropietario";
         return connection.Query<Propiedades>(query, new { pIdPropietario = idPropietario }).AsList();
@@ -59,8 +59,8 @@ public class BD
                                LEFT JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
                                OUTER APPLY (SELECT TOP 1 c.MontoAlquiler, c.FechaFin FROM Contratos c
                                             WHERE c.IdPropiedad = p.IdPropiedad AND c.Estado = 'Confirmado'
-                                              AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
-                                            ORDER BY c.FechaInicio DESC) contrato
+                                              AND c.FechaFin >= CAST(GETDATE() AS date)
+                                            ORDER BY CASE WHEN c.FechaInicio <= CAST(GETDATE() AS date) THEN 0 ELSE 1 END, c.FechaInicio DESC) contrato
                                WHERE p.IdInquilino = @IdInquilino";
         return connection.Query<Propiedades>(query, new { IdInquilino = idInquilino }).AsList();
     }
@@ -81,8 +81,8 @@ public class BD
         const string query = @"SELECT p.*,
                                       (SELECT TOP 1 c.MontoAlquiler FROM Contratos c
                                        WHERE c.IdPropiedad = p.IdPropiedad AND c.Estado = 'Confirmado'
-                                         AND c.FechaInicio <= CAST(GETDATE() AS date) AND c.FechaFin >= CAST(GETDATE() AS date)
-                                       ORDER BY c.FechaInicio DESC) AS AlquilerActual
+                                         AND c.FechaFin >= CAST(GETDATE() AS date)
+                                       ORDER BY CASE WHEN c.FechaInicio <= CAST(GETDATE() AS date) THEN 0 ELSE 1 END, c.FechaInicio DESC) AS AlquilerActual
                                FROM Propiedades p
                                WHERE p.IdPropiedad = @pIdPropiedad";
         return connection.QueryFirstOrDefault<Propiedades>(query, new { pIdPropiedad = idPropiedad });
@@ -100,13 +100,13 @@ public class BD
         using SqlConnection connection = new(connectionString);
         var fecha = fechaReferencia ?? DateTime.Today;
 
-        const string query = @"SELECT *
+        // Igual que la tarjeta de la propiedad: el vigente, o si todavía no empezó, el próximo confirmado.
+        const string query = @"SELECT TOP 1 *
                               FROM Contratos
                               WHERE IdPropiedad = @IdPropiedad
                                 AND Estado = 'Confirmado'
-                                AND FechaInicio <= @FechaReferencia
                                 AND FechaFin >= @FechaReferencia
-                              ORDER BY FechaInicio DESC";
+                              ORDER BY CASE WHEN FechaInicio <= @FechaReferencia THEN 0 ELSE 1 END, FechaInicio DESC";
 
         return connection.QueryFirstOrDefault<Contratos>(query, new
         {
@@ -529,6 +529,17 @@ public class BD
         // Con el contrato confirmado se arma el calendario de todo su plazo, en la misma transacción.
         GenerarEventosContrato(connection, transaction, idContrato);
 
+        // Los tipos de gasto con regla en el contrato quedan como servicios de la propiedad (sin tocar los que ya hay).
+        connection.Execute(
+            @"INSERT INTO PropiedadTipoGasto (IdPropiedad, IdGasto)
+              SELECT DISTINCT c.IdPropiedad, r.IdGasto
+              FROM Contratos c
+              INNER JOIN ContratoResponsabilidadGasto r ON r.IdContrato = c.IdContrato
+              WHERE c.IdContrato = @IdContrato
+                AND NOT EXISTS (SELECT 1 FROM PropiedadTipoGasto pt WHERE pt.IdPropiedad = c.IdPropiedad AND pt.IdGasto = r.IdGasto)",
+            new { IdContrato = idContrato },
+            transaction);
+
         connection.Execute(
             @"INSERT INTO Notificaciones (IdUsuario, Texto)
               SELECT u.IdUsuario, LEFT(CONCAT('El inquilino aceptó el contrato de ', p.Direccion, '. Ya está vigente.'), 300)
@@ -877,25 +888,161 @@ public class BD
 
         if (pagado)
         {
-            // Avisa al propietario que el inquilino subió el comprobante.
-            connection.Execute(
-                @"INSERT INTO Notificaciones (IdUsuario, IdGastoResponsable, Texto)
-                  SELECT u.IdUsuario, gr.IdGastoResponsable,
-                         LEFT(CONCAT('El inquilino pagó ', g.TipoGasto, ' de ', p.Direccion, ' ($', CONVERT(varchar(20), gr.Monto),
-                                     ') y subió el comprobante.'), 300)
-                  FROM GastoResponsables gr
-                  INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
-                  INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
-                  INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
-                  INNER JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
-                  WHERE gr.IdGastoResponsable = @IdGastoResponsable
-                    AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = u.IdUsuario AND n.IdGastoResponsable = gr.IdGastoResponsable)",
-                new { IdGastoResponsable = idGastoResponsable },
-                transaction);
+            AvisarPagoAlPropietario(connection, transaction, idGastoResponsable);
         }
 
         transaction.Commit();
         return pagado;
+    }
+
+    // ---- Pendientes automáticos del contrato ----
+    // Cada tipo de gasto que el contrato pone 100% a cargo del inquilino figura como pendiente en cada mes del contrato
+    // (hasta el actual) mientras no haya un gasto cargado para ese mes. Las expensas quedan afuera: las carga el propietario con su importe.
+
+    private class ReglaInquilinoContrato
+    {
+        public int IdPropiedad { get; set; }
+        public string Direccion { get; set; } = string.Empty;
+        public int IdGasto { get; set; }
+        public string TipoGasto { get; set; } = string.Empty;
+        public DateTime FechaInicio { get; set; }
+        public DateTime FechaFin { get; set; }
+    }
+
+    // filtro: condición extra sobre el contrato (alias c), con sus parámetros.
+    private static List<PendienteContrato> CalcularPendientesContrato(SqlConnection connection, SqlTransaction? transaction, string filtro, object parametros)
+    {
+        var parametrosReglas = new DynamicParameters(parametros);
+        parametrosReglas.Add("TipoExpensas", TipoExpensas);
+        parametrosReglas.Add("TipoExtraordinarias", ReglasContrato.TipoExtraordinarias);
+
+        List<ReglaInquilinoContrato> reglas = connection.Query<ReglaInquilinoContrato>(
+            @"SELECT c.IdPropiedad, p.Direccion, r.IdGasto, g.TipoGasto, c.FechaInicio, ISNULL(c.FechaFinReal, c.FechaFin) AS FechaFin
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              INNER JOIN ContratoResponsabilidadGasto r ON r.IdContrato = c.IdContrato AND r.Responsable = 'Inquilino'
+              INNER JOIN Gastos g ON g.IdGasto = r.IdGasto
+              WHERE c.Estado = 'Confirmado' AND g.TipoGasto NOT IN (@TipoExpensas, @TipoExtraordinarias) AND " + filtro,
+            parametrosReglas,
+            transaction).AsList();
+
+        var pendientes = new List<PendienteContrato>();
+        if (reglas.Count == 0)
+        {
+            return pendientes;
+        }
+
+        // Meses que ya tienen un gasto cargado (por el propietario o por un pago anterior del inquilino).
+        var cargados = connection.Query<(int IdPropiedad, int IdGasto, DateTime Periodo)>(
+            "SELECT IdPropiedad, IdGasto, Periodo FROM GastosPropiedad WHERE IdPropiedad IN @Ids",
+            new { Ids = reglas.Select(r => r.IdPropiedad).Distinct().ToList() },
+            transaction).Select(x => (x.IdPropiedad, x.IdGasto, PrimerDiaDelMes(x.Periodo))).ToHashSet();
+
+        DateTime mesActual = PrimerDiaDelMes(DateTime.Today);
+        foreach (ReglaInquilinoContrato regla in reglas)
+        {
+            DateTime ultimo = PrimerDiaDelMes(regla.FechaFin) < mesActual ? PrimerDiaDelMes(regla.FechaFin) : mesActual;
+            for (DateTime mes = PrimerDiaDelMes(regla.FechaInicio); mes <= ultimo; mes = mes.AddMonths(1))
+            {
+                if (!cargados.Contains((regla.IdPropiedad, regla.IdGasto, mes)))
+                {
+                    pendientes.Add(new PendienteContrato
+                    {
+                        IdPropiedad = regla.IdPropiedad,
+                        NombrePropiedad = regla.Direccion,
+                        IdGasto = regla.IdGasto,
+                        TipoGasto = regla.TipoGasto,
+                        Periodo = mes
+                    });
+                }
+            }
+        }
+
+        return pendientes
+            .OrderByDescending(x => x.Periodo)
+            .ThenBy(x => x.NombrePropiedad)
+            .ThenBy(x => x.TipoGasto)
+            .ToList();
+    }
+
+    public List<PendienteContrato> ObtenerPendientesContratoInquilino(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        return CalcularPendientesContrato(connection, null, "c.IdInquilino = @IdInquilino", new { IdInquilino = idInquilino });
+    }
+
+    public List<PendienteContrato> ObtenerPendientesContratoPropiedad(int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        return CalcularPendientesContrato(connection, null, "c.IdPropiedad = @IdPropiedad", new { IdPropiedad = idPropiedad });
+    }
+
+    // El inquilino paga un pendiente del contrato: carga el monto de la factura y el comprobante.
+    // Se crea el gasto del mes (repartido según el contrato, o sea todo del inquilino) y se registra el pago.
+    public bool PagarPendienteContrato(int idInquilino, int idPropiedad, int idGasto, DateTime periodo, decimal monto, string comprobante)
+    {
+        if (monto <= 0)
+        {
+            return false;
+        }
+
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        DateTime mes = PrimerDiaDelMes(periodo);
+        bool corresponde = CalcularPendientesContrato(connection, transaction,
+                "c.IdInquilino = @IdInquilino AND c.IdPropiedad = @IdPropiedad",
+                new { IdInquilino = idInquilino, IdPropiedad = idPropiedad })
+            .Any(x => x.IdGasto == idGasto && x.Periodo == mes);
+
+        if (!corresponde)
+        {
+            return false;
+        }
+
+        var gasto = new GastoPropiedad
+        {
+            Periodo = mes,
+            Monto = monto,
+            FechaVencimiento = DateTime.Today,
+            FechaAlta = DateTime.Today,
+            Aclaracion = "Monto cargado por el inquilino al pagar."
+        };
+        int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, idPropiedad, idGasto, gasto);
+
+        int? idGastoResponsable = connection.QuerySingleOrDefault<int?>(
+            "SELECT IdGastoResponsable FROM GastoResponsables WHERE IdGastoPropiedad = @IdGastoPropiedad AND Responsable = 'Inquilino'",
+            new { IdGastoPropiedad = idGastoPropiedad },
+            transaction);
+
+        if (!idGastoResponsable.HasValue || !PagarParte(connection, transaction, idGastoResponsable.Value, "Inquilino", comprobante))
+        {
+            return false;
+        }
+
+        AvisarPagoAlPropietario(connection, transaction, idGastoResponsable.Value);
+        transaction.Commit();
+        return true;
+    }
+
+    // Avisa al propietario que el inquilino pagó su parte de un gasto y subió el comprobante (una sola vez por gasto).
+    private static void AvisarPagoAlPropietario(SqlConnection connection, SqlTransaction transaction, int idGastoResponsable)
+    {
+        connection.Execute(
+            @"INSERT INTO Notificaciones (IdUsuario, IdGastoResponsable, Texto)
+              SELECT u.IdUsuario, gr.IdGastoResponsable,
+                     LEFT(CONCAT('El inquilino pagó ', g.TipoGasto, ' de ', p.Direccion, ' ($', CONVERT(varchar(20), gr.Monto),
+                                 ') y subió el comprobante.'), 300)
+              FROM GastoResponsables gr
+              INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
+              INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
+              INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+              INNER JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
+              WHERE gr.IdGastoResponsable = @IdGastoResponsable
+                AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = u.IdUsuario AND n.IdGastoResponsable = gr.IdGastoResponsable)",
+            new { IdGastoResponsable = idGastoResponsable },
+            transaction);
     }
 
     // Avisa al inquilino de los gastos suyos sin pagar que vencen en los próximos días (o ya vencieron).
@@ -1175,10 +1322,47 @@ public class BD
         string queryGastos = SelectGastoPropietario + " WHERE gp.IdPropiedad = @IdPropiedad";
         List<GastoPropiedad> gastos = connection.Query<GastoPropiedad>(queryGastos, new { IdPropiedad = idPropiedad }).AsList();
 
+        // Quién paga cada tipo según el contrato Confirmado; sin contrato o sin regla propia no se muestra nada.
+        var reglas = new Dictionary<int, ReglaGasto>();
+        Contratos? contrato = ObtenerContratoConfirmadoDePropiedad(idPropiedad);
+        if (contrato != null)
+        {
+            var conRegla = connection.Query<int>(
+                "SELECT IdGasto FROM ContratoResponsabilidadGasto WHERE IdContrato = @IdContrato",
+                new { contrato.IdContrato }).ToHashSet();
+            foreach (ReglaGasto regla in ObtenerReglasGasto(contrato.IdContrato))
+            {
+                if (conRegla.Contains(regla.IdGasto))
+                {
+                    reglas[regla.IdGasto] = regla;
+                }
+            }
+        }
+
+        // Meses que el inquilino todavía no pagó de los tipos a su cargo (no tienen gasto cargado).
+        List<PendienteContrato> pendientesContrato = CalcularPendientesContrato(connection, null, "c.IdPropiedad = @IdPropiedad", new { IdPropiedad = idPropiedad });
+
         var servicios = new List<ServicioPropiedad>();
         foreach (Gastos tipo in ObtenerTiposGastoPorPropiedad(idPropiedad))
         {
-            var servicio = new ServicioPropiedad { IdGasto = tipo.IdGasto, Nombre = tipo.TipoGasto };
+            int sinCargar = pendientesContrato.Count(x => x.IdGasto == tipo.IdGasto);
+            var servicio = new ServicioPropiedad
+            {
+                IdGasto = tipo.IdGasto,
+                Nombre = tipo.TipoGasto,
+                CantidadGastos = sinCargar,
+                GastosPendientes = sinCargar
+            };
+            if (reglas.TryGetValue(tipo.IdGasto, out ReglaGasto? reglaTipo))
+            {
+                servicio.QuienPaga = reglaTipo.Responsable switch
+                {
+                    "Inquilino" => "Lo paga el inquilino",
+                    "Propietario" => "Lo paga el propietario",
+                    _ => $"Compartido ({reglaTipo.PorcentajeInquilino:0.##}% inquilino)"
+                };
+            }
+
             foreach (GastoPropiedad gasto in gastos)
             {
                 if (gasto.IdGasto == tipo.IdGasto)
