@@ -1,5 +1,5 @@
 @model string
-@* Ícono de cada acceso del menú principal (Models/MenuPrincipal). Recibe la acción del ítem. *@
+@* Íconos de línea de la app: los de cada acceso del menú (Models/MenuPrincipal, por su acción) y algunos de acciones (Editar, CerrarSesion). *@
 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     @switch (Model)
     {
@@ -40,6 +40,10 @@
         case "Notificaciones":
             <path d="M6.5 16.5V11A5.5 5.5 0 0 1 17.5 11V16.5L19 18.5H5L6.5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
             <path d="M10 21H14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            break;
+        case "Editar":
+            <path d="M4 20H8L18.5 9.5C19.3 8.7 19.3 7.3 18.5 6.5L17.5 5.5C16.7 4.7 15.3 4.7 14.5 5.5L4 16V20Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+            <path d="M13 7L17 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
             break;
         case "CerrarSesion":
             <path d="M10 4H5V20H10M14 8L18 12L14 16M18 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>

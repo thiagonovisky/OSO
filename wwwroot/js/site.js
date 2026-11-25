@@ -118,6 +118,7 @@
     });
     input.addEventListener('input', formatear);
     input.placeholder = paisActual().ejemplo;
+    if (input.value) { formatear(); } // al editar un teléfono ya cargado, se muestra con guiones
 })();
 
 // Botones con data-despliega="id": muestran u ocultan ese elemento (ej. el formulario de pago debajo de un gasto).
@@ -148,4 +149,43 @@ document.addEventListener('click', function (e) {
     if (nav && nav.scrollWidth > nav.clientWidth) {
         nav.scrollLeft = activo.offsetLeft - (nav.clientWidth - activo.offsetWidth) / 2;
     }
+})();
+
+// Perfil: el lápiz (data-editar="id") muestra el formulario de ese dato en lugar del valor; Cancelar lo vuelve a ocultar.
+(function () {
+    function alternar(formulario, abrir) {
+        var vista = formulario.previousElementSibling;
+        var lapiz = vista && vista.querySelector('[data-editar]');
+        formulario.hidden = !abrir;
+        if (vista) { vista.hidden = abrir; }
+        if (lapiz) { lapiz.setAttribute('aria-expanded', abrir ? 'true' : 'false'); }
+        if (abrir) {
+            var primero = formulario.querySelector('input:not([type="hidden"])') || formulario.querySelector('select');
+            if (primero) { primero.focus(); }
+        } else if (lapiz) {
+            formulario.reset();
+            lapiz.focus();
+        }
+    }
+
+    document.addEventListener('click', function (e) {
+        var lapiz = e.target.closest('[data-editar]');
+        if (lapiz) {
+            var formulario = document.getElementById(lapiz.dataset.editar);
+            if (formulario) { alternar(formulario, true); }
+            return;
+        }
+
+        var cancelar = e.target.closest('[data-cancelar-edicion]');
+        if (cancelar) {
+            alternar(cancelar.closest('form'), false);
+        }
+    });
+
+    // Un archivo elegido en un campo con data-envio-automatico se guarda enseguida (ej. la foto de perfil).
+    document.addEventListener('change', function (e) {
+        if (e.target.matches('[data-envio-automatico]') && e.target.files.length) {
+            e.target.form.submit();
+        }
+    });
 })();

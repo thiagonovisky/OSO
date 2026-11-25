@@ -1524,6 +1524,95 @@ input[type="file"]::file-selector-button:hover {
   font-weight: 500;
 }
 
+/* Edición del perfil: un lápiz al lado de cada dato abre su formulario en el lugar */
+.perfil-avatar-col {
+  position: relative;
+  width: 120px;
+}
+.perfil-lapiz {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--blue-main-45);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--blue-main);
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.perfil-lapiz:hover {
+  border-color: var(--blue-main);
+  background: var(--blue-main);
+  color: var(--white);
+}
+.perfil-lapiz:focus-visible, .perfil-foto-form input:focus-visible + .perfil-lapiz {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.perfil-lapiz svg {
+  width: 16px;
+  height: 16px;
+}
+/* En la foto, el lápiz va sobre el borde del círculo, abajo a la derecha */
+.perfil-foto-form {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.perfil-lapiz--foto {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  border-color: var(--white);
+  background: var(--blue-main);
+  color: var(--white);
+  box-shadow: 0 2px 6px rgba(30, 51, 72, 0.25);
+}
+.perfil-lapiz--foto:hover {
+  background: var(--blue-dark);
+}
+.perfil-dato {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.perfil-dato span {
+  overflow-wrap: anywhere;
+}
+.perfil-dato[hidden] {
+  display: none;
+}
+.perfil-edicion {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  font-size: 1rem;
+}
+.perfil-edicion:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.perfil-edicion__nota {
+  color: rgba(30, 51, 72, 0.7);
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+.perfil-edicion__acciones {
+  display: flex;
+  gap: 8px;
+}
+
 /* Títulos de sección */
 .propiedades-title, .invitacion-title, .cal-title, .evt-title, .msj-title, .gastos-title {
   margin: 0;

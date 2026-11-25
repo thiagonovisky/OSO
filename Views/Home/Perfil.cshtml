@@ -2,24 +2,66 @@
 @{
     ViewData["Title"] = "Perfil";
     var tieneFoto = !string.IsNullOrWhiteSpace(Model.FotoPerfil);
+    bool esPropietario = Model.IdPropietario > 0;
+    string otraParte = esPropietario ? "a tus inquilinos" : "a tu propietario";
+    var (codigoPais, digitosTelefono) = OSO.Models.TelefonoFormato.Separar(Model.Telefono);
+
+    // Botón con el lápiz: muestra el formulario de edición de ese dato (ver site.js, data-editar).
+    async Task Lapiz(string idFormulario, string queEdita)
+    {
+        <button type="button" class="perfil-lapiz" data-editar="@idFormulario" aria-controls="@idFormulario" aria-expanded="false" aria-label="Editar @queEdita">
+            <partial name="_IconoMenu" model="@("Editar")" />
+        </button>
+    }
+
+    void AccionesEdicion()
+    {
+        <div class="perfil-edicion__acciones">
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-cancelar-edicion>Cancelar</button>
+        </div>
+    }
 }
 
 <div class="perfil-page">
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success" role="status">@TempData["Success"]</div>
+    }
+
     <div class="perfil-card">
         <div class="perfil-header-row">
-            <div class="perfil-avatar-wrap">
-                @if (tieneFoto)
-                {
-                    @* Si el archivo no existe o no carga, se oculta la imagen (sin mostrar el alt) y aparece la silueta. *@
-                    <img src="@Url.Content("~/imagenes/" + Model.FotoPerfil)" alt="" class="perfil-avatar"
-                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-                }
-                <svg class="perfil-avatar perfil-avatar--vacio" viewBox="0 0 64 64" role="img" aria-label="Sin foto de perfil"
-                     style="@(tieneFoto ? "display:none" : "")">
-                    <rect width="64" height="64" fill="#CFD8DC" />
-                    <circle cx="32" cy="24" r="11" fill="#607D8B" />
-                    <path d="M10 64c2-14 11-22 22-22s20 8 22 22z" fill="#607D8B" />
-                </svg>
+            <div class="perfil-avatar-col">
+                <div class="perfil-avatar-wrap">
+                    @if (tieneFoto)
+                    {
+                        @* Si el archivo no existe o no carga, se oculta la imagen (sin mostrar el alt) y aparece la silueta. *@
+                        <img src="@Url.Content("~/imagenes/" + Model.FotoPerfil)" alt="" class="perfil-avatar"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
+                    }
+                    <svg class="perfil-avatar perfil-avatar--vacio" viewBox="0 0 64 64" role="img" aria-label="Sin foto de perfil"
+                         style="@(tieneFoto ? "display:none" : "")">
+                        <rect width="64" height="64" fill="#CFD8DC" />
+                        <circle cx="32" cy="24" r="11" fill="#607D8B" />
+                        <path d="M10 64c2-14 11-22 22-22s20 8 22 22z" fill="#607D8B" />
+                    </svg>
+                </div>
+
+                @* El lápiz de la foto abre el selector de archivos; al elegir una imagen se guarda sola. *@
+                <form asp-action="ActualizarFotoPerfil" asp-controller="Home" method="post" enctype="multipart/form-data" class="perfil-foto-form">
+                    @Html.AntiForgeryToken()
+                    <label for="fotoNueva" class="perfil-lapiz perfil-lapiz--foto" title="Cambiar foto de perfil">
+                        <partial name="_IconoMenu" model="@("Editar")" />
+                        <span class="visually-hidden">Cambiar foto de perfil</span>
+                    </label>
+                    <input type="file" id="fotoNueva" name="foto" accept=".jpg,.jpeg,.png,.webp,.gif" class="visually-hidden" data-envio-automatico />
+                    <noscript><button type="submit" class="btn btn-secondary btn-sm">Guardar foto</button></noscript>
+                </form>
             </div>
 
             <div class="perfil-fields">
@@ -30,7 +72,7 @@
 
                 <div class="perfil-field">
                     <label>Tipo de usuario</label>
-                    <div class="perfil-value">@(Model.IdPropietario > 0 ? "Propietario" : "Inquilino")</div>
+                    <div class="perfil-value">@(esPropietario ? "Propietario/a" : "Inquilino/a")</div>
                 </div>
 
                 <div class="perfil-field">
@@ -54,17 +96,52 @@
             <div class="perfil-contact-grid">
                 <div class="perfil-contact-item">
                     <label>Nombre</label>
-                    <div>@Model.Nombre @Model.Apellido</div>
+                    <div class="perfil-dato">
+                        <span>@Model.Nombre @Model.Apellido</span>
+                        @{ await Lapiz("editarNombre", "nombre"); }
+                    </div>
+                    <form id="editarNombre" asp-action="ActualizarNombre" asp-controller="Home" method="post" class="perfil-edicion" hidden>
+                        @Html.AntiForgeryToken()
+                        <input type="text" name="nombre" value="@Model.Nombre" maxlength="50" required aria-label="Nombre" />
+                        <input type="text" name="apellido" value="@Model.Apellido" maxlength="50" required aria-label="Apellido" />
+                        @{ AccionesEdicion(); }
+                    </form>
                 </div>
 
                 <div class="perfil-contact-item">
                     <label>Teléfono</label>
-                    <div>@OSO.Models.TelefonoFormato.Formatear(Model.Telefono)</div>
+                    <div class="perfil-dato">
+                        <span>@OSO.Models.TelefonoFormato.Formatear(Model.Telefono)</span>
+                        @{ await Lapiz("editarTelefono", "teléfono"); }
+                    </div>
+                    <form id="editarTelefono" asp-action="ActualizarTelefono" asp-controller="Home" method="post" class="perfil-edicion" hidden>
+                        @Html.AntiForgeryToken()
+                        <div class="phone-field">
+                            <select id="codigoPais" name="codigoPais" aria-label="País">
+                                @foreach (var pais in OSO.Models.TelefonoFormato.Paises)
+                                {
+                                    <option value="@pais.Codigo" data-digitos="@pais.Digitos" data-ejemplo="@pais.Ejemplo" selected="@(pais.Codigo == codigoPais)">@pais.Nombre (+@pais.Codigo)</option>
+                                }
+                            </select>
+                            <input type="tel" id="telefono" name="telefono" value="@OSO.Models.TelefonoFormato.FormatearNacional(digitosTelefono)" required inputmode="numeric" aria-label="Número con código de área" />
+                        </div>
+                        <small class="perfil-edicion__nota">Le avisamos el cambio @otraParte.</small>
+                        @{ AccionesEdicion(); }
+                    </form>
                 </div>
 
                 <div class="perfil-contact-item">
                     <label>Email</label>
-                    <div>@Model.Correo</div>
+                    <div class="perfil-dato">
+                        <span>@Model.Correo</span>
+                        @{ await Lapiz("editarCorreo", "mail"); }
+                    </div>
+                    <form id="editarCorreo" asp-action="ActualizarCorreo" asp-controller="Home" method="post" class="perfil-edicion" hidden>
+                        @Html.AntiForgeryToken()
+                        <input type="email" name="correo" value="@Model.Correo" maxlength="100" required aria-label="Mail" />
+                        <small class="perfil-edicion__nota">Con este mail vas a iniciar sesión. Le avisamos el cambio @otraParte.</small>
+                        @{ AccionesEdicion(); }
+                    </form>
                 </div>
             </div>
         </div>

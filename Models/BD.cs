@@ -1675,6 +1675,78 @@ public class BD
         return connection.QueryFirstOrDefault<Usuario>(query, new { pIdUsuario = idUsuario });
     }
 
+    // ---- Edición del perfil ----
+
+    public void ActualizarNombre(int idUsuario, string nombre, string apellido)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute("UPDATE Usuarios SET Nombre = @Nombre, Apellido = @Apellido WHERE IdUsuario = @IdUsuario",
+            new { IdUsuario = idUsuario, Nombre = nombre, Apellido = apellido });
+    }
+
+    public void ActualizarFotoPerfil(int idUsuario, string fotoPerfil)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Execute("UPDATE Usuarios SET FotoPerfil = @FotoPerfil WHERE IdUsuario = @IdUsuario",
+            new { IdUsuario = idUsuario, FotoPerfil = fotoPerfil });
+    }
+
+    // El correo y el teléfono son los datos de contacto: al cambiarlos se le avisa a la otra parte de sus alquileres.
+    public void ActualizarCorreo(int idUsuario, string correo)
+    {
+        ActualizarDatoDeContacto(idUsuario, "Correo", correo, $"su mail de contacto: ahora es {correo}");
+    }
+
+    public void ActualizarTelefono(int idUsuario, string telefono)
+    {
+        ActualizarDatoDeContacto(idUsuario, "Telefono", telefono, $"su teléfono de contacto: ahora es {TelefonoFormato.Formatear(telefono)}");
+    }
+
+    // columna: "Correo" o "Telefono" (fija, nunca viene del usuario).
+    private void ActualizarDatoDeContacto(int idUsuario, string columna, string valor, string detalleDelAviso)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute($"UPDATE Usuarios SET {columna} = @Valor WHERE IdUsuario = @IdUsuario",
+            new { IdUsuario = idUsuario, Valor = valor }, transaction);
+        AvisarCambioDeContacto(connection, transaction, idUsuario, detalleDelAviso);
+
+        transaction.Commit();
+    }
+
+    // Avisa a la otra parte de cada alquiler del usuario (vinculado a la propiedad o con un contrato pendiente o vigente):
+    // si es propietario, a sus inquilinos; si es inquilino, a sus propietarios. Una sola notificación por persona.
+    private static void AvisarCambioDeContacto(SqlConnection connection, SqlTransaction transaction, int idUsuario, string detalle)
+    {
+        connection.Execute(
+            @"WITH Yo AS (
+                  SELECT IdUsuario, Nombre, Apellido, NULLIF(IdPropietario, 0) AS IdPropietario, NULLIF(IdInquilino, 0) AS IdInquilino
+                  FROM Usuarios WHERE IdUsuario = @IdUsuario
+              ),
+              Alquileres AS (
+                  SELECT p.IdPropietario, p.IdInquilino FROM Propiedades p WHERE p.IdInquilino IS NOT NULL
+                  UNION
+                  SELECT p.IdPropietario, c.IdInquilino
+                  FROM Contratos c INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+                  WHERE c.Estado IN ('PendienteInquilino', 'Confirmado')
+              ),
+              OtraParte AS (
+                  SELECT DISTINCT u.IdUsuario
+                  FROM Yo
+                  INNER JOIN Alquileres a ON a.IdPropietario = Yo.IdPropietario OR a.IdInquilino = Yo.IdInquilino
+                  INNER JOIN Usuarios u ON (Yo.IdPropietario IS NOT NULL AND u.IdInquilino = a.IdInquilino)
+                                        OR (Yo.IdInquilino IS NOT NULL AND u.IdPropietario = a.IdPropietario)
+                  WHERE u.IdUsuario <> Yo.IdUsuario
+              )
+              INSERT INTO Notificaciones (IdUsuario, Texto)
+              SELECT o.IdUsuario, LEFT(CONCAT(Yo.Nombre, ' ', Yo.Apellido, ' cambió ', @Detalle, '.'), 300)
+              FROM OtraParte o CROSS JOIN Yo",
+            new { IdUsuario = idUsuario, Detalle = detalle },
+            transaction);
+    }
+
     public Usuario? ObtenerUsuarioPorIdInquilino(int idInquilino)
     {
         using SqlConnection connection = new(connectionString);

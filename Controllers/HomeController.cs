@@ -241,6 +241,153 @@ public class HomeController : Controller
         return View(usuario);
     }
 
+    // ---- Edición del perfil: cada dato se guarda por separado desde su lápiz ----
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult ActualizarFotoPerfil(IFormFile? foto)
+    {
+        Usuario? usuario = UsuarioDeLaSesion();
+        if (usuario == null)
+        {
+            return RedirectToAction("Login");
+        }
+
+        string? error = GestorArchivos.TieneContenido(foto) ? GestorArchivos.ValidarImagenOpcional(foto) : "Elegí una imagen para la foto de perfil.";
+        if (error != null)
+        {
+            return VolverAlPerfil(error, null);
+        }
+
+        string nueva = GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"perfil_{usuario.Correo}");
+        bd.ActualizarFotoPerfil(usuario.IdUsuario, nueva);
+        BorrarFotoAnterior(usuario.FotoPerfil);
+        HttpContext.Session.SetString("FotoPerfil", nueva);
+        return VolverAlPerfil(null, "Actualizaste tu foto de perfil.");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult ActualizarNombre(string? nombre, string? apellido)
+    {
+        Usuario? usuario = UsuarioDeLaSesion();
+        if (usuario == null)
+        {
+            return RedirectToAction("Login");
+        }
+
+        string? error = Usuario.ValidarNombre(nombre, apellido);
+        if (error != null)
+        {
+            return VolverAlPerfil(error, null);
+        }
+
+        bd.ActualizarNombre(usuario.IdUsuario, nombre!.Trim(), apellido!.Trim());
+        HttpContext.Session.SetString("NombreUsuario", nombre.Trim());
+        return VolverAlPerfil(null, "Actualizaste tu nombre.");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult ActualizarCorreo(string? correo)
+    {
+        Usuario? usuario = UsuarioDeLaSesion();
+        if (usuario == null)
+        {
+            return RedirectToAction("Login");
+        }
+
+        string? error = Usuario.ValidarCorreo(correo);
+        string nuevo = correo?.Trim() ?? string.Empty;
+        if (error == null && string.Equals(nuevo, usuario.Correo, StringComparison.OrdinalIgnoreCase))
+        {
+            return VolverAlPerfil(null, null);
+        }
+
+        if (error == null && bd.ObtenerUsuarioPorCorreo(nuevo) != null)
+        {
+            error = "Ya existe otra cuenta con ese mail.";
+        }
+
+        if (error != null)
+        {
+            return VolverAlPerfil(error, null);
+        }
+
+        bd.ActualizarCorreo(usuario.IdUsuario, nuevo);
+        return VolverAlPerfil(null, "Actualizaste tu mail: desde ahora iniciás sesión con él. Le avisamos a la otra parte de tus alquileres.");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult ActualizarTelefono(string? codigoPais, string? telefono)
+    {
+        Usuario? usuario = UsuarioDeLaSesion();
+        if (usuario == null)
+        {
+            return RedirectToAction("Login");
+        }
+
+        string? error = Usuario.ValidarTelefono(codigoPais, telefono, out string nuevo);
+        if (error != null)
+        {
+            return VolverAlPerfil(error, null);
+        }
+
+        if (nuevo == usuario.Telefono)
+        {
+            return VolverAlPerfil(null, null);
+        }
+
+        bd.ActualizarTelefono(usuario.IdUsuario, nuevo);
+        return VolverAlPerfil(null, "Actualizaste tu teléfono. Le avisamos a la otra parte de tus alquileres.");
+    }
+
+    private Usuario? UsuarioDeLaSesion()
+    {
+        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
+        return idUsuario.HasValue ? bd.ObtenerUsuarioPorId(idUsuario.Value) : null;
+    }
+
+    private IActionResult VolverAlPerfil(string? error, string? exito)
+    {
+        if (error != null)
+        {
+            TempData["Error"] = error;
+        }
+
+        if (exito != null)
+        {
+            TempData["Success"] = exito;
+        }
+
+        return RedirectToAction("Perfil");
+    }
+
+    // Las fotos que suben los usuarios se reemplazan; las de los usuarios de ejemplo (versionadas en el repo) no se borran.
+    private static void BorrarFotoAnterior(string? foto)
+    {
+        if (string.IsNullOrWhiteSpace(foto) || foto != Path.GetFileName(foto) || FotosDeEjemplo.Contains(foto))
+        {
+            return;
+        }
+
+        try
+        {
+            GestorArchivos.Borrar(GestorArchivos.CarpetaImagenes, foto);
+        }
+        catch (IOException)
+        {
+            // Si no se pudo borrar queda huérfana en disco; no afecta al perfil.
+        }
+    }
+
+    private static readonly string[] FotosDeEjemplo =
+    {
+        "perfil_prop@gmail.com_20261119083614524.jfif",
+        "perfil_inq@gmail.com_20261119084917425.jfif"
+    };
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult CerrarSesion()

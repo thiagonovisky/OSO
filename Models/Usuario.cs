@@ -28,14 +28,10 @@ public class Usuario
     // con el formato que se guarda en la base. Devuelve el mensaje de error, o null si está todo bien.
     public string? ValidarYPrepararRegistro(string? confirmarContrasena, string? codigoPais, string? telefono)
     {
-        if (string.IsNullOrWhiteSpace(Nombre) || string.IsNullOrWhiteSpace(Apellido))
+        string? error = ValidarNombre(Nombre, Apellido);
+        if (error != null)
         {
-            return "Debe completar nombre y apellido.";
-        }
-
-        if (Nombre.Trim().Length > 50 || Apellido.Trim().Length > 50)
-        {
-            return "El nombre y el apellido no pueden superar los 50 caracteres.";
+            return error;
         }
 
         if (string.IsNullOrWhiteSpace(Correo) || string.IsNullOrWhiteSpace(Contrasena))
@@ -43,26 +39,16 @@ public class Usuario
             return "Debe completar correo y contraseña.";
         }
 
-        if (Correo.Trim().Length > 100)
+        error = ValidarCorreo(Correo);
+        if (error != null)
         {
-            return "El correo no puede superar los 100 caracteres.";
+            return error;
         }
 
-        if (!Regex.IsMatch(Correo.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        error = ValidarTelefono(codigoPais, telefono, out string telefonoCompuesto);
+        if (error != null)
         {
-            return "El correo electrónico no es válido.";
-        }
-
-        PaisTelefono? pais = TelefonoFormato.BuscarPais(codigoPais);
-        if (pais == null)
-        {
-            return "Elegí un país para el teléfono.";
-        }
-
-        string digitosTelefono = (telefono ?? "").Replace("-", "").Replace(" ", "").Trim();
-        if (!Regex.IsMatch(digitosTelefono, @"^\d+$") || digitosTelefono.Length != pais.Digitos)
-        {
-            return $"El teléfono de {pais.Nombre} debe tener {pais.Digitos} dígitos, incluido el código de área.";
+            return error;
         }
 
         if (!EsContrasenaSegura(Contrasena))
@@ -78,7 +64,55 @@ public class Usuario
         Nombre = Nombre.Trim();
         Apellido = Apellido.Trim();
         Correo = Correo.Trim();
-        Telefono = TelefonoFormato.Componer(pais.Codigo, digitosTelefono);
+        Telefono = telefonoCompuesto;
+        return null;
+    }
+
+    // Validaciones de cada dato: las usa el registro y la edición del perfil. Devuelven el mensaje de error o null.
+    public static string? ValidarNombre(string? nombre, string? apellido)
+    {
+        if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellido))
+        {
+            return "Debe completar nombre y apellido.";
+        }
+
+        return nombre.Trim().Length > 50 || apellido.Trim().Length > 50
+            ? "El nombre y el apellido no pueden superar los 50 caracteres."
+            : null;
+    }
+
+    public static string? ValidarCorreo(string? correo)
+    {
+        if (string.IsNullOrWhiteSpace(correo))
+        {
+            return "Debe completar el correo.";
+        }
+
+        if (correo.Trim().Length > 100)
+        {
+            return "El correo no puede superar los 100 caracteres.";
+        }
+
+        return Regex.IsMatch(correo.Trim(), @"^[^@\s]+@[^@\s]+\.[^@\s]+$") ? null : "El correo electrónico no es válido.";
+    }
+
+    // Si es válido, devuelve en telefonoCompuesto el valor que se guarda en la base ("+54 1180425589").
+    public static string? ValidarTelefono(string? codigoPais, string? telefono, out string telefonoCompuesto)
+    {
+        telefonoCompuesto = string.Empty;
+        PaisTelefono? pais = TelefonoFormato.BuscarPais(codigoPais);
+        if (pais == null)
+        {
+            return "Elegí un país para el teléfono.";
+        }
+
+        string digitosTelefono = (telefono ?? "").Replace("-", "").Replace(" ", "").Trim();
+        if (!Regex.IsMatch(digitosTelefono, @"^\d+$") || digitosTelefono.Length != pais.Digitos)
+        {
+            return $"El teléfono de {pais.Nombre} debe tener {pais.Digitos} dígitos, incluido el código de área.";
+        }
+
+        telefonoCompuesto = TelefonoFormato.Componer(pais.Codigo, digitosTelefono);
         return null;
     }
 

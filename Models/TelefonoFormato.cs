@@ -50,6 +50,20 @@ public static class TelefonoFormato
         return digitos.Substring(0, area) + "-" + digitos.Substring(area, 4) + "-" + digitos.Substring(area + 4);
     }
 
+    // "+54 1180425589" -> ("54", "1180425589"), para precargar el selector de país y el número al editar.
+    // Un número viejo sin código de país se toma como de Argentina.
+    public static (string Codigo, string Digitos) Separar(string? telefono)
+    {
+        string valor = (telefono ?? "").Trim();
+        int espacio = valor.IndexOf(' ');
+        if (valor.StartsWith("+") && espacio > 0)
+        {
+            return (valor.Substring(1, espacio - 1), SoloDigitos(valor.Substring(espacio)));
+        }
+
+        return (Paises[0].Codigo, SoloDigitos(valor));
+    }
+
     // "+54 1180425589" -> "+54 11-8042-5589". Números viejos sin código de país se formatean solo con guiones.
     public static string Formatear(string? telefono)
     {
