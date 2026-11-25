@@ -12,10 +12,6 @@
 
 <p>Subí el contrato de <strong>@Model.Direccion</strong> (PDF o foto, hasta 10 MB). Lo leemos con inteligencia artificial y completamos los datos; después los revisás y confirmás vos.</p>
 
-<div class="alert alert-warning">
-    Para la demo usá contratos ficticios o con los datos personales tachados: en el plan gratuito de Gemini, Google puede usar lo que se le envía para mejorar sus productos.
-</div>
-
 <form asp-action="SubirContrato" asp-controller="Home" method="post" enctype="multipart/form-data">
     @Html.AntiForgeryToken()
     <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
