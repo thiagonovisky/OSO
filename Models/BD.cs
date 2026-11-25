@@ -597,12 +597,20 @@ public class BD
                (SELECT MAX(pg.Fecha) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable) AS FechaPago,
                (SELECT TOP 1 pg.Comprobante FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable ORDER BY pg.Fecha DESC, pg.IdPago DESC) AS Comprobante,
                ISNULL(gi.Monto, 0) AS MontoInquilino,
+               ISNULL(gpr.Monto, 0) AS MontoPropietario,
                ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gi.IdGastoResponsable), 0) AS PagadoInquilino
         FROM GastosPropiedad gp
         INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
         INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
         INNER JOIN GastoResponsables gr ON gr.IdGastoPropiedad = gp.IdGastoPropiedad AND gr.Responsable = '{responsable}'
-        LEFT JOIN GastoResponsables gi ON gi.IdGastoPropiedad = gp.IdGastoPropiedad AND gi.Responsable = 'Inquilino'";
+        LEFT JOIN GastoResponsables gi ON gi.IdGastoPropiedad = gp.IdGastoPropiedad AND gi.Responsable = 'Inquilino'
+        LEFT JOIN GastoResponsables gpr ON gpr.IdGastoPropiedad = gp.IdGastoPropiedad AND gpr.Responsable = 'Propietario'";
+
+    // Un gasto es del inquilino solo si su período cae dentro de un contrato Confirmado suyo en esa propiedad
+    // (un inquilino nuevo no ve los gastos del anterior). Usa los alias gp y el parámetro @IdInquilino.
+    private const string ContratoConfirmadoDelInquilino = @"EXISTS (SELECT 1 FROM Contratos ci
+                  WHERE ci.IdPropiedad = gp.IdPropiedad AND ci.IdInquilino = @IdInquilino AND ci.Estado = 'Confirmado'
+                    AND ci.FechaInicio <= EOMONTH(gp.Periodo) AND ci.FechaFin >= gp.Periodo)";
 
     private static readonly string SelectGastoPropietario = SelectGastoDe("Propietario");
     private static readonly string SelectGastoInquilino = SelectGastoDe("Inquilino");
@@ -836,11 +844,17 @@ public class BD
     {
         using SqlConnection connection = new(connectionString);
         string query = SelectGastoInquilino + @"
-            WHERE p.IdInquilino = @IdInquilino
+            WHERE " + ContratoConfirmadoDelInquilino + @"
             ORDER BY CASE WHEN gr.Monto > ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0) THEN 0 ELSE 1 END,
                      gp.FechaVencimiento DESC, gp.IdGastoPropiedad DESC";
 
         return connection.Query<GastoPropiedad>(query, new { IdInquilino = idInquilino }).AsList();
+    }
+
+    public bool InquilinoTieneContratoConfirmado(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Contratos WHERE IdInquilino = @IdInquilino AND Estado = 'Confirmado'", new { IdInquilino = idInquilino }) > 0;
     }
 
     // El inquilino paga lo que le toca de un gasto de su propiedad subiendo el comprobante.
@@ -855,7 +869,7 @@ public class BD
               FROM GastoResponsables gr
               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
               INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
-              WHERE gr.IdGastoResponsable = @IdGastoResponsable AND gr.Responsable = 'Inquilino' AND p.IdInquilino = @IdInquilino",
+              WHERE gr.IdGastoResponsable = @IdGastoResponsable AND gr.Responsable = 'Inquilino' AND " + ContratoConfirmadoDelInquilino,
             new { IdGastoResponsable = idGastoResponsable, IdInquilino = idInquilino },
             transaction) > 0;
 
@@ -900,7 +914,7 @@ public class BD
             INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
             INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
             CROSS APPLY (SELECT ISNULL(SUM(pg.Monto), 0) AS Pagado FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable) pag
-            WHERE gr.Responsable = 'Inquilino' AND p.IdInquilino = @IdInquilino
+            WHERE gr.Responsable = 'Inquilino' AND " + ContratoConfirmadoDelInquilino + @"
               AND gr.Monto > pag.Pagado
               AND gp.FechaVencimiento <= DATEADD(day, @Dias, @Hoy)
               AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = @IdUsuario AND n.IdGastoResponsable = gr.IdGastoResponsable)";
@@ -1134,7 +1148,9 @@ public class BD
               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
               INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
               INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
-              INNER JOIN Usuarios u ON u.IdInquilino = p.IdInquilino
+              INNER JOIN Contratos c ON c.IdPropiedad = gp.IdPropiedad AND c.Estado = 'Confirmado'
+                    AND c.FechaInicio <= EOMONTH(gp.Periodo) AND c.FechaFin >= gp.Periodo
+              INNER JOIN Usuarios u ON u.IdInquilino = c.IdInquilino
               WHERE gp.IdGastoPropiedad = @IdGastoPropiedad AND gr.Responsable = 'Inquilino'
                 AND gr.Monto > ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0)
                 AND NOT EXISTS (SELECT 1 FROM Notificaciones n WHERE n.IdUsuario = u.IdUsuario AND n.IdGastoResponsable = gr.IdGastoResponsable)",

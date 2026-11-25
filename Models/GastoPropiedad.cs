@@ -26,6 +26,9 @@ public class GastoPropiedad
     public decimal MontoInquilino { get; set; }
     public decimal PagadoInquilino { get; set; }
 
+    // Parte del propietario (se la ve el inquilino como referencia; solo puede pagar la suya)
+    public decimal MontoPropietario { get; set; }
+
     // El estado no se guarda: se deduce de los pagos registrados (de todas las partes)
     public string Estado => MontoPagado >= MontoResponsable && PagadoInquilino >= MontoInquilino ? "Pagado" : "A pagar";
 

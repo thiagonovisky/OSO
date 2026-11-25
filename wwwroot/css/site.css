@@ -2774,3 +2774,10 @@ a.cal-cell:hover {
   border-color: var(--gold-soft);
   background: rgba(237, 200, 127, 0.3);
 }
+
+.mi-parte {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--blue-main-12);
+  color: var(--brand-primary-dark);
+}

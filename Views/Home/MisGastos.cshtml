@@ -16,7 +16,9 @@
                 <th>Gasto</th>
                 <th>Estado</th>
                 <th>Vencimiento</th>
-                <th>Monto</th>
+                <th>Total del gasto</th>
+                <th>Tu parte</th>
+                <th>Parte del propietario</th>
                 <th>Fecha de pago</th>
                 <th>Comprobante</th>
             </tr>
@@ -30,7 +32,9 @@
                     <td>@gasto.TipoGasto</td>
                     <td>@(pagado ? "Pagado" : gasto.FechaVencimiento.Date < DateTime.Today ? "Vencido" : "A pagar")</td>
                     <td>@gasto.FechaVencimiento.ToString("dd/MM/yyyy")</td>
-                    <td>$@gasto.MontoResponsable</td>
+                    <td>$@gasto.Monto</td>
+                    <td><strong class="mi-parte">$@gasto.MontoResponsable</strong></td>
+                    <td>$@gasto.MontoPropietario</td>
                     <td>@(gasto.FechaPago.HasValue ? gasto.FechaPago.Value.ToString("dd/MM/yyyy") : "-")</td>
                     <td>
                         @if (!pagado)
@@ -58,5 +62,5 @@
 }
 else
 {
-    <p class="mt-3 text-center">No tenés gastos a tu cargo.</p>
+    <p class="mt-3 text-center">@(ViewBag.TieneContrato == true ? "No tenés gastos a tu cargo." : "Todavía no hay un contrato confirmado, por eso no hay gastos para mostrar.")</p>
 }

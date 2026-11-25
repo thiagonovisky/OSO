@@ -572,6 +572,7 @@ public class HomeController : Controller
             return RedirectToAction(HttpContext.Session.GetInt32("IdPropietario").HasValue ? "Propiedades" : "Login");
         }
 
+        ViewBag.TieneContrato = bd.InquilinoTieneContratoConfirmado(idInquilino.Value);
         return View(bd.ObtenerGastosPorIdInquilino(idInquilino.Value));
     }
 
