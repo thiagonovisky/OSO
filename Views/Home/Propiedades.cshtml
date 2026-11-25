@@ -3,6 +3,7 @@
     var linksInvitacion = ViewBag.LinksInvitacion as Dictionary<int, string> ?? new Dictionary<int, string>();
     var inquilinosPorPropiedad = ViewBag.InquilinosPorPropiedad as Dictionary<int, OSO.Models.Usuario?> ?? new Dictionary<int, OSO.Models.Usuario?>();
     bool esInquilino = ViewBag.EsInquilino == true;
+    var contratosConfirmados = ViewBag.ContratosConfirmados as Dictionary<int, int> ?? new Dictionary<int, int>();
     var es = new System.Globalization.CultureInfo("es-AR");
 }
 
@@ -34,6 +35,25 @@
             <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@pendiente.IdContrato" class="btn btn-primary">Ver contrato</a>
         </div>
     }
+}
+
+@if (esInquilino && ViewBag.ContratosFinalizados is List<OSO.Models.Contratos> finalizados && finalizados.Count > 0)
+{
+    <div class="card p-3 mb-3">
+        <h3>Contratos anteriores</h3>
+        <p class="revision-ayuda">Podés ver el contrato y tus gastos, pero ya no están vigentes.</p>
+        <ul>
+            @foreach (var terminado in finalizados)
+            {
+                <li>
+                    <strong>@terminado.Direccion</strong>: terminó el @terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")
+                    (@OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)) ·
+                    <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@terminado.IdContrato">Ver contrato</a>
+                </li>
+            }
+        </ul>
+        <a asp-action="MisGastos" asp-controller="Home" class="btn btn-primary">Ver mis gastos</a>
+    </div>
 }
 
 @if (Model != null && Model.Count > 0)
@@ -101,11 +121,19 @@
                             <div class="summary-info-row">
                                 <span class="label">Inquilino:</span>
                                 <span class="value">@(inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido} ({inquilino.Correo})" : "Inquilino asignado")</span>
-                                <form asp-action="QuitarInquilino" asp-controller="Home" method="post" class="property-action-form">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
-                                    <button type="submit" class="btn btn-secondary" onclick="return confirm('¿Desvincular al inquilino de esta propiedad?');">Quitar inquilino</button>
-                                </form>
+                                @if (contratosConfirmados.TryGetValue(propiedad.IdPropiedad, out var idContratoVigente))
+                                {
+                                    @* Con un contrato confirmado no se desvincula a secas: se termina el contrato, con su motivo. *@
+                                    <a asp-action="TerminarContrato" asp-controller="Home" asp-route-idContrato="@idContratoVigente" class="btn btn-secondary">Terminar contrato</a>
+                                }
+                                else
+                                {
+                                    <form asp-action="QuitarInquilino" asp-controller="Home" method="post" class="property-action-form">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="idPropiedad" value="@propiedad.IdPropiedad" />
+                                        <button type="submit" class="btn btn-secondary" onclick="return confirm('¿Desvincular al inquilino de esta propiedad? Le vamos a avisar.');">Quitar inquilino</button>
+                                    </form>
+                                }
                             </div>
                         }
                         else if (linksInvitacion.TryGetValue(propiedad.IdPropiedad, out var inviteUrl))

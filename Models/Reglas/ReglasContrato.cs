@@ -60,6 +60,76 @@ public static class ReglasContrato
         _ => null
     };
 
+    public const string FinDePlazo = "FinDePlazo";
+    public const int LargoMaximoDescripcionFin = 500;
+    public const int LargoMaximoDisconformidad = 1000;
+
+    public static readonly string[] MotivosFin = { FinDePlazo, "RescisionInquilino", "Acuerdo", "Incumplimiento" };
+
+    public static string NombreMotivoFin(string? motivo) => motivo switch
+    {
+        FinDePlazo => "Fin de plazo",
+        "RescisionInquilino" => "Rescisión del inquilino",
+        "Acuerdo" => "Acuerdo entre las partes",
+        "Incumplimiento" => "Incumplimiento",
+        _ => "Sin motivo"
+    };
+
+    // Controla si se puede terminar el contrato. Devuelve el mensaje de error, o null si se puede.
+    // Fin de plazo: solo cuando ya llegó la fecha de fin (la fecha real es la de fin). Cualquier otro motivo: lleva
+    // descripción y la fecha real de fin, que no puede ser futura ni estar fuera del plazo del contrato.
+    public static string? ValidarTerminacion(Contratos c, string? motivo, DateTime? fechaFinReal, string? descripcion, DateTime hoy)
+    {
+        if (c.Estado != "Confirmado")
+        {
+            return "Solo se puede terminar un contrato vigente (confirmado).";
+        }
+
+        if (motivo == null || !MotivosFin.Contains(motivo))
+        {
+            return "Elegí el motivo de la terminación.";
+        }
+
+        if (motivo == FinDePlazo)
+        {
+            return hoy.Date >= c.FechaFin.Date
+                ? null
+                : $"El contrato vence el {c.FechaFin:dd/MM/yyyy}: todavía no se puede terminar por fin de plazo. Si lo querés terminar antes, elegí otro motivo y explicalo.";
+        }
+
+        if (string.IsNullOrWhiteSpace(descripcion))
+        {
+            return "Escribí qué pasó: la descripción es obligatoria para este motivo.";
+        }
+
+        if (descripcion.Trim().Length > LargoMaximoDescripcionFin)
+        {
+            return $"La descripción no puede superar los {LargoMaximoDescripcionFin} caracteres.";
+        }
+
+        if (fechaFinReal == null || fechaFinReal.Value == default)
+        {
+            return "Indicá la fecha real de fin del contrato.";
+        }
+
+        if (fechaFinReal.Value.Date > hoy.Date)
+        {
+            return "La fecha real de fin no puede ser futura.";
+        }
+
+        if (fechaFinReal.Value.Date < c.FechaInicio.Date)
+        {
+            return "La fecha real de fin no puede ser anterior al inicio del contrato.";
+        }
+
+        if (fechaFinReal.Value.Date > c.FechaFin.Date)
+        {
+            return "La fecha real de fin no puede ser posterior al fin previsto del contrato.";
+        }
+
+        return null;
+    }
+
     // Calcula el régimen desde la fecha de firma y, si la ley lo impone, fuerza el índice y la frecuencia.
     public static void AplicarRegimen(Contratos c)
     {

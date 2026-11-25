@@ -148,6 +148,30 @@ else
     <div class="alert alert-warning">No hay un contrato activo para esta propiedad.</div>
 }
 
+@if (ViewBag.UltimoFinalizado is OSO.Models.Contratos terminado && contrato == null)
+{
+    <div class="card p-3 mb-3">
+        <h3>Último contrato terminado</h3>
+        <p><strong>Plazo:</strong> @terminado.FechaInicio.ToString("dd/MM/yyyy") al @terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")
+            · <strong>Motivo:</strong> @OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)</p>
+        @if (!string.IsNullOrWhiteSpace(terminado.DescripcionFin))
+        {
+            <p><strong>Descripción:</strong> @terminado.DescripcionFin</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(terminado.DisconformidadInquilino))
+        {
+            <div class="alert alert-warning">
+                <strong>El inquilino dejó constancia de su disconformidad</strong> (@terminado.FechaDisconformidad?.ToString("dd/MM/yyyy HH:mm")):
+                <br />@terminado.DisconformidadInquilino
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(terminado.ArchivoContrato))
+        {
+            <p><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@terminado.IdContrato" target="_blank">Ver el archivo del contrato</a></p>
+        }
+    </div>
+}
+
 <div class="contrato-actions">
     @if (contrato == null && enCurso == null)
     {

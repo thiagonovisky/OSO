@@ -10,7 +10,7 @@
     <h2>Contrato de alquiler</h2>
     <p class="revision-subtitulo">
         <strong>@Model.Propiedad.Direccion</strong> ·
-        Estado: <span class="revision-estado">@(c.Estado == "PendienteInquilino" ? "Para aceptar" : "Vigente")</span>
+        Estado: <span class="revision-estado">@(c.Estado == "PendienteInquilino" ? "Para aceptar" : c.Estado == "Finalizado" ? "Terminado" : "Vigente")</span>
         @if (!string.IsNullOrEmpty(c.ArchivoContrato))
         {
             <text> · </text><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@c.IdContrato" target="_blank">Ver el archivo del contrato</a>
@@ -20,6 +20,43 @@
     @if (TempData["Error"] != null)
     {
         <div class="alert alert-danger">@TempData["Error"]</div>
+    }
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success">@TempData["Success"]</div>
+    }
+
+    @if (c.Estado == "Finalizado")
+    {
+        <div class="alert alert-warning">
+            <strong>Este contrato terminó el @Fecha(c.FechaFinReal)</strong> · Motivo: @OSO.Models.ReglasContrato.NombreMotivoFin(c.MotivoFin).
+            @if (!string.IsNullOrWhiteSpace(c.DescripcionFin))
+            {
+                <br /><span>Lo que explicó el propietario: @c.DescripcionFin</span>
+            }
+            <br /><span>Ya no estás vinculado a la propiedad. Seguís viendo el contrato y tus gastos hasta esa fecha.</span>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(c.DisconformidadInquilino))
+        {
+            <div class="card p-3 mb-3">
+                <strong>Constancia de disconformidad</strong> (@c.FechaDisconformidad?.ToString("dd/MM/yyyy HH:mm"))
+                <p>@c.DisconformidadInquilino</p>
+            </div>
+        }
+        else if (c.MotivoFin != OSO.Models.ReglasContrato.FinDePlazo)
+        {
+            <form asp-action="DejarDisconformidad" asp-controller="Home" method="post" class="card p-3 mb-3"
+                  onsubmit="return confirm('La constancia se guarda una sola vez y no se puede editar. ¿Enviarla?');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idContrato" value="@c.IdContrato" />
+                <label for="texto"><strong>Dejar constancia de disconformidad</strong></label>
+                <p class="revision-ayuda">No cambia la terminación, pero queda registrada y la ven los dos. Se puede dejar una sola vez y no se edita.</p>
+                <textarea name="texto" id="texto" class="form-control mb-2" rows="4" maxlength="1000" required></textarea>
+                <button type="submit" class="btn btn-primary">Dejar constancia de disconformidad</button>
+            </form>
+        }
     }
 
     <div class="card p-3 mb-3">

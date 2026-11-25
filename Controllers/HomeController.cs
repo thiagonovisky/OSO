@@ -298,10 +298,111 @@ public class HomeController : Controller
 
         if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) != null)
         {
+            // Con un contrato confirmado no se puede desvincular a secas: hay que terminarlo con su motivo.
+            Contratos? vigente = bd.ObtenerContratoConfirmadoDePropiedad(idPropiedad);
+            if (vigente != null)
+            {
+                return RedirectToAction("TerminarContrato", new { idContrato = vigente.IdContrato });
+            }
+
             bd.QuitarInquilinoDePropiedad(idPropiedad);
         }
 
         return RedirectToAction("Propiedades");
+    }
+
+    // El contrato Confirmado de una propiedad del propietario logueado; null si no corresponde.
+    private (Contratos? Contrato, Propiedades? Propiedad) ObtenerConfirmadoDelPropietario(int idContrato, int idPropietario)
+    {
+        Contratos? contrato = bd.ObtenerContratoPorId(idContrato);
+        Propiedades? propiedad = contrato == null ? null : bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario);
+        return propiedad != null && contrato!.Estado == "Confirmado" ? (contrato, propiedad) : (null, null);
+    }
+
+    [HttpGet]
+    public IActionResult TerminarContrato(int idContrato)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        var (contrato, propiedad) = ObtenerConfirmadoDelPropietario(idContrato, idPropietario.Value);
+        if (contrato == null || propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(contrato.IdInquilino);
+        ViewBag.Propiedad = propiedad;
+        ViewBag.NombreInquilino = inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido}".Trim() : "Inquilino";
+        return View(contrato);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult TerminarContrato(int idContrato, string? motivo, DateTime? fechaFinReal, string? descripcion)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        var (contrato, propiedad) = ObtenerConfirmadoDelPropietario(idContrato, idPropietario.Value);
+        if (contrato == null || propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        string? error = ReglasContrato.ValidarTerminacion(contrato, motivo, fechaFinReal, descripcion, DateTime.Today);
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("TerminarContrato", new { idContrato });
+        }
+
+        // En fin de plazo la fecha real es la de fin del contrato; la descripción es opcional.
+        DateTime fechaReal = motivo == ReglasContrato.FinDePlazo ? contrato.FechaFin : fechaFinReal!.Value;
+        if (!bd.TerminarContrato(idContrato, motivo!, fechaReal, descripcion))
+        {
+            TempData["Error"] = "No se pudo terminar el contrato: puede que ya esté terminado.";
+            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+        }
+
+        TempData["Success"] = "Terminaste el contrato. Le avisamos al inquilino y la propiedad quedó disponible.";
+        return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+    }
+
+    // El inquilino no puede vetar la terminación, pero sí dejar por escrito que no está de acuerdo (una sola vez).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult DejarDisconformidad(int idContrato, string? texto)
+    {
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+
+        if (!idInquilino.HasValue)
+        {
+            return RedirectToAction(HttpContext.Session.GetInt32("IdPropietario").HasValue ? "Propiedades" : "Login");
+        }
+
+        if (string.IsNullOrWhiteSpace(texto) || texto.Trim().Length > ReglasContrato.LargoMaximoDisconformidad)
+        {
+            TempData["Error"] = $"Escribí tu disconformidad (hasta {ReglasContrato.LargoMaximoDisconformidad} caracteres).";
+            return RedirectToAction("VerContrato", new { idContrato });
+        }
+
+        if (!bd.DejarDisconformidad(idContrato, idInquilino.Value, texto))
+        {
+            TempData["Error"] = "No se pudo registrar: el contrato no es tuyo, no terminó por ese motivo o ya dejaste una constancia.";
+            return RedirectToAction("VerContrato", new { idContrato });
+        }
+
+        TempData["Success"] = "Quedó registrada tu disconformidad. La ven los dos.";
+        return RedirectToAction("VerContrato", new { idContrato });
     }
 
     public IActionResult Propiedades()
@@ -313,6 +414,7 @@ public class HomeController : Controller
             int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
             ViewBag.EsInquilino = idInquilino.HasValue;
             ViewBag.ContratosPendientes = idInquilino.HasValue ? bd.ObtenerContratosPendientesDeInquilino(idInquilino.Value) : new List<Contratos>();
+            ViewBag.ContratosFinalizados = idInquilino.HasValue ? bd.ObtenerContratosFinalizadosDeInquilino(idInquilino.Value) : new List<Contratos>();
             return View(idInquilino.HasValue ? bd.ObtenerPropiedadesPorIdInquilino(idInquilino.Value) : new List<Propiedades>());
         }
 
@@ -333,6 +435,7 @@ public class HomeController : Controller
             }
         }
 
+        ViewBag.ContratosConfirmados = bd.ObtenerContratosConfirmadosPorPropietario(idActual.Value);
         ViewBag.LinksInvitacion = links;
         ViewBag.InquilinosPorPropiedad = inquilinos;
         return View(propiedades);
@@ -759,6 +862,7 @@ public class HomeController : Controller
         ViewBag.Propiedad = propiedad;
         ViewBag.Contrato = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
         ViewBag.ContratoEnCurso = bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad);
+        ViewBag.UltimoFinalizado = bd.ObtenerUltimoContratoFinalizado(idPropiedad);
 
         if (ViewBag.Contrato is Contratos vigente)
         {

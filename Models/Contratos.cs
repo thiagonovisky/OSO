@@ -30,6 +30,16 @@ public class Contratos
     public bool ConfirmadoPorPropietario { get; set; }
     public bool ConfirmadoPorInquilino { get; set; }
 
+    // Terminación del contrato (Estado = Finalizado)
+    public DateTime? FechaFinReal { get; set; }
+    public string? MotivoFin { get; set; }
+    public string? DescripcionFin { get; set; }
+    public string? DisconformidadInquilino { get; set; }
+    public DateTime? FechaDisconformidad { get; set; }
+
+    // Hasta cuándo rige de verdad: la fecha real de fin si el contrato se terminó antes (o después) de lo previsto.
+    public DateTime FechaFinEfectiva => FechaFinReal ?? FechaFin;
+
     // Se carga en algunas consultas (no es una columna de Contratos)
     public string? Direccion { get; set; }
 

@@ -127,7 +127,7 @@ public class BD
         using var transaction = connection.BeginTransaction();
 
         int contratosNoVencidos = connection.ExecuteScalar<int>(
-            "SELECT COUNT(*) FROM Contratos WHERE IdPropiedad = @IdPropiedad AND FechaFin >= @Hoy",
+            "SELECT COUNT(*) FROM Contratos WHERE IdPropiedad = @IdPropiedad AND FechaFin >= @Hoy AND Estado <> 'Finalizado'",
             new { IdPropiedad = idPropiedad, Hoy = DateTime.Today },
             transaction);
 
@@ -553,7 +553,7 @@ public class BD
               INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
               WHERE c.IdContrato = @IdContrato
                 AND (p.IdPropietario = @IdPropietario
-                     OR (c.IdInquilino = @IdInquilino AND c.Estado IN ('PendienteInquilino', 'Confirmado')))",
+                     OR (c.IdInquilino = @IdInquilino AND c.Estado IN ('PendienteInquilino', 'Confirmado', 'Finalizado')))",
             new { IdContrato = idContrato, IdPropietario = idPropietario, IdInquilino = idInquilino }) > 0;
     }
 
@@ -609,8 +609,8 @@ public class BD
     // Un gasto es del inquilino solo si su período cae dentro de un contrato Confirmado suyo en esa propiedad
     // (un inquilino nuevo no ve los gastos del anterior). Usa los alias gp y el parámetro @IdInquilino.
     private const string ContratoConfirmadoDelInquilino = @"EXISTS (SELECT 1 FROM Contratos ci
-                  WHERE ci.IdPropiedad = gp.IdPropiedad AND ci.IdInquilino = @IdInquilino AND ci.Estado = 'Confirmado'
-                    AND ci.FechaInicio <= EOMONTH(gp.Periodo) AND ci.FechaFin >= gp.Periodo)";
+                  WHERE ci.IdPropiedad = gp.IdPropiedad AND ci.IdInquilino = @IdInquilino AND ci.Estado IN ('Confirmado', 'Finalizado')
+                    AND ci.FechaInicio <= EOMONTH(gp.Periodo) AND ISNULL(ci.FechaFinReal, ci.FechaFin) >= gp.Periodo)";
 
     private static readonly string SelectGastoPropietario = SelectGastoDe("Propietario");
     private static readonly string SelectGastoInquilino = SelectGastoDe("Inquilino");
@@ -634,8 +634,8 @@ public class BD
               FROM Contratos c
               INNER JOIN Gastos g ON g.IdGasto = @IdGasto
               LEFT JOIN ContratoResponsabilidadGasto r ON r.IdContrato = c.IdContrato AND r.IdGasto = g.IdGasto
-              WHERE c.IdPropiedad = @IdPropiedad AND c.Estado = 'Confirmado'
-                AND c.FechaInicio <= EOMONTH(@Periodo) AND c.FechaFin >= @Periodo
+              WHERE c.IdPropiedad = @IdPropiedad AND c.Estado IN ('Confirmado', 'Finalizado')
+                AND c.FechaInicio <= EOMONTH(@Periodo) AND ISNULL(c.FechaFinReal, c.FechaFin) >= @Periodo
               ORDER BY c.FechaInicio DESC",
             new { IdPropiedad = idPropiedad, IdGasto = idGasto, Periodo = primerDia },
             transaction);
@@ -854,7 +854,7 @@ public class BD
     public bool InquilinoTieneContratoConfirmado(int idInquilino)
     {
         using SqlConnection connection = new(connectionString);
-        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Contratos WHERE IdInquilino = @IdInquilino AND Estado = 'Confirmado'", new { IdInquilino = idInquilino }) > 0;
+        return connection.ExecuteScalar<int>("SELECT COUNT(*) FROM Contratos WHERE IdInquilino = @IdInquilino AND Estado IN ('Confirmado', 'Finalizado')", new { IdInquilino = idInquilino }) > 0;
     }
 
     // El inquilino paga lo que le toca de un gasto de su propiedad subiendo el comprobante.
@@ -1148,8 +1148,8 @@ public class BD
               INNER JOIN GastosPropiedad gp ON gp.IdGastoPropiedad = gr.IdGastoPropiedad
               INNER JOIN Gastos g ON g.IdGasto = gp.IdGasto
               INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
-              INNER JOIN Contratos c ON c.IdPropiedad = gp.IdPropiedad AND c.Estado = 'Confirmado'
-                    AND c.FechaInicio <= EOMONTH(gp.Periodo) AND c.FechaFin >= gp.Periodo
+              INNER JOIN Contratos c ON c.IdPropiedad = gp.IdPropiedad AND c.Estado IN ('Confirmado', 'Finalizado')
+                    AND c.FechaInicio <= EOMONTH(gp.Periodo) AND ISNULL(c.FechaFinReal, c.FechaFin) >= gp.Periodo
               INNER JOIN Usuarios u ON u.IdInquilino = c.IdInquilino
               WHERE gp.IdGastoPropiedad = @IdGastoPropiedad AND gr.Responsable = 'Inquilino'
                 AND gr.Monto > ISNULL((SELECT SUM(pg.Monto) FROM Pagos pg WHERE pg.IdGastoResponsable = gr.IdGastoResponsable), 0)
@@ -1389,15 +1389,165 @@ public class BD
         return filasAfectadas > 0;
     }
 
+    // ---- Terminar contrato ----
+
+    // El contrato Confirmado de la propiedad (esté o no dentro de su plazo), si hay uno.
+    public Contratos? ObtenerContratoConfirmadoDePropiedad(int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.QueryFirstOrDefault<Contratos>(
+            "SELECT TOP 1 * FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado = 'Confirmado' ORDER BY FechaInicio DESC",
+            new { IdPropiedad = idPropiedad });
+    }
+
+    // Ids de propiedad (de este propietario) que tienen un contrato Confirmado: ahí se muestra "Terminar contrato".
+    public Dictionary<int, int> ObtenerContratosConfirmadosPorPropietario(int idPropietario)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<(int IdPropiedad, int IdContrato)>(
+            @"SELECT c.IdPropiedad, MAX(c.IdContrato) AS IdContrato
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              WHERE p.IdPropietario = @IdPropietario AND c.Estado = 'Confirmado'
+              GROUP BY c.IdPropiedad",
+            new { IdPropietario = idPropietario }).ToDictionary(x => x.IdPropiedad, x => x.IdContrato);
+    }
+
+    // Último contrato Finalizado de la propiedad (para que el propietario vea el motivo y la disconformidad).
+    public Contratos? ObtenerUltimoContratoFinalizado(int idPropiedad)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.QueryFirstOrDefault<Contratos>(
+            "SELECT TOP 1 * FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado = 'Finalizado' ORDER BY FechaFinReal DESC, IdContrato DESC",
+            new { IdPropiedad = idPropiedad });
+    }
+
+    public List<Contratos> ObtenerContratosFinalizadosDeInquilino(int idInquilino)
+    {
+        using SqlConnection connection = new(connectionString);
+        return connection.Query<Contratos>(
+            @"SELECT c.*, p.Direccion
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              WHERE c.IdInquilino = @IdInquilino AND c.Estado = 'Finalizado'
+              ORDER BY c.FechaFinReal DESC, c.IdContrato DESC",
+            new { IdInquilino = idInquilino }).AsList();
+    }
+
+    // Termina el contrato: queda Finalizado, la propiedad vuelve a Disponible sin inquilino, se borran los eventos
+    // del contrato posteriores a la fecha real de fin y se avisa al inquilino. Todo en una transacción.
+    public bool TerminarContrato(int idContrato, string motivo, DateTime fechaFinReal, string? descripcion)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        string? descripcionLimpia = string.IsNullOrWhiteSpace(descripcion) ? null : descripcion.Trim();
+        int filas = connection.Execute(
+            @"UPDATE Contratos
+              SET Estado = 'Finalizado', FechaFinReal = @FechaFinReal, MotivoFin = @Motivo, DescripcionFin = @Descripcion
+              WHERE IdContrato = @IdContrato AND Estado = 'Confirmado'",
+            new { IdContrato = idContrato, FechaFinReal = fechaFinReal.Date, Motivo = motivo, Descripcion = descripcionLimpia },
+            transaction);
+
+        if (filas == 0)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        var parametros = new { IdContrato = idContrato, FechaFinReal = fechaFinReal.Date };
+
+        // La propiedad queda libre solo si el inquilino sigue siendo el de este contrato.
+        connection.Execute(
+            @"UPDATE p SET p.IdInquilino = NULL, p.Estado = 'Disponible'
+              FROM Propiedades p
+              INNER JOIN Contratos c ON c.IdPropiedad = p.IdPropiedad
+              WHERE c.IdContrato = @IdContrato AND p.IdInquilino = c.IdInquilino",
+            parametros,
+            transaction);
+
+        connection.Execute(
+            @"DELETE n FROM Notificaciones n INNER JOIN Eventos e ON e.IdEvento = n.IdEvento
+              WHERE e.IdContrato = @IdContrato AND e.Tipo <> 'Manual' AND e.Fecha > @FechaFinReal;
+              DELETE FROM Eventos WHERE IdContrato = @IdContrato AND Tipo <> 'Manual' AND Fecha > @FechaFinReal;",
+            parametros,
+            transaction);
+
+        connection.Execute(
+            @"INSERT INTO Notificaciones (IdUsuario, Texto)
+              SELECT u.IdUsuario,
+                     LEFT(CONCAT('Terminó tu contrato de ', p.Direccion, ' (', @NombreMotivo, ') el ', CONVERT(varchar(10), @FechaFinReal, 103), '.',
+                                 CASE WHEN @Descripcion IS NULL THEN '' ELSE CONCAT(' ', @Descripcion) END,
+                                 ' Podés ver el contrato y tus gastos en modo lectura.'), 300)
+              FROM Contratos c
+              INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+              INNER JOIN Usuarios u ON u.IdInquilino = c.IdInquilino
+              WHERE c.IdContrato = @IdContrato",
+            new { IdContrato = idContrato, FechaFinReal = fechaFinReal.Date, NombreMotivo = ReglasContrato.NombreMotivoFin(motivo), Descripcion = descripcionLimpia },
+            transaction);
+
+        transaction.Commit();
+        return true;
+    }
+
+    // El inquilino deja por escrito su disconformidad: una sola vez, sin edición, y solo en contratos que
+    // terminaron por un motivo distinto del fin de plazo. Se avisa al propietario.
+    public bool DejarDisconformidad(int idContrato, int idInquilino, string texto)
+    {
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        int filas = connection.Execute(
+            @"UPDATE Contratos SET DisconformidadInquilino = @Texto, FechaDisconformidad = GETDATE()
+              WHERE IdContrato = @IdContrato AND IdInquilino = @IdInquilino AND Estado = 'Finalizado'
+                AND MotivoFin <> 'FinDePlazo' AND DisconformidadInquilino IS NULL",
+            new { IdContrato = idContrato, IdInquilino = idInquilino, Texto = texto.Trim() },
+            transaction);
+
+        if (filas > 0)
+        {
+            connection.Execute(
+                @"INSERT INTO Notificaciones (IdUsuario, Texto)
+                  SELECT u.IdUsuario, LEFT(CONCAT('El inquilino dejó constancia de su disconformidad con la terminación del contrato de ', p.Direccion, '. Podés leerla en la pantalla del contrato.'), 300)
+                  FROM Contratos c
+                  INNER JOIN Propiedades p ON p.IdPropiedad = c.IdPropiedad
+                  INNER JOIN Usuarios u ON u.IdPropietario = p.IdPropietario
+                  WHERE c.IdContrato = @IdContrato",
+                new { IdContrato = idContrato },
+                transaction);
+        }
+
+        transaction.Commit();
+        return filas > 0;
+    }
+
+    // Desvincula al inquilino de una propiedad sin contrato confirmado y le avisa.
     public void QuitarInquilinoDePropiedad(int idPropiedad)
     {
         using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        connection.Execute(
+            @"INSERT INTO Notificaciones (IdUsuario, Texto)
+              SELECT u.IdUsuario, LEFT(CONCAT('El propietario te desvinculó de ', p.Direccion, '.'), 300)
+              FROM Propiedades p
+              INNER JOIN Usuarios u ON u.IdInquilino = p.IdInquilino
+              WHERE p.IdPropiedad = @IdPropiedad",
+            new { IdPropiedad = idPropiedad },
+            transaction);
+
         connection.Execute(
             @"UPDATE Propiedades
               SET IdInquilino = NULL,
                   Estado = 'Disponible'
               WHERE IdPropiedad = @IdPropiedad",
-            new { IdPropiedad = idPropiedad });
+            new { IdPropiedad = idPropiedad },
+            transaction);
+
+        transaction.Commit();
     }
 
     public List<Evento> ObtenerEventosPorPropietario(int idPropietario, DateTime desde, DateTime hasta)
