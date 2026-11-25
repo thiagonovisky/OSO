@@ -286,3 +286,13 @@ docs/
 
 # Contratos subidos por los usuarios (no subir)
 App_Data/
+
+# Archivos que suben los usuarios y datos de prueba (no subir)
+wwwroot/comprobantes/
+wwwroot/imagenes/perfil_*
+wwwroot/imagenes/propiedad_*
+
+# Secretos y backups
+.env
+.env.*
+*.bak
