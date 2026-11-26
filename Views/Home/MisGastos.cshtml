@@ -82,8 +82,15 @@
         <tr>
             @{ CeldaGasto(gasto.TipoGasto, gasto.Periodo, gasto.NombrePropiedad); }
             <td data-label="Estado">
-                <span class="estado-pill estado-pill--@gasto.EstadoMiParteCss">@gasto.EstadoMiParte</span>
-                @if (gasto.FechaPago.HasValue && gasto.MiPartePagada)
+                @if (gasto.EsIncluido)
+                {
+                    <small class="celda-sub">@gasto.Aclaracion</small>
+                }
+                else
+                {
+                    <span class="estado-pill estado-pill--@gasto.EstadoMiParteCss">@gasto.EstadoMiParte</span>
+                }
+                @if (gasto.FechaPago.HasValue && gasto.MiPartePagada && !gasto.EsIncluido)
                 {
                     <small class="celda-sub">el @gasto.FechaPago.Value.ToString("dd/MM/yyyy")</small>
                 }

@@ -20,6 +20,15 @@ public class GastoPropiedad
 
     public bool CargadoPorInquilino => Aclaracion == AclaracionCargaInquilino;
 
+    // Mes cubierto por la factura de otro mes (las bimestrales): se guarda con monto 0 y esta aclaración,
+    // así deja de figurar como pendiente sin generar deuda ni aviso.
+    public const string PrefijoIncluido = "Incluido en la factura de ";
+
+    public static string AclaracionIncluido(DateTime mesDeLaFactura) =>
+        PrefijoIncluido + mesDeLaFactura.ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-AR"));
+
+    public bool EsIncluido => Monto == 0 && Aclaracion?.StartsWith(PrefijoIncluido) == true;
+
     // Datos de la parte del propietario (por ahora es el único responsable)
     public int IdGastoResponsable { get; set; }
     public decimal MontoResponsable { get; set; }

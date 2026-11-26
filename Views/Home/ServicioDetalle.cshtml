@@ -46,6 +46,14 @@
 
                     <div class="month-item">
                         <div class="month-name">@gasto.Periodo.ToString("MMMM yyyy")</div>
+                        @if (gasto.EsIncluido)
+                        {
+                            <div class="month-meta">
+                                <span class="service-status muted">@gasto.Aclaracion</span>
+                            </div>
+                        }
+                        else
+                        {
                         <div class="month-meta">
                             <span>Monto: $@gasto.Monto</span>
                             <span>Vto: @gasto.FechaVencimiento.ToString("dd/MM/yyyy")</span>
@@ -70,6 +78,7 @@
                                 @(estadoActual == "Pagado" ? "Marcar como A pagar" : "Marcar como Pagado")
                             </button>
                         </form>
+                        }
                     </div>
                 }
             </div>
