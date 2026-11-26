@@ -19,16 +19,20 @@ public record LecturaFactura(decimal? Monto, DateTime? Vencimiento, DateTime? Pe
 // el resultado solo completa el formulario y la persona lo revisa antes de guardar.
 public class ExtractorFacturaGemini(ExtractorContratoGemini gemini)
 {
-    public async Task<(LecturaFactura? Lectura, string? Error)> LeerAsync(byte[] archivo, string mimeType, string? tipoGasto)
+    // serviciosPosibles: si viene, la IA tiene que decir a cuál de esos servicios corresponde la factura (pantalla "Cargar el mes").
+    public async Task<(LecturaFactura? Lectura, string? Error, TipoErrorIa Tipo)> LeerAsync(byte[] archivo, string mimeType, string? tipoGasto,
+        IReadOnlyList<string>? serviciosPosibles = null)
     {
-        var (json, error) = await gemini.EnviarAsync(ArmarPedido(archivo, mimeType, tipoGasto), "la factura");
+        var (json, error, tipo) = await gemini.EnviarConTipoAsync(ArmarPedido(archivo, mimeType, tipoGasto, serviciosPosibles), "la factura");
         if (json == null)
         {
-            return (null, error);
+            return (null, error, tipo);
         }
 
         LecturaFactura? lectura = Parsear(json);
-        return lectura is { LeyoAlgo: true } ? (lectura, null) : (null, "No pudimos leer datos de la factura; cargalos a mano.");
+        return lectura is { LeyoAlgo: true }
+            ? (lectura, null, TipoErrorIa.Ninguno)
+            : (null, "No pudimos leer datos de la factura; cargalos a mano.", TipoErrorIa.NoSeLeyo);
     }
 
     // Tolerante: si falta un campo o viene con otro formato, ese dato queda en null en vez de romper.
@@ -50,8 +54,16 @@ public class ExtractorFacturaGemini(ExtractorContratoGemini gemini)
             }
 
             decimal confianza = Math.Clamp(Numero(raiz, "confianza") ?? 0m, 0m, 1m);
-            DateTime? periodo = Fecha(raiz, "periodo");
-            return new LecturaFactura(monto, Fecha(raiz, "fechaVencimiento"), periodo.HasValue ? new DateTime(periodo.Value.Year, periodo.Value.Month, 1) : null, Texto(raiz, "proveedor"), confianza);
+            DateTime? periodo = PrimerDia(Fecha(raiz, "periodo"));
+            DateTime? desde = PrimerDia(Fecha(raiz, "periodoDesde"));
+            if (desde.HasValue && (!periodo.HasValue || desde > periodo))
+            {
+                // Un primer mes posterior al último no tiene sentido: se ignora y la factura queda como de un solo mes.
+                desde = null;
+            }
+
+            return new LecturaFactura(monto, Fecha(raiz, "fechaVencimiento"), periodo, Texto(raiz, "proveedor"), confianza,
+                Texto(raiz, "servicio"), Texto(raiz, "domicilio"), desde);
         }
         catch (JsonException)
         {
@@ -74,6 +86,8 @@ public class ExtractorFacturaGemini(ExtractorContratoGemini gemini)
         return e.ValueKind == JsonValueKind.String && decimal.TryParse(e.GetString(), NumberStyles.Number, CultureInfo.InvariantCulture, out decimal s) ? s : null;
     }
 
+    private static DateTime? PrimerDia(DateTime? fecha) => fecha.HasValue ? new DateTime(fecha.Value.Year, fecha.Value.Month, 1) : null;
+
     private static DateTime? Fecha(JsonElement raiz, string nombre) =>
         raiz.TryGetProperty(nombre, out JsonElement e) && e.ValueKind == JsonValueKind.String
             && DateTime.TryParseExact(e.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime f)
@@ -90,16 +104,22 @@ public class ExtractorFacturaGemini(ExtractorContratoGemini gemini)
         return string.IsNullOrEmpty(t) ? null : (t.Length > 80 ? t[..80] : t);
     }
 
-    private static object ArmarPedido(byte[] archivo, string mimeType, string? tipoGasto)
+    private static object ArmarPedido(byte[] archivo, string mimeType, string? tipoGasto, IReadOnlyList<string>? serviciosPosibles)
     {
         string esperada = string.IsNullOrWhiteSpace(tipoGasto) ? "una factura de un servicio o de expensas" : $"una factura de {tipoGasto}";
-        string instrucciones = $@"Sos un asistente que lee facturas argentinas de servicios (luz, gas, agua, internet, expensas, impuestos) y extrae tres datos.
+        string reglaServicio = serviciosPosibles is { Count: > 0 }
+            ? $"- servicio: a cuál de estos servicios corresponde la factura: {string.Join(", ", serviciosPosibles)}. Si no es ninguno, null."
+            : "- servicio: qué servicio es (Luz, Gas, Agua, Internet, Expensas, ABL...).";
+        string instrucciones = $@"Sos un asistente que lee facturas argentinas de servicios (luz, gas, agua, internet, expensas, impuestos) y extrae sus datos.
 Se espera {esperada}. Leé el documento adjunto y completá el JSON pedido.
 Reglas:
 - monto: el TOTAL A PAGAR de la factura (con impuestos y recargos), como número sin símbolos ni separadores de miles y con punto decimal. No tomes subtotales ni saldos anteriores.
 - fechaVencimiento: el primer vencimiento para pagar, formato YYYY-MM-DD.
 - periodo: el mes que se está facturando, formato YYYY-MM-01 (si la factura es de varios meses, el último).
+- periodoDesde: el primer mes que cubre la factura, formato YYYY-MM-01. Si cubre un solo mes, el mismo que periodo.
 - proveedor: el nombre de la empresa o administración que emite la factura.
+{reglaServicio}
+- domicilio: el domicilio del suministro o de la unidad (dónde se presta el servicio), no el domicilio postal del titular si es distinto.
 - confianza: entre 0 y 1, qué tan seguro estás de haber leído bien el monto y las fechas (0 si el documento no es una factura legible).
 - Si un dato no figura, devolvé null. No inventes ni supongas.";
 
@@ -120,12 +140,12 @@ Reglas:
             {
                 temperature = 0,
                 responseMimeType = "application/json",
-                responseSchema = ArmarEsquema()
+                responseSchema = ArmarEsquema(serviciosPosibles)
             }
         };
     }
 
-    private static Dictionary<string, object> ArmarEsquema()
+    private static Dictionary<string, object> ArmarEsquema(IReadOnlyList<string>? serviciosPosibles)
     {
         static Dictionary<string, object> Campo(string tipo, bool puedeSerNull) =>
             puedeSerNull ? new() { ["type"] = tipo, ["nullable"] = true } : new() { ["type"] = tipo };
@@ -135,9 +155,18 @@ Reglas:
             ["monto"] = Campo("NUMBER", true),
             ["fechaVencimiento"] = Campo("STRING", true),
             ["periodo"] = Campo("STRING", true),
+            ["periodoDesde"] = Campo("STRING", true),
             ["proveedor"] = Campo("STRING", true),
+            ["servicio"] = Campo("STRING", true),
+            ["domicilio"] = Campo("STRING", true),
             ["confianza"] = Campo("NUMBER", false)
         };
+
+        // Con la lista de servicios, la IA solo puede contestar uno de esos (o null).
+        if (serviciosPosibles is { Count: > 0 })
+        {
+            ((Dictionary<string, object>)propiedades["servicio"])["enum"] = serviciosPosibles.ToArray();
+        }
 
         return new Dictionary<string, object>
         {

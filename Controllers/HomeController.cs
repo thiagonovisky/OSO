@@ -1360,7 +1360,7 @@ public class HomeController : Controller
             tipoGasto = tipoGasto[..50];
         }
 
-        var (lectura, errorIa) = await _extractorFactura.LeerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(factura.FileName), tipoGasto);
+        var (lectura, errorIa, _) = await _extractorFactura.LeerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(factura.FileName), tipoGasto);
         if (lectura == null)
         {
             return Json(new { ok = false, mensaje = errorIa ?? "No pudimos leer la factura; cargá los datos a mano." });

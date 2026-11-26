@@ -4,6 +4,10 @@ using System.Text.Json;
 
 namespace OSO.Models;
 
+// Por qué no se pudo leer un archivo con Gemini. SinCupo y NoDisponible afectan a todos los archivos que siguen;
+// NoSeLeyo es de ese archivo en particular (no es una factura, está ilegible...).
+public enum TipoErrorIa { Ninguno, SinCupo, NoDisponible, NoSeLeyo }
+
 // Lee un contrato (PDF o foto) con la API de Gemini y devuelve el JSON con los datos y su confianza.
 // Nunca se loguea el contenido del contrato ni la respuesta: solo códigos de estado.
 public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ExtractorContratoGemini> logger)
@@ -28,10 +32,18 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
     // Lo usa también el lector de facturas, para no repetir la conexión, el tiempo máximo ni el manejo de errores.
     public async Task<(string? Json, string? Error)> EnviarAsync(object pedidoGemini, string queLee)
     {
+        var (json, error, _) = await EnviarConTipoAsync(pedidoGemini, queLee);
+        return (json, error);
+    }
+
+    // Igual que EnviarAsync, pero además dice qué tipo de error fue: sin cupo o sin servicio (no tiene sentido seguir
+    // mandando otros archivos) o que este archivo en particular no se pudo leer.
+    public async Task<(string? Json, string? Error, TipoErrorIa Tipo)> EnviarConTipoAsync(object pedidoGemini, string queLee)
+    {
         string? key = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
         if (string.IsNullOrWhiteSpace(key))
         {
-            return (null, "Falta configurar GEMINI_API_KEY");
+            return (null, "Falta configurar GEMINI_API_KEY", TipoErrorIa.NoDisponible);
         }
 
         string cuerpo = JsonSerializer.Serialize(pedidoGemini);
@@ -87,37 +99,46 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
 
             if (respuesta == null)
             {
-                return (null, "Gemini tardó demasiado en responder.");
+                return (null, "Gemini tardó demasiado en responder.", TipoErrorIa.NoDisponible);
             }
 
             using HttpResponseMessage final = respuesta;
             if (!final.IsSuccessStatusCode)
             {
                 logger.LogWarning("Gemini ({Modelo}) respondió con el código {Codigo}", Modelo, (int)final.StatusCode);
-                return (null, final.StatusCode switch
+                string mensaje = final.StatusCode switch
                 {
                     _ when algunoSeColgo => "Gemini tardó demasiado en responder.",
                     HttpStatusCode.TooManyRequests => "Se alcanzó el límite de uso gratuito de Gemini. Probá de nuevo más tarde.",
                     var c when EsErrorTemporal(c) => $"Gemini está saturado en este momento y no pudo leer {queLee}. Probá de nuevo en unos minutos.",
                     var c => $"Gemini no pudo procesar {queLee} (código {(int)c})."
-                });
+                };
+                return (null, mensaje, algunoSeColgo ? TipoErrorIa.NoDisponible : TipoDeError(final.StatusCode));
             }
 
             string texto = await final.Content.ReadAsStringAsync(cts.Token);
             string? json = ExtraerTextoDeRespuesta(texto);
-            return json == null ? (null, $"Gemini no devolvió datos para {queLee}.") : (json, null);
+            return json == null ? (null, $"Gemini no devolvió datos para {queLee}.", TipoErrorIa.NoSeLeyo) : (json, null, TipoErrorIa.Ninguno);
         }
         catch (OperationCanceledException)
         {
             logger.LogWarning("Gemini tardó más de {Segundos} segundos", TiempoMaximo.TotalSeconds);
-            return (null, "Gemini tardó demasiado en responder.");
+            return (null, "Gemini tardó demasiado en responder.", TipoErrorIa.NoDisponible);
         }
         catch (HttpRequestException ex)
         {
             logger.LogWarning("No se pudo conectar con Gemini: {Tipo}", ex.GetType().Name);
-            return (null, "No se pudo conectar con Gemini.");
+            return (null, "No se pudo conectar con Gemini.", TipoErrorIa.NoDisponible);
         }
     }
+
+    // Qué significa para quien manda varios archivos el código con el que terminó Gemini (después de probar todos los modelos).
+    public static TipoErrorIa TipoDeError(HttpStatusCode codigo) => codigo switch
+    {
+        HttpStatusCode.TooManyRequests => TipoErrorIa.SinCupo,
+        var c when EsErrorTemporal(c) => TipoErrorIa.NoDisponible,
+        _ => TipoErrorIa.NoSeLeyo
+    };
 
     private static bool EsErrorTemporal(HttpStatusCode codigo) => codigo is HttpStatusCode.InternalServerError
         or HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
