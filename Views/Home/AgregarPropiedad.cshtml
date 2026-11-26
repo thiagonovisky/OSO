@@ -1,31 +1,38 @@
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Agregar propiedad</h2>
+    <p class="pagina-bajada">Después de agregarla vas a tener un link para invitar a tu inquilino.</p>
 
-<form class="auth-form" action='@Url.Action("AgregarP", "Home")' method="post" enctype="multipart/form-data">
-    @Html.AntiForgeryToken()
-    <div class="form-row">
-        <label for="direccion">Dirección</label>
-        <input type="text" id="direccion" name="direccion" maxlength="50" required />
-     </div>
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
 
-    <div class="form-row">
-        <label for="superficie">Superficie</label>
-        <input type="number" id="superficie" name="superficie" min="1" required />
-    </div>
+    <form action='@Url.Action("AgregarP", "Home")' method="post" enctype="multipart/form-data" class="panel form-panel">
+        @Html.AntiForgeryToken()
+        <div class="campo">
+            <label for="direccion">Dirección</label>
+            <input type="text" id="direccion" name="direccion" maxlength="50" placeholder="Ej: Av. Corrientes 1234, 5° B" required />
+        </div>
 
-    <div class="form-row">
-        <label for="ambientes">Cantidad de Ambientes</label>
-        <input type="number" id="ambientes" name="ambientes" min="1" required />
-    </div>
+        <div class="campos-fila">
+            <div class="campo">
+                <label for="superficie">Superficie (m²)</label>
+                <input type="number" id="superficie" name="superficie" min="1" required />
+            </div>
+            <div class="campo">
+                <label for="ambientes">Ambientes</label>
+                <input type="number" id="ambientes" name="ambientes" min="1" required />
+            </div>
+        </div>
 
-    <div class="form-row">
-			<label for="foto">Foto</label>
-			<input type="file" id="foto" name="foto" accept=".jpg,.jpeg,.png,.webp,.gif" class="form-control" />
-	</div>
+        <div class="campo">
+            <label for="foto">Foto (opcional)</label>
+            <input type="file" id="foto" name="foto" accept=".jpg,.jpeg,.png,.webp,.gif" />
+        </div>
 
-    <div class="form-row">
-        <button type="submit">Agregar Propiedad</button>
-    </div>
-</form>
+        <div class="form-acciones">
+            <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Agregar propiedad</button>
+        </div>
+    </form>
+</div>

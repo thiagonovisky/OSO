@@ -25,12 +25,26 @@
         </tr>
     }
 
-    // Tipo de gasto, mes y propiedad en una sola celda.
-    void CeldaGasto(string tipo, DateTime periodo, string propiedad)
+    // Tipo de gasto, mes y propiedad en una sola celda. Con un gasto ya cargado, también quién lo cargó y su factura.
+    void CeldaGasto(string tipo, DateTime periodo, string propiedad, OSO.Models.GastoPropiedad? gasto = null)
     {
         <td>
             <strong>@tipo</strong>
             <small class="celda-sub">@periodo.ToString("MMMM yyyy") en @propiedad</small>
+            @if (gasto != null && !gasto.EsIncluido)
+            {
+                <small class="celda-sub gasto-origen">
+                    @gasto.CargadoPorPara(esPropietario)
+                    @if (!string.IsNullOrEmpty(gasto.Factura))
+                    {
+                        <text> · </text><a href="@Url.Action("VerFactura", "Home", new { idGastoPropiedad = gasto.IdGastoPropiedad })" target="_blank" rel="noopener">Ver factura</a>
+                    }
+                    else
+                    {
+                        <text> · sin factura</text>
+                    }
+                </small>
+            }
         </td>
     }
 
@@ -57,8 +71,8 @@
                     <input type="hidden" name="idGasto" value="@pendiente.IdGasto" />
                     <input type="hidden" name="periodo" value="@pendiente.Periodo.ToString("yyyy-MM-dd")" />
                     <div class="pago-campo factura-lector">
-                        <span class="pago-form__label">1. Factura de @pendiente.TipoGasto (la IA lee el monto)</span>
-                        <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Factura de @pendiente.TipoGasto" />
+                        <span class="pago-form__label">1. Factura de @pendiente.TipoGasto (la IA lee el monto y queda guardada con el gasto)</span>
+                        <input type="file" name="facturaArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Factura de @pendiente.TipoGasto" />
                         <button type="button" class="btn btn-secondary btn-sm btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="@pendiente.TipoGasto">Leer monto de la factura</button>
                         <small class="factura-estado"></small>
                     </div>
@@ -80,7 +94,7 @@
     {
         string id = $"pago-g-{gasto.IdGastoResponsable}";
         <tr>
-            @{ CeldaGasto(gasto.TipoGasto, gasto.Periodo, gasto.NombrePropiedad); }
+            @{ CeldaGasto(gasto.TipoGasto, gasto.Periodo, gasto.NombrePropiedad, gasto); }
             <td data-label="Estado">
                 @if (gasto.EsIncluido)
                 {
@@ -131,10 +145,10 @@
 
 <h2 class="gastos-title">Mis gastos</h2>
 
-@if (esPropietario)
+@if (esPropietario || ViewBag.TieneContrato == true)
 {
-    <div class="oso-center-row">
-        <a asp-action="CargarMes" asp-controller="Home" class="btn btn-primary">Cargar servicios del mes</a>
+    <div class="pagina-acciones">
+        <a asp-action="CargarMes" asp-controller="Home" class="btn btn-primary">Cargar facturas del mes</a>
     </div>
 }
 

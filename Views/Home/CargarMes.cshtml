@@ -3,6 +3,8 @@
     var errores = ViewBag.Errores as Dictionary<string, string> ?? new Dictionary<string, string>();
     var enviadas = ViewBag.Enviadas as Dictionary<string, OSO.Models.FilaEnviada> ?? new Dictionary<string, OSO.Models.FilaEnviada>();
     var filas = Model ?? new List<OSO.Models.FilaCargarMes>();
+    bool esPropietario = ViewBag.EsPropietario == true;
+    string elOtro = esPropietario ? "el inquilino" : "el propietario";
 
     // Mismo criterio que "Mis gastos": los últimos meses abiertos, los anteriores plegados.
     var desdeReciente = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-(OSO.Models.PendienteContrato.MesesRecientes - 1));
@@ -34,7 +36,18 @@
                         data-periodo="@fila.Periodo.ToString("yyyy-MM-01")" data-direccion="@fila.NombrePropiedad">
                         <td data-label="Propiedad">@fila.NombrePropiedad</td>
                         <td data-label="Servicio"><strong>@fila.TipoGasto</strong></td>
-                        <td data-label="Quién paga"><small class="celda-sub">@fila.QuienPaga</small></td>
+                        <td data-label="Quién paga">
+                            @if (fila.LaPagaElOtro)
+                            {
+                                @* Que no se confunda con algo a pagar: cargarla no le genera nada a quien la carga. *@
+                                <span class="quien-paga quien-paga--otro">@fila.QuienPaga</span>
+                                <small class="celda-sub">Vos solo cargás el monto</small>
+                            }
+                            else
+                            {
+                                <span class="quien-paga">@fila.QuienPaga</span>
+                            }
+                        </td>
                         <td data-label="Monto" class="col-monto">
                             @* filas.Index: al enviar, las filas vacías no mandan nada y los índices quedan salteados. *@
                             <input type="hidden" name="filas.Index" value="@i" />
@@ -59,7 +72,24 @@
                         </td>
                         <td class="cargar-mes__factura">
                             <small class="celda-sub cargar-mes__origen"></small>
-                            <button type="button" class="btn btn-link btn-sm cargar-mes__marcar-incluido">Incluido en otra factura</button>
+                            @* La factura se guarda con el gasto. Al soltar facturas arriba, cada una se adjunta sola a su fila. *@
+                            <label class="cargar-mes__adjuntar">
+                                <input type="file" name="filas[@i].Factura" accept=".pdf,.jpg,.jpeg,.png,.webp" class="visually-hidden campo-factura"
+                                       aria-label="Factura de @fila.TipoGasto en @fila.NombrePropiedad" />
+                                <span class="cargar-mes__adjuntar-texto">Adjuntar factura</span>
+                            </label>
+                            @if (enviada?.Factura != null && error != null)
+                            {
+                                <small class="text-warning d-block">Volvé a adjuntar la factura (@enviada.Factura.FileName).</small>
+                            }
+                            else if (fila.ElOtroPagaAlgo)
+                            {
+                                <small class="celda-sub cargar-mes__aviso-factura">Adjuntala así @fila.ElOtro puede ver de dónde sale el monto.</small>
+                            }
+                            <button type="button" class="cargar-mes__marcar-incluido">
+                                Marcar como incluido en otra factura
+                                <small class="cargar-mes__marcar-ayuda">(si el servicio es bimestral)</small>
+                            </button>
                         </td>
                     </tr>
                 }
@@ -87,20 +117,23 @@
 {
     <div class="seccion-gastos gastos-vacio">
         <p class="gastos-vacio__titulo">Estás al día: no hay servicios para cargar</p>
-        <p>Cuando empiece un mes de un contrato con servicios mensuales, vas a poder cargar sus facturas acá.</p>
+        <p>@(esPropietario
+            ? "Cuando empiece un mes de un contrato con servicios mensuales, vas a poder cargar sus facturas acá."
+            : "Cuando empiece un mes de tu contrato con servicios mensuales, vas a poder cargar acá las facturas que te lleguen.")</p>
         <a asp-action="MisGastos" asp-controller="Home" class="btn btn-secondary">Ver mis gastos</a>
     </div>
 }
 else
 {
-    <form asp-action="GuardarMes" asp-controller="Home" method="post" class="seccion-gastos cargar-mes" id="cargar-mes">
+    <form asp-action="GuardarMes" asp-controller="Home" method="post" enctype="multipart/form-data" class="seccion-gastos cargar-mes" id="cargar-mes">
         @Html.AntiForgeryToken()
-        <p>Completá el monto de cada factura que tengas. Las filas que dejes vacías siguen pendientes, y el inquilino puede cargar las que le tocan a él.</p>
+        <p>Cargá las facturas que te llegaron, aunque las pague @elOtro: cargar no es pagar. Cada uno paga después su parte desde Mis gastos.
+            Las filas que dejes vacías siguen pendientes y también las puede cargar @elOtro.</p>
 
         <section class="cargar-mes__facturas" aria-labelledby="titulo-facturas">
             <label class="cargar-mes__zona" id="zona-facturas">
                 <strong id="titulo-facturas">Soltá acá tus facturas</strong>
-                <span>o hacé clic para elegirlas. Hasta 10 por vez, en PDF o foto. La IA completa las filas y vos revisás antes de guardar. Las facturas no se guardan.</span>
+                <span>o hacé clic para elegirlas. Hasta 10 por vez, en PDF o foto. La IA completa las filas y vos revisás antes de guardar. Cada factura queda guardada con su gasto.</span>
                 <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" id="archivos-facturas" class="visually-hidden"
                        data-url="@Url.Action("LeerFacturaParaMes", "Home")" />
             </label>

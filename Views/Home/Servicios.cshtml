@@ -3,42 +3,64 @@
     var servicios = ViewBag.Servicios as List<OSO.Models.ServicioPropiedad> ?? new List<OSO.Models.ServicioPropiedad>();
 }
 
-<div class="services-page">
-    <h2 class="page-title">Servicios</h2>
+<div class="pagina">
+    <h2 class="pagina-titulo">Historial de @Model.Direccion</h2>
+    <p class="pagina-bajada">Cada tipo de gasto de la propiedad con el estado de sus pagos. Entrá a uno para ver mes por mes.</p>
 
-    <div class="service-actions-top oso-center-row">
+    <div class="pagina-acciones">
         <a asp-action="AgregarTipoGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Agregar tipo de gasto</a>
         <a asp-action="CargarMes" asp-controller="Home" class="btn btn-secondary">Cargar servicios del mes</a>
     </div>
 
-    <div class="services-grid">
-        @foreach (var servicio in servicios)
-        {
+    @if (servicios.Count == 0)
+    {
+        <div class="seccion-gastos gastos-vacio">
+            <span class="bienvenida__icon"><partial name="_IconoMenu" model="@("MisGastos")" /></span>
+            <p class="gastos-vacio__titulo">Esta propiedad todavía no tiene tipos de gasto</p>
+            <p>Agregá los servicios que se pagan (luz, agua, gas, expensas...) para llevar el registro de cada mes.</p>
+        </div>
+    }
+    else
+    {
+        <div class="servicios-grid">
+            @foreach (var servicio in servicios)
+            {
                 var nombre = servicio.Nombre;
+                string pill = servicio.EstadoCss switch { "warn" => "pagar", "ok" => "pagado", _ => "neutro" };
+                string resumen = servicio.CantidadGastos == 1 ? "1 mes registrado" : $"{servicio.CantidadGastos} meses registrados";
+                if (servicio.GastosPendientes > 0)
+                {
+                    resumen += $" · {servicio.GastosPendientes} a pagar";
+                }
 
-                <div class="service-card">
-                    <div class="service-header">@nombre</div>
-                    <div class="service-body">
-                        <span class="service-status @servicio.EstadoCss">@servicio.Estado</span>
-
-                        @if (!string.IsNullOrEmpty(servicio.QuienPaga))
-                        {
-                            <small class="service-payer">@servicio.QuienPaga</small>
-                        }
-
-                        <div class="service-actions">
-                            <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-primary">Ver detalle</a>
-
-                            <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-primary">Agregar gasto</a>
-
-                            <form asp-action="EliminarTipoGasto" asp-controller="Home" method="post" onsubmit="return confirm('¿Eliminar este tipo de gasto y sus registros asociados en esta propiedad?');">
-                                <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
-                                <input type="hidden" name="idGasto" value="@servicio.IdGasto" />
-                                <button type="submit" class="btn btn-danger">Eliminar tipo</button>
-                            </form>
-                        </div>
+                <article class="servicio-card">
+                    <div class="servicio-card__cabecera">
+                        <h3 class="servicio-card__nombre">@nombre</h3>
+                        <span class="estado-pill estado-pill--@pill">@servicio.Estado</span>
                     </div>
-                </div>
-        }
+
+                    <p class="servicio-card__dato">@resumen</p>
+                    @if (!string.IsNullOrEmpty(servicio.QuienPaga))
+                    {
+                        <p class="servicio-card__dato">@servicio.QuienPaga</p>
+                    }
+
+                    <div class="servicio-card__acciones">
+                        <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-primary btn-sm">Ver detalle</a>
+                        <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@nombre" class="btn btn-secondary btn-sm">Agregar gasto</a>
+
+                        <form asp-action="EliminarTipoGasto" asp-controller="Home" method="post" onsubmit="return confirm('¿Eliminar este tipo de gasto y sus registros asociados en esta propiedad?');">
+                            <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+                            <input type="hidden" name="idGasto" value="@servicio.IdGasto" />
+                            <button type="submit" class="btn btn-danger btn-sm">Eliminar tipo</button>
+                        </form>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+
+    <div class="form-acciones form-acciones--centro">
+        <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Volver a mis propiedades</a>
     </div>
 </div>

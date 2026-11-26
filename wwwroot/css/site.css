@@ -93,9 +93,6 @@ form {
   margin: 0 auto;
   padding: 0 1.39%;
 }
-.form-row {
-  margin-bottom: 1.11%;
-}
 label {
   display: block;
   margin-bottom: 0.56%;
@@ -153,7 +150,7 @@ button, .btn {
   box-shadow: inset 0 -2px 0 rgba(30, 51, 72, 0.28);
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
-button:hover, .btn:hover, .evt-btn:hover, .msj-add-btn:hover {
+button:hover, .btn:hover, .evt-btn:hover {
   background: var(--blue-dark);
 }
 .btn:hover, .evt-btn:hover {
@@ -469,12 +466,6 @@ input[type="file"]::file-selector-button:hover {
   margin-top: 6px;
 }
 
-.card {
-  border: 1px solid var(--blue-main-35);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 8px 18px var(--shadow);
-}
 
 /* Saltar al contenido: invisible hasta que se llega con el teclado */
 .oso-saltar {
@@ -1273,7 +1264,7 @@ input[type="file"]::file-selector-button:hover {
 }
 
 /* Bienvenida */
-.bienvenida, .bienvenida__card, .service-body {
+.bienvenida, .bienvenida__card {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1356,11 +1347,11 @@ input[type="file"]::file-selector-button:hover {
 }
 
 /* Contenedores de página */
-.auth-page, .services-page, .service-detail-page, .invitacion-page, .cal-page, .evt-page, .msj-page, .revision-contrato {
+.auth-page, .invitacion-page, .cal-page, .evt-page, .msj-page {
   width: 100%;
   margin: 0 auto;
 }
-.auth-page form, .propiedades-add-form, .evt-form, .msj-chat__form {
+.auth-page form, .propiedades-add-form, .evt-form {
   max-width: none;
   margin: 0;
   padding: 0;
@@ -1697,16 +1688,28 @@ input[type="file"]::file-selector-button:hover {
 }
 
 /* Títulos de sección */
-.propiedades-title, .invitacion-title, .cal-title, .evt-title, .msj-title, .gastos-title, .auth-title {
+.propiedades-title, .invitacion-title, .cal-title, .evt-title, .msj-title, .gastos-title, .auth-title, .pagina-titulo {
   margin: 0;
   padding: 0;
   color: var(--blue-main);
   font-size: 2.5rem;
   font-weight: 400;
 }
-.propiedades-title, .gastos-title, .auth-title {
-  margin-bottom: 1.67%;
-  padding-top: 1.67%;
+/* Espacios fijos: en % dependían del ancho del contenedor y en login (480px) quedaban casi pegados. */
+.propiedades-title, .gastos-title, .pagina-titulo {
+  margin-bottom: 20px;
+  padding-top: 32px;
+}
+/* Login y registro: más aire entre el header y el título, y entre el título y el formulario */
+.auth-title {
+  margin-bottom: 36px;
+  padding-top: 64px;
+}
+@media (max-width: 560px) {
+  .auth-title {
+    margin-bottom: 24px;
+    padding-top: 40px;
+  }
 }
 .invitacion-title {
   margin-bottom: 1.94%;
@@ -1796,10 +1799,10 @@ input[type="file"]::file-selector-button:hover {
   gap: 8px;
   font-size: 1.2rem;
 }
-.summary-estado.al-dia, .service-status.ok {
+.summary-estado.al-dia {
   color: var(--success);
 }
-.summary-estado.pendiente, .service-status.warn {
+.summary-estado.pendiente {
   color: var(--danger);
 }
 .property-actions {
@@ -1824,128 +1827,72 @@ input[type="file"]::file-selector-button:hover {
   padding: 0.56% 0.83%;
   white-space: nowrap;
 }
-.page-title {
-  margin: 2.22% 0 1.94%;
-  color: var(--brand-primary);
-  font-size: 3rem;
-}
 
-/* Servicios */
-.services-page, .service-detail-page {
-  max-width: 1200px;
-  padding: 0 1.39% 2.78%;
-}
 .oso-center-row {
   display: flex;
   justify-content: center;
 }
-.services-grid {
+
+/* Historial de una propiedad (Servicios): una tarjeta por tipo de gasto, con su estado y sus acciones abajo */
+.servicios-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
-  justify-content: center;
-  gap: 38px;
-  margin-top: 1.67%;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 20px;
 }
-.service-card {
-  min-height: 250px;
-  border: 2px solid var(--brand-primary);
-  border-radius: 18px;
-  color: var(--brand-primary-deep);
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(58, 112, 143, 0.08);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.service-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(58, 112, 143, 0.12);
-}
-.service-header {
-  padding: 1.67% 1.11%;
-  border-radius: 14px 14px 0 0;
-  background: var(--brand-primary-soft);
-  color: var(--white);
-  font-size: 2.2rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.service-body {
-  gap: 12px;
-  min-height: 165px;
-  font-size: 2rem;
-}
-.service-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 500;
-}
-.service-actions {
+.servicio-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 10px;
-  width: 100%;
+  padding: 20px;
+  border: 1px solid var(--blue-soft);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 2px 8px var(--shadow);
 }
-.service-actions form {
+.servicio-card__cabecera {
   display: flex;
-  justify-content: center;
-  margin: 0;
-}
-.service-detail-panel {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 1.94% 3.75% 2.5%;
-  border: 2px solid var(--brand-primary);
-  border-radius: 22px;
-}
-.service-detail-panel h3 {
-  margin-bottom: 1.39%;
-  color: var(--brand-primary-dark);
-  font-size: 2.4rem;
-  font-weight: 300;
-}
-.months-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(260px, 1fr));
-  gap: 26px 42px;
-}
-.month-item {
-  display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  font-size: 1.1rem;
+  gap: 12px;
 }
-.month-form {
+.servicio-card__nombre {
   margin: 0;
-}
-.month-status {
-  gap: 8px;
-  min-width: 120px;
-  padding: 0.56% 0.83%;
-  border: 1px solid transparent;
+  color: var(--brand-primary-dark);
+  font-size: 1.3rem;
   font-weight: 600;
+  text-align: left;
+  text-transform: none;
+  overflow-wrap: anywhere;
 }
-.month-status.paid {
-  border-color: rgba(52, 168, 83, 0.45);
-  background: rgba(52, 168, 83, 0.12);
-  color: var(--success-alt);
+.servicio-card__dato {
+  color: rgba(30, 51, 72, 0.72);
+  font-size: 0.92rem;
 }
-.month-status.pending {
-  border-color: var(--warning-soft);
-  background: rgba(235, 180, 0, 0.12);
-  color: var(--warning);
-}
-.month-status:hover {
-  filter: brightness(0.98);
-}
-.contrato-actions {
+.servicio-card__acciones {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 0.83%;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--linea);
 }
+.servicio-card__acciones .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.servicio-card__acciones form {
+  display: flex;
+  flex: 1 1 100%;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.servicio-card__acciones form .btn {
+  width: 100%;
+}
+
 
 /* Invitación */
 .invitacion-page {
@@ -2190,22 +2137,34 @@ a.cal-cell:hover {
   cursor: pointer;
 }
 
-/* Mensajería */
+.evt-btn--secundario {
+  border: 1px solid var(--blue-main-45);
+  background: var(--white);
+  color: var(--blue-main);
+}
+.evt-btn--secundario:hover {
+  border-color: var(--blue-main);
+  background: var(--niebla);
+  color: var(--blue-dark);
+}
+
+/* Mensajería: la lista de contactos va en un panel como el resto; el chat es un solo panel con la lista al costado,
+   los mensajes sobre fondo niebla y el campo para escribir abajo. */
 .msj-page {
-  max-width: 1400px;
-  padding: 1.67% 1.67% 2.22%;
+  max-width: 1200px;
+  padding: 0 16px 32px;
 }
 .msj-empty {
-  margin: 1.67% 0;
-  color: var(--blue-main);
-  font-size: 1.05rem;
+  margin: auto;
+  padding: 32px 16px;
+  color: rgba(30, 51, 72, 0.65);
   text-align: center;
 }
 .msj-avatar {
-  width: 54px;
-  min-width: 54px;
-  height: 54px;
-  border: 2px solid var(--blue-main);
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  border: 2px solid var(--blue-soft);
   border-radius: 50%;
   background: var(--white);
   object-fit: cover;
@@ -2215,82 +2174,55 @@ a.cal-cell:hover {
   background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='%2337678B' stroke-width='4' stroke-linecap='round'%3E%3Ccircle cx='32' cy='22' r='12'/%3E%3Cpath d='M15 52c3.5-8.5 11.2-13 17-13s13.5 4.5 17 13'/%3E%3C/svg%3E") center / 62% no-repeat;
   font-size: 0;
 }
-.msj-list-view__head {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
-  margin-bottom: 1.67%;
-}
-.msj-add-btn {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  padding: 0.56% 1.11%;
-  border-radius: 4px;
-  background: var(--blue-main);
-  color: var(--white);
-  text-align: center;
-  transform: translateY(-50%);
-}
-.msj-list-view__body {
-  display: grid;
-  grid-template-columns: minmax(0, 620px) minmax(0, 1fr);
-  align-items: start;
-  gap: 32px;
-}
 .msj-contacts {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-.msj-deco {
-  justify-self: end;
-  align-self: end;
-  width: 100%;
-  max-width: 340px;
-  height: auto;
-  margin-top: 2.78%;
-  opacity: 0.25;
-  filter: grayscale(0.6);
-  pointer-events: none;
+  gap: 2px;
+  padding: 8px;
 }
 .msj-contact {
   display: flex;
   align-items: center;
   gap: 14px;
   width: 100%;
-  min-height: 92px;
-  padding: 0.97% 1.25%;
-  border-radius: 6px;
-  background: #F7F7F7;
-  color: #000;
-  transition: background 0.15s ease;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--blue-dark);
+  transition: background-color 0.15s ease;
 }
 .msj-contact:hover {
-  background: #ECECEC;
+  background: var(--niebla);
+  color: var(--blue-dark);
 }
 .msj-contact.is-active {
-  background: #E6E6E6;
+  background: var(--niebla);
+  box-shadow: inset 3px 0 0 var(--gold);
+}
+.msj-contact:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 .msj-contact__body {
   display: flex;
   flex-grow: 1;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 .msj-contact__name {
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .msj-contact__meta {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  font-size: 0.78rem;
+  color: rgba(30, 51, 72, 0.65);
+  font-size: 0.85rem;
 }
 .msj-contact__last {
   min-width: 0;
@@ -2308,59 +2240,64 @@ a.cal-cell:hover {
   color: #9AA7B3;
 }
 .msj-ticks.is-read {
-  color: var(--blue-soft);
+  color: var(--blue-main);
 }
 .msj-badge {
   min-width: 20px;
   height: 20px;
-  padding: 0 0.42%;
+  margin-left: auto;
+  padding: 0 6px;
   border-radius: 10px;
-  background: var(--blue-main);
-  color: var(--white);
-  font-size: 0.72rem;
-  font-weight: 700;
+  background: var(--gold);
+  color: var(--blue-dark);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 20px;
   text-align: center;
   white-space: nowrap;
 }
 .msj-chat-view {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
-  height: calc(100vh - 170px);
-  min-height: 460px;
-  border-top: 1px solid #DDD;
+  height: calc(100vh - var(--header-height) - 64px);
+  min-height: 480px;
+  margin-top: 28px;
+  border: 1px solid var(--blue-soft);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 2px 8px var(--shadow);
+  overflow: hidden;
 }
 .msj-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding-top: 1.67%;
-  border-right: 1px solid #C9C9C9;
+  gap: 2px;
+  padding: 10px;
+  border-right: 1px solid var(--linea);
   overflow-y: auto;
 }
-.msj-sidebar .msj-contact {
-  min-height: 84px;
-  border-radius: 0;
-}
 .msj-sidebar .msj-avatar {
-  width: 46px;
-  min-width: 46px;
-  height: 46px;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
 }
 .msj-chat {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
-  padding-left: 2.22%;
 }
 .msj-chat__head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 1.25% 0 1.25% 2.78%;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--linea);
 }
 .msj-chat__name {
-  color: #000;
-  font-size: 1.5rem;
+  color: var(--blue-dark);
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 .msj-back {
   display: none;
@@ -2370,43 +2307,49 @@ a.cal-cell:hover {
   height: 36px;
   border-radius: 50%;
   color: var(--blue-main);
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: bold;
 }
-.msj-back:hover, .msj-send:hover {
-  background: var(--blue-main-12);
+.msj-back:hover {
+  background: var(--niebla);
 }
 .msj-chat__messages {
   display: flex;
   flex-grow: 1;
   flex-direction: column;
-  gap: 22px;
+  gap: 8px;
   min-height: 0;
-  padding: 1.11% 2.22% 1.11% 0;
+  padding: 20px;
+  background: var(--niebla);
   overflow-y: auto;
 }
 .msj-bubble {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: min(340px, 75%);
-  padding: 0.83% 1.25%;
-  border-radius: 4px;
-  color: var(--white);
-  font-size: 0.9rem;
+  max-width: min(460px, 78%);
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  line-height: 1.4;
   overflow-wrap: anywhere;
+  box-shadow: 0 1px 2px rgba(30, 51, 72, 0.08);
 }
 .msj-bubble__text {
   white-space: pre-wrap;
 }
 .msj-bubble--mine {
   align-self: flex-end;
+  border-bottom-right-radius: 4px;
   background: var(--blue-main);
+  color: var(--white);
 }
 .msj-bubble--theirs {
   align-self: flex-start;
-  background: var(--blue-soft);
-  text-align: right;
+  border: 1px solid var(--linea);
+  border-bottom-left-radius: 4px;
+  background: var(--white);
+  color: var(--blue-dark);
 }
 .msj-bubble__meta {
   display: inline-flex;
@@ -2415,47 +2358,50 @@ a.cal-cell:hover {
   gap: 4px;
 }
 .msj-bubble__time {
-  font-size: 0.7rem;
-  opacity: 0.75;
+  font-size: 0.72rem;
+  opacity: 0.7;
 }
 .msj-ticks--bubble {
   color: rgba(255, 255, 255, 0.7);
 }
 .msj-ticks--bubble.is-read {
-  color: #7FD4FF;
+  color: var(--gold-soft);
 }
-.msj-chat__form {
+form.msj-chat__form {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 1.11% 2.22% 0.56% 0;
+  gap: 10px;
+  max-width: none;
+  margin: 0;
+  padding: 12px 16px;
+  border-top: 1px solid var(--linea);
 }
 .msj-input {
   flex-grow: 1;
   width: 0;
-  min-height: 46px;
-  padding: 0.69% 1.11%;
-  border: 1px solid var(--blue-soft);
-  border-radius: 4px;
-  background: rgba(125, 167, 198, 0.08);
-  color: #000;
-}
-.msj-input:focus {
-  border-color: var(--blue-main);
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--blue-main-45);
+  border-radius: 999px;
   background: var(--white);
+  color: var(--blue-dark);
 }
 .msj-send {
-  width: 46px;
-  min-width: 46px;
-  height: 46px;
-  padding: 0.56%;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
   border-radius: 50%;
-  background: transparent;
-  color: var(--blue-main);
+  background: var(--blue-main);
+  color: var(--white);
+}
+.msj-send:hover {
+  background: var(--blue-dark);
 }
 .msj-send svg {
-  width: 28px;
-  height: 28px;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
 }
 
 /* Campos de contraseña y teléfono */
@@ -2478,6 +2424,7 @@ a.cal-cell:hover {
   margin: 0;
   background: transparent;
   color: #666;
+  box-shadow: none;
 }
 .password-toggle:hover {
   color: #000;
@@ -2519,30 +2466,6 @@ a.cal-cell:hover {
 }
 
 /* ---- Revisión y lectura del contrato ---- */
-.revision-contrato {
-  max-width: 1000px;
-  padding: 1.5% 2% 3%;
-}
-.revision-contrato h3 {
-  margin-top: 1.6rem;
-  font-size: 1.2rem;
-}
-.revision-estado, .revision-origen {
-  display: inline-block;
-  padding: 0.07% 0.69%;
-  border-radius: 999px;
-  background: var(--blue-main-12);
-  color: var(--brand-primary-dark);
-  font-weight: 600;
-}
-.revision-regimen {
-  margin: 0.8rem 0;
-}
-.revision-grid, .revision-lectura {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-}
 .revision-ayuda {
   display: block;
   color: #5b6b7a;
@@ -2583,33 +2506,19 @@ a.cal-cell:hover {
   margin: 4px 0 0;
   padding-left: 20px;
 }
-.revision-tabla-wrap {
-  overflow-x: auto;
-}
-.revision-tabla {
-  width: 100%;
-  border-collapse: collapse;
-}
-.revision-tabla th, .revision-tabla td {
-  padding: 0.56% 0.69%;
-  border-bottom: 1px solid var(--blue-soft-42);
-  vertical-align: top;
-  text-align: left;
-}
-.revision-tabla th {
-  background: var(--blue-main-12);
-  color: var(--blue-dark);
-}
-.revision-tabla .form-control {
-  min-width: 110px;
-}
 .revision-clausula {
   max-width: 340px;
   font-size: 0.88rem;
   color: #3d4f5f;
 }
 .revision-origen {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--blue-main-12);
+  color: var(--brand-primary-dark);
   font-size: 0.8rem;
+  font-weight: 600;
 }
 .revision-origen--ia {
   background: rgba(52, 168, 83, 0.14);
@@ -2618,15 +2527,6 @@ a.cal-cell:hover {
 .revision-origen--manual {
   background: var(--warning-soft);
   color: #7a5200;
-}
-.revision-partes {
-  padding-left: 20px;
-}
-.revision-lectura {
-  gap: 0 24px;
-}
-.revision-lectura p {
-  margin: 4px 0;
 }
 .contrato-pendiente {
   display: flex;
@@ -2802,7 +2702,7 @@ a.cal-cell:hover {
   .bienvenida__card {
     width: 100%;
   }
-  .perfil-header-row, .perfil-fields, .perfil-contact-grid, .summary-detail, .msj-list-view__body, .msj-chat-view, .revision-grid, .revision-lectura {
+  .perfil-header-row, .perfil-fields, .perfil-contact-grid, .summary-detail, .msj-chat-view, .revision-grid {
     grid-template-columns: 1fr;
   }
   .resumen-propiedad-box {
@@ -2827,34 +2727,21 @@ a.cal-cell:hover {
     flex-wrap: wrap;
     margin-top: 3%;
   }
-  .msj-page {
-    padding: 2.08%;
-  }
-  .msj-list-view__head {
-    flex-direction: column;
-    gap: 12px;
-  }
-  .msj-add-btn {
-    position: static;
-    transform: none;
-  }
-  .msj-deco, .msj-sidebar {
+  .msj-sidebar {
     display: none;
   }
   .msj-chat-view {
-    height: calc(100vh - 140px);
-  }
-  .msj-chat {
-    padding: 0;
+    height: calc(100vh - 150px);
+    margin-top: 16px;
   }
   .msj-chat__head {
-    padding-left: 0;
+    padding: 10px 12px;
   }
   .msj-back {
     display: inline-flex;
   }
-  .msj-chat__messages, .msj-chat__form {
-    padding-right: 0;
+  .msj-chat__messages {
+    padding: 14px;
   }
 }
 
@@ -2862,7 +2749,7 @@ a.cal-cell:hover {
   h1 {
     font-size: 2.6rem;
   }
-  button, .btn, .landing-hero__btn, .msj-add-btn {
+  button, .btn, .landing-hero__btn {
     width: 100%;
   }
   .oso-menu, .oso-icon {
@@ -2967,4 +2854,446 @@ a.cal-cell:hover {
 .cargar-mes__tabla .campo-monto,
 .cargar-mes__tabla .campo-vencimiento {
   min-width: 120px;
+}
+
+/* Quién paga: lo de la otra parte va en una etiqueta gris, para que no se lea como algo a pagar. */
+.quien-paga {
+  font-size: 0.9rem;
+  color: var(--blue-dark);
+}
+.quien-paga--otro {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--niebla);
+  border: 1px solid var(--linea);
+  font-weight: 600;
+}
+
+.cargar-mes__adjuntar {
+  display: inline-block;
+  cursor: pointer;
+  color: var(--brand-primary);
+  text-decoration: underline;
+  font-size: 0.9rem;
+}
+.cargar-mes__adjuntar:focus-within {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+.cargar-mes__adjuntar[hidden] {
+  display: none;
+}
+
+/* ---- Piezas comunes de las pantallas ----
+   Las mismas de Mis gastos y Expensas: título centrado con su bajada, paneles blancos con borde celeste,
+   campos con la etiqueta chica arriba y los botones de cierre abajo a la derecha. */
+.pagina {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+}
+.pagina--angosta {
+  max-width: 760px;
+}
+.pagina-bajada {
+  max-width: 720px;
+  margin: -6px auto 28px;
+  color: rgba(30, 51, 72, 0.75);
+  line-height: 1.5;
+  text-align: center;
+}
+.pagina-bajada strong {
+  color: var(--blue-dark);
+}
+.pagina-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 auto 28px;
+}
+.panel {
+  max-width: 1100px;
+  margin: 0 auto 24px;
+  padding: 24px;
+  border: 1px solid var(--blue-soft);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+.panel > h3, .panel__cabecera h3 {
+  margin: 0 0 14px;
+  color: var(--brand-primary-dark);
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-align: left;
+}
+.panel__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+.panel__cabecera h3 {
+  margin: 0;
+}
+.panel__nota {
+  margin: -6px 0 16px;
+  color: rgba(30, 51, 72, 0.7);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.panel .tabla-wrap {
+  box-shadow: none;
+}
+.panel--destacado {
+  border-color: var(--blue-main);
+  background: var(--niebla);
+  box-shadow: inset 4px 0 0 var(--gold), 0 2px 8px var(--shadow);
+}
+
+/* Formularios dentro de un panel */
+form.form-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: none;
+  margin: 0 auto 24px;
+  padding: 24px;
+}
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.campo > label, .campo__etiqueta {
+  margin: 0;
+  color: var(--blue-main);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.campo__ayuda {
+  color: rgba(30, 51, 72, 0.65);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.campos-fila {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.factura-lector__fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.factura-lector__fila input[type="file"] {
+  flex: 1 1 240px;
+  width: auto;
+}
+.factura-lector .factura-estado:empty {
+  display: none;
+}
+.form-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 18px;
+  border-top: 1px solid var(--linea);
+}
+.form-acciones--centro {
+  justify-content: center;
+  padding-top: 8px;
+  border-top: none;
+}
+.form-acciones__aparte {
+  margin-right: auto;
+}
+
+/* Datos de solo lectura: etiqueta chica arriba y el valor abajo, en columnas */
+.datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 18px 28px;
+  margin: 0;
+}
+.datos > div {
+  min-width: 0;
+}
+.datos dt {
+  margin-bottom: 3px;
+  color: rgba(30, 51, 72, 0.6);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.datos dd {
+  margin: 0;
+  color: var(--blue-dark);
+  font-size: 1.05rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.datos__ancho {
+  grid-column: 1 / -1;
+}
+
+/* Etiquetas de estado que no son de pago */
+.estado-pill--neutro {
+  background: var(--niebla);
+  color: rgba(30, 51, 72, 0.7);
+}
+.estado-pill--info {
+  background: var(--blue-main-12);
+  color: var(--brand-primary-dark);
+}
+
+/* Avisos de Bootstrap con el mismo radio y la franja lateral que el resto */
+.alert {
+  border-left-width: 4px;
+  border-radius: var(--radio-control);
+  line-height: 1.5;
+}
+.pagina > .alert, .pagina > .aviso-pagina {
+  margin-bottom: 20px;
+}
+/* Avisos sueltos (sin .pagina alrededor, como en Mis propiedades): al ancho de los paneles */
+.main > .alert {
+  max-width: 1100px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+/* ---- Notificaciones ---- */
+.notif-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.notif {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 16px 4px;
+  border-bottom: 1px solid var(--linea);
+}
+.notif:first-child {
+  padding-top: 4px;
+}
+.notif:last-child {
+  padding-bottom: 4px;
+  border-bottom: none;
+}
+.notif__punto {
+  align-self: start;
+  width: 8px;
+  height: 8px;
+  margin-top: 7px;
+  border-radius: 50%;
+}
+.notif--nueva .notif__punto {
+  background: var(--gold);
+}
+.notif__texto {
+  color: var(--blue-dark);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.notif--nueva .notif__texto {
+  font-weight: 600;
+}
+.notif__fecha {
+  display: block;
+  margin-top: 3px;
+  color: rgba(30, 51, 72, 0.6);
+  font-size: 0.82rem;
+}
+@media (max-width: 640px) {
+  .notif {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+  .notif__accion {
+    grid-column: 2;
+    margin-top: 8px;
+  }
+}
+
+/* ---- Contrato ---- */
+.revision-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.revision-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.revision-campo > label {
+  margin: 0;
+  color: var(--blue-main);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.revision-campo.campo-dudoso {
+  padding: 10px 12px;
+}
+.revision-grid {
+  gap: 18px 24px;
+}
+.revision-errores, .revision-advertencias {
+  padding: 12px 16px;
+  border-left-width: 4px;
+  border-radius: var(--radio-control);
+  line-height: 1.5;
+}
+.revision-errores {
+  border-left-color: var(--danger-strong);
+}
+.revision-advertencias {
+  border-left-color: var(--warning);
+}
+.table select, .table input[type="number"] {
+  min-height: 36px;
+}
+.table .regla-porcentaje {
+  max-width: 110px;
+}
+.table tr.campo-dudoso td {
+  background: rgba(235, 180, 0, 0.1);
+}
+.table tr.campo-dudoso td:first-child {
+  box-shadow: inset 4px 0 0 var(--warning);
+}
+.contrato-partes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.contrato-partes li {
+  margin: 0;
+  line-height: 1.5;
+}
+.contrato-descartar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: none;
+  margin: 0 auto;
+  padding: 16px 0 0;
+  color: rgba(30, 51, 72, 0.7);
+  font-size: 0.92rem;
+}
+.ajuste-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.ajuste-calculo {
+  margin: 0 0 8px;
+}
+.contrato-pendiente {
+  max-width: 1100px;
+  margin: 0 auto 16px;
+}
+.foto-propiedad--panel {
+  width: 100%;
+  max-width: none;
+  max-height: 260px;
+  margin: 0 0 20px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+@media (max-width: 560px) {
+  .panel, form.form-panel {
+    padding: 18px;
+  }
+  .campos-fila {
+    grid-template-columns: 1fr;
+  }
+  .form-acciones {
+    justify-content: stretch;
+  }
+  .form-acciones__aparte {
+    margin-right: 0;
+  }
+}
+
+/* Formulario de un solo botón dentro de una fila o de una línea de acciones */
+form.form-en-linea {
+  display: inline-flex;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+/* Formulario que envuelve varios paneles: sin el ancho ni el margen de los formularios sueltos */
+form.form-libre {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.table .col-accion > * + * {
+  margin-left: 6px;
+}
+
+/* La lista de contactos usa el panel pero con poco aire: cada fila ya tiene el suyo */
+.panel.msj-contacts {
+  padding: 8px;
+}
+
+/* CargarMes: "Incluido en otra factura" y "Quitar" se ven como links, no como botones llenos */
+.cargar-mes__marcar-incluido, .cargar-mes__incluido .btn-link {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  height: auto;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--blue-main);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  white-space: normal;
+  box-shadow: none;
+}
+.cargar-mes__marcar-incluido:hover, .cargar-mes__incluido .btn-link:hover {
+  background: transparent;
+  color: var(--blue-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cargar-mes__marcar-ayuda {
+  color: rgba(30, 51, 72, 0.6);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.cargar-mes__marcar-incluido[hidden] {
+  display: none;
+}
+@media (max-width: 520px) {
+  .cargar-mes__marcar-incluido, .cargar-mes__incluido .btn-link {
+    width: auto;
+  }
 }

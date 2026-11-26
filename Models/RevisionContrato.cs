@@ -30,6 +30,10 @@ public class RevisionContrato
     public List<string> Advertencias { get; set; } = new();
     public List<ParteExtraida> Partes { get; set; } = new();
     public bool DesdeIa { get; set; }
+    // Se subió un archivo para que lo lea la IA, pero no hay ninguna lectura exitosa: los datos están sin completar.
+    public bool LecturaFallida { get; set; }
+    // Por qué falló, si quedó registrado. Null si la lectura se cortó antes de terminar (se recargó la página, se reinició la app...).
+    public string? MotivoLecturaFallida { get; set; }
     public List<CampoRevision> CamposDudosos { get; set; } = new();
     public List<CampoRevision> Campos { get; set; } = new();
 

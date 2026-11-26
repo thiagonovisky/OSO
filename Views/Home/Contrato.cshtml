@@ -7,182 +7,208 @@
     var calculo = ViewBag.CalculoAjuste as OSO.Models.ResultadoAjuste;
 }
 
-<h2>Contrato</h2>
+<div class="pagina">
+    <h2 class="pagina-titulo">Contrato</h2>
+    <p class="pagina-bajada"><strong>@Model.Direccion</strong></p>
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
-
-@if (TempData["Success"] != null)
-{
-    <div class="alert alert-success">@TempData["Success"]</div>
-}
-
-@if (contrato != null)
-{
-    @if (contrato.EmpiezaEnElFuturo)
+    @if (TempData["Error"] != null)
     {
-        <div class="alert alert-info">Este contrato está confirmado y empieza el @contrato.FechaInicio.ToString("dd/MM/yyyy").</div>
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
     }
-    <div class="card p-3 mb-3">
-        <p><strong>Propiedad:</strong> @Model.Direccion</p>
-        <p><strong>Inquilino:</strong> @ViewBag.NombreInquilino</p>
-        <p><strong>Fecha inicio:</strong> @contrato.FechaInicio.ToString("dd/MM/yyyy")</p>
-        <p><strong>Fecha fin:</strong> @contrato.FechaFin.ToString("dd/MM/yyyy")</p>
-        <p><strong>Alquiler actual:</strong> @Formato.Pesos(contrato.MontoAlquiler)</p>
-        @if (!string.IsNullOrEmpty(contrato.RegimenLegal))
-        {
-            <p><strong>Régimen legal:</strong> @OSO.Models.ReglasContrato.NombreRegimen(contrato.RegimenLegal)</p>
-        }
-        @if (!string.IsNullOrEmpty(contrato.ArchivoContrato))
-        {
-            <p><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@contrato.IdContrato" target="_blank">Ver el archivo del contrato</a></p>
-        }
-    </div>
 
-    <div class="card p-3 mb-3 ajuste-card">
-        <h3>Ajuste del alquiler</h3>
-        @if (string.IsNullOrEmpty(contrato.IndiceAjuste) || proximoAjuste == null)
-        {
-            <p>Este contrato no tiene más ajustes programados.</p>
-        }
-        else
-        {
-            <p>
-                <strong>Próximo ajuste:</strong> @proximoAjuste.Value.ToString("dd/MM/yyyy")
-                (@contrato.IndiceConPorcentaje, cada @contrato.FrecuenciaAjusteMeses meses)
-            </p>
-            @if (calculo?.MontoNuevo != null)
-            {
-                <p><strong>Monto calculado:</strong> @Formato.Pesos(calculo.MontoNuevo)
-                    @if (calculo.TieneDetalleIndices)
-                    {
-                        <small>(@contrato.IndiceAjuste @Formato.Numero(calculo.ValorHasta, "0.####") / @Formato.Numero(calculo.ValorDesde, "0.####"))</small>
-                    }
-                </p>
-            }
-            else
-            {
-                <p class="ajuste-faltante">@(calculo?.Faltante ?? "No se pudo calcular el ajuste.")</p>
-            }
-
-            @if (contrato.IndiceAjuste == "CasaPropia")
-            {
-                <p class="revision-ayuda">Cálculo a confirmar: la fuente oficial no detalla cómo se aplica el coeficiente de Casa Propia a los alquileres.</p>
-            }
-
-            @if (ViewBag.PuedeAplicarAjuste == true)
-            {
-                <form asp-action="AplicarAjuste" asp-controller="Home" method="post" class="ajuste-form">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="idContrato" value="@contrato.IdContrato" />
-                    @if (contrato.PermiteMontoManual)
-                    {
-                        <label for="montoManual">Monto a aplicar (podés cambiarlo)</label>
-                        <input type="number" step="0.01" min="0.01" name="montoManual" id="montoManual" class="form-control"
-                               value="@Formato.ParaInput(calculo?.MontoNuevo)"
-                               data-calculado="@Formato.ParaInput(calculo?.MontoNuevo)" />
-                        <small id="avisoAjuste" class="ajuste-aviso" hidden>Ese monto se aleja más de un 5% del calculado por el índice. Se puede aplicar igual: el DNU 70/2023 no pone tope.</small>
-                    }
-                    else
-                    {
-                        <p class="revision-ayuda">Por la ley, el monto es el calculado: no se puede cambiar.</p>
-                    }
-                    <button type="submit" class="btn btn-primary" disabled="@(!contrato.PermiteMontoManual && calculo?.MontoNuevo == null)">Aplicar ajuste</button>
-                </form>
-            }
-            else
-            {
-                <p class="revision-ayuda">Podés aplicarlo a partir de esa fecha.</p>
-            }
-        }
-
-        @if (ajustes.Count > 0)
-        {
-            <h4>Historial de ajustes</h4>
-            <table class="revision-tabla">
-                <thead><tr><th>Fecha</th><th>Índice</th><th>Antes</th><th>Después</th><th>Origen</th></tr></thead>
-                <tbody>
-                    @foreach (var ajuste in ajustes)
-                    {
-                        <tr>
-                            <td>@ajuste.Fecha.ToString("dd/MM/yyyy")</td>
-                            <td>@ajuste.Indice</td>
-                            <td>@Formato.Pesos(ajuste.MontoAnterior)</td>
-                            <td>@Formato.Pesos(ajuste.MontoNuevo)
-                                @if (ajuste.MuestraMontoCalculado)
-                                {
-                                    <small>(calculado: @Formato.Pesos(ajuste.MontoCalculado))</small>
-                                }
-                            </td>
-                            <td>@ajuste.Origen</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-    </div>
-
-    <script>
-        (function () {
-            var input = document.getElementById('montoManual');
-            if (!input) { return; }
-            var calculado = parseFloat(input.dataset.calculado);
-            var aviso = document.getElementById('avisoAjuste');
-            input.addEventListener('input', function () {
-                var propuesto = parseFloat(input.value);
-                aviso.hidden = !(calculado > 0 && propuesto > 0 && Math.abs(propuesto - calculado) / calculado > 0.05);
-            });
-        })();
-    </script>
-}
-else if (enCurso != null)
-{
-    <div class="alert alert-warning">
-        @(enCurso.EsBorrador
-            ? "Hay un contrato en borrador: falta que lo revises y lo confirmes."
-            : "El contrato está esperando que el inquilino lo acepte.")
-    </div>
-}
-else
-{
-    <div class="alert alert-warning">No hay un contrato activo para esta propiedad.</div>
-}
-
-@if (ViewBag.UltimoFinalizado is OSO.Models.Contratos terminado && contrato == null)
-{
-    <div class="card p-3 mb-3">
-        <h3>Último contrato terminado</h3>
-        <p><strong>Plazo:</strong> @terminado.FechaInicio.ToString("dd/MM/yyyy") al @terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")
-            · <strong>Motivo:</strong> @OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)</p>
-        @if (!string.IsNullOrWhiteSpace(terminado.DescripcionFin))
-        {
-            <p><strong>Descripción:</strong> @terminado.DescripcionFin</p>
-        }
-        @if (!string.IsNullOrWhiteSpace(terminado.DisconformidadInquilino))
-        {
-            <div class="alert alert-warning">
-                <strong>El inquilino dejó constancia de su disconformidad</strong> (@terminado.FechaDisconformidad?.ToString("dd/MM/yyyy HH:mm")):
-                <br />@terminado.DisconformidadInquilino
-            </div>
-        }
-        @if (!string.IsNullOrEmpty(terminado.ArchivoContrato))
-        {
-            <p><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@terminado.IdContrato" target="_blank">Ver el archivo del contrato</a></p>
-        }
-    </div>
-}
-
-<div class="contrato-actions">
-    @if (contrato == null && enCurso == null)
+    @if (TempData["Success"] != null)
     {
-        <a asp-action="SubirContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Subir contrato (IA)</a>
-        <a asp-action="CrearContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Cargar a mano</a>
+        <div class="alert alert-success" role="status">@TempData["Success"]</div>
+    }
+
+    @if (contrato != null)
+    {
+        @if (contrato.EmpiezaEnElFuturo)
+        {
+            <p class="aviso-pagina">Este contrato está confirmado y empieza el @contrato.FechaInicio.ToString("dd/MM/yyyy").</p>
+        }
+
+        <section class="panel">
+            <div class="panel__cabecera">
+                <h3>Contrato vigente</h3>
+                @if (!string.IsNullOrEmpty(contrato.ArchivoContrato))
+                {
+                    <a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@contrato.IdContrato" target="_blank" class="btn btn-secondary btn-sm">Ver el archivo del contrato</a>
+                }
+            </div>
+            <dl class="datos">
+                <div><dt>Inquilino</dt><dd>@ViewBag.NombreInquilino</dd></div>
+                <div><dt>Inicio</dt><dd>@contrato.FechaInicio.ToString("dd/MM/yyyy")</dd></div>
+                <div><dt>Fin</dt><dd>@contrato.FechaFin.ToString("dd/MM/yyyy")</dd></div>
+                <div><dt>Alquiler actual</dt><dd>@Formato.Pesos(contrato.MontoAlquiler)</dd></div>
+                @if (!string.IsNullOrEmpty(contrato.RegimenLegal))
+                {
+                    <div><dt>Régimen legal</dt><dd>@OSO.Models.ReglasContrato.NombreRegimen(contrato.RegimenLegal)</dd></div>
+                }
+            </dl>
+        </section>
+
+        <section class="panel ajuste-card">
+            <h3>Ajuste del alquiler</h3>
+            @if (string.IsNullOrEmpty(contrato.IndiceAjuste) || proximoAjuste == null)
+            {
+                <p class="panel__nota">Este contrato no tiene más ajustes programados.</p>
+            }
+            else
+            {
+                <dl class="datos">
+                    <div><dt>Próximo ajuste</dt><dd>@proximoAjuste.Value.ToString("dd/MM/yyyy")</dd></div>
+                    <div><dt>Índice</dt><dd>@contrato.IndiceConPorcentaje, cada @contrato.FrecuenciaAjusteMeses meses</dd></div>
+                    @if (calculo?.MontoNuevo != null)
+                    {
+                        <div>
+                            <dt>Monto calculado</dt>
+                            <dd>
+                                @Formato.Pesos(calculo.MontoNuevo)
+                                @if (calculo.TieneDetalleIndices)
+                                {
+                                    <small class="celda-sub">@contrato.IndiceAjuste @Formato.Numero(calculo.ValorHasta, "0.####") / @Formato.Numero(calculo.ValorDesde, "0.####")</small>
+                                }
+                            </dd>
+                        </div>
+                    }
+                </dl>
+
+                @if (calculo?.MontoNuevo == null)
+                {
+                    <p class="ajuste-faltante mt-3">@(calculo?.Faltante ?? "No se pudo calcular el ajuste.")</p>
+                }
+
+                @if (contrato.IndiceAjuste == "CasaPropia")
+                {
+                    <p class="campo__ayuda mt-3">Cálculo a confirmar: la fuente oficial no detalla cómo se aplica el coeficiente de Casa Propia a los alquileres.</p>
+                }
+
+                @if (ViewBag.PuedeAplicarAjuste == true)
+                {
+                    <form asp-action="AplicarAjuste" asp-controller="Home" method="post" class="ajuste-form">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="idContrato" value="@contrato.IdContrato" />
+                        @if (contrato.PermiteMontoManual)
+                        {
+                            <div class="campo">
+                                <label for="montoManual">Monto a aplicar (podés cambiarlo)</label>
+                                <input type="number" step="0.01" min="0.01" name="montoManual" id="montoManual"
+                                       value="@Formato.ParaInput(calculo?.MontoNuevo)"
+                                       data-calculado="@Formato.ParaInput(calculo?.MontoNuevo)" />
+                                <small id="avisoAjuste" class="ajuste-aviso" hidden>Ese monto se aleja más de un 5% del calculado por el índice. Se puede aplicar igual: el DNU 70/2023 no pone tope.</small>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="campo__ayuda">Por la ley, el monto es el calculado: no se puede cambiar.</p>
+                        }
+                        <div>
+                            <button type="submit" class="btn btn-primary" disabled="@(!contrato.PermiteMontoManual && calculo?.MontoNuevo == null)">Aplicar ajuste</button>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <p class="campo__ayuda mt-3">Podés aplicarlo a partir de esa fecha.</p>
+                }
+            }
+
+            @if (ajustes.Count > 0)
+            {
+                <h3 class="mt-4">Historial de ajustes</h3>
+                <div class="tabla-wrap"><table class="table">
+                    <thead><tr><th>Fecha</th><th>Índice</th><th class="col-monto">Antes</th><th class="col-monto">Después</th><th>Origen</th></tr></thead>
+                    <tbody>
+                        @foreach (var ajuste in ajustes)
+                        {
+                            <tr>
+                                <td><strong>@ajuste.Fecha.ToString("dd/MM/yyyy")</strong></td>
+                                <td data-label="Índice">@ajuste.Indice</td>
+                                <td data-label="Antes" class="col-monto">@Formato.Pesos(ajuste.MontoAnterior)</td>
+                                <td data-label="Después" class="col-monto">
+                                    @Formato.Pesos(ajuste.MontoNuevo)
+                                    @if (ajuste.MuestraMontoCalculado)
+                                    {
+                                        <small class="celda-sub">calculado: @Formato.Pesos(ajuste.MontoCalculado)</small>
+                                    }
+                                </td>
+                                <td data-label="Origen">@ajuste.Origen</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table></div>
+            }
+        </section>
+
+        <script>
+            (function () {
+                var input = document.getElementById('montoManual');
+                if (!input) { return; }
+                var calculado = parseFloat(input.dataset.calculado);
+                var aviso = document.getElementById('avisoAjuste');
+                input.addEventListener('input', function () {
+                    var propuesto = parseFloat(input.value);
+                    aviso.hidden = !(calculado > 0 && propuesto > 0 && Math.abs(propuesto - calculado) / calculado > 0.05);
+                });
+            })();
+        </script>
     }
     else if (enCurso != null)
     {
-        <a asp-action="RevisarContrato" asp-controller="Home" asp-route-idContrato="@enCurso.IdContrato" class="btn btn-primary">@(enCurso.EsBorrador ? "Seguir revisando" : "Ver contrato")</a>
+        <p class="aviso-pagina">
+            @(enCurso.EsBorrador
+                ? "Hay un contrato en borrador: falta que lo revises y lo confirmes."
+                : "El contrato está esperando que el inquilino lo acepte.")
+        </p>
     }
-    <a asp-action="Propiedades" asp-controller="Home" class="btn btn-primary">Volver</a>
+    else
+    {
+        <div class="seccion-gastos gastos-vacio">
+            <span class="bienvenida__icon"><partial name="_IconoMenu" model="@("Propiedades")" /></span>
+            <p class="gastos-vacio__titulo">No hay un contrato activo para esta propiedad</p>
+            <p>Subí el contrato firmado y la IA completa los datos por vos, o cargalo a mano. Después lo revisás y se lo enviás al inquilino para que lo acepte.</p>
+        </div>
+    }
+
+    @if (ViewBag.UltimoFinalizado is OSO.Models.Contratos terminado && contrato == null)
+    {
+        <section class="panel">
+            <div class="panel__cabecera">
+                <h3>Último contrato terminado</h3>
+                @if (!string.IsNullOrEmpty(terminado.ArchivoContrato))
+                {
+                    <a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@terminado.IdContrato" target="_blank" class="btn btn-secondary btn-sm">Ver el archivo del contrato</a>
+                }
+            </div>
+            <dl class="datos">
+                <div><dt>Plazo</dt><dd>@terminado.FechaInicio.ToString("dd/MM/yyyy") al @terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")</dd></div>
+                <div><dt>Motivo</dt><dd>@OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)</dd></div>
+                @if (!string.IsNullOrWhiteSpace(terminado.DescripcionFin))
+                {
+                    <div class="datos__ancho"><dt>Descripción</dt><dd>@terminado.DescripcionFin</dd></div>
+                }
+            </dl>
+            @if (!string.IsNullOrWhiteSpace(terminado.DisconformidadInquilino))
+            {
+                <div class="alert alert-warning mt-3 mb-0">
+                    <strong>El inquilino dejó constancia de su disconformidad</strong> (@terminado.FechaDisconformidad?.ToString("dd/MM/yyyy HH:mm")):
+                    <br />@terminado.DisconformidadInquilino
+                </div>
+            }
+        </section>
+    }
+
+    <div class="form-acciones form-acciones--centro">
+        <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Volver</a>
+        @if (contrato == null && enCurso == null)
+        {
+            <a asp-action="CrearContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Cargar a mano</a>
+            <a asp-action="SubirContrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Subir contrato (IA)</a>
+        }
+        else if (enCurso != null)
+        {
+            <a asp-action="RevisarContrato" asp-controller="Home" asp-route-idContrato="@enCurso.IdContrato" class="btn btn-primary">@(enCurso.EsBorrador ? "Seguir revisando" : "Ver contrato")</a>
+        }
+    </div>
 </div>

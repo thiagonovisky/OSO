@@ -1,5 +1,6 @@
-// "Cargar el mes": el propietario suelta varias facturas, se mandan de a una a LeerFacturaParaMes (la IA las lee y dice
-// en qué fila va cada una) y se completan las filas. Nada se guarda hasta que aprieta "Guardar los completos".
+// "Cargar el mes": quien recibe las facturas (propietario o inquilino) suelta varias, se mandan de a una a LeerFacturaParaMes
+// (la IA las lee y dice en qué fila va cada una), se completan las filas y cada archivo queda adjunto a su fila.
+// Nada se guarda hasta que aprieta "Guardar los completos"; ahí cada factura se guarda con su gasto.
 (function () {
     var formulario = document.getElementById('cargar-mes');
     if (!formulario) { return; }
@@ -37,13 +38,40 @@
         return nombreMes(tr.dataset.periodo) + ' · ' + tr.dataset.direccion + ' · ' + tr.dataset.servicio;
     }
 
+    // Pone el archivo en el campo de factura de la fila, para que se envíe (y se guarde) con ella.
+    function adjuntar(tr, archivo) {
+        var entradaFila = campo(tr, 'campo-factura');
+        try {
+            var dt = new DataTransfer();
+            dt.items.add(archivo);
+            entradaFila.files = dt.files;
+        } catch (err) {
+            // Navegador sin DataTransfer: la fila se completa igual, la factura se adjunta a mano.
+            return;
+        }
+        mostrarAdjunta(tr);
+    }
+
+    function mostrarAdjunta(tr) {
+        var entradaFila = campo(tr, 'campo-factura');
+        var texto = campo(tr, 'cargar-mes__adjuntar-texto');
+        var hay = entradaFila.files && entradaFila.files.length > 0;
+        texto.textContent = hay ? 'Cambiar factura' : 'Adjuntar factura';
+        var aviso = campo(tr, 'cargar-mes__aviso-factura');
+        if (aviso) { aviso.hidden = hay; }
+        if (hay && !campo(tr, 'cargar-mes__origen').textContent) {
+            campo(tr, 'cargar-mes__origen').textContent = '📄 ' + entradaFila.files[0].name;
+        }
+    }
+
     function completarFila(tr, r, archivo, marca) {
         // Dos decimales: si no, el campo (step 0.01) no deja guardar.
         if (r.monto !== null && r.monto !== undefined) { campo(tr, 'campo-monto').value = (Math.round(r.monto * 100) / 100).toString(); }
         if (r.vencimiento) { campo(tr, 'campo-vencimiento').value = r.vencimiento; }
         var origen = campo(tr, 'cargar-mes__origen');
-        origen.textContent = (marca === 'Leida' ? '📄 leída: ' : '📄 revisar: ') + archivo;
+        origen.textContent = (marca === 'Leida' ? '📄 leída: ' : '📄 revisar: ') + archivo.name;
         origen.classList.toggle('text-warning', marca !== 'Leida');
+        adjuntar(tr, archivo);
     }
 
     // El mes queda cubierto por la factura de otro mes: no pide monto y se guarda como "incluido".
@@ -54,6 +82,12 @@
         campo(tr, 'campo-vencimiento').disabled = true;
         campo(tr, 'campo-incluido').value = mesFactura.substring(0, 7) + '-01';
         campo(tr, 'cargar-mes__marcar-incluido').hidden = true;
+        // Un mes incluido no lleva factura propia: va en la del mes que lo incluye.
+        campo(tr, 'campo-factura').value = '';
+        campo(tr, 'cargar-mes__adjuntar').hidden = true;
+        campo(tr, 'cargar-mes__origen').textContent = '';
+        var aviso = campo(tr, 'cargar-mes__aviso-factura');
+        if (aviso) { aviso.hidden = true; }
 
         var texto = campo(tr, 'cargar-mes__incluido');
         texto.hidden = false;
@@ -72,6 +106,8 @@
         campo(tr, 'campo-incluido').value = '';
         campo(tr, 'cargar-mes__incluido').hidden = true;
         campo(tr, 'cargar-mes__marcar-incluido').hidden = false;
+        campo(tr, 'cargar-mes__adjuntar').hidden = false;
+        mostrarAdjunta(tr);
     }
 
     // Marcar a mano: se elige de qué mes es la factura que lo incluye (los dos meses siguientes).
@@ -150,7 +186,7 @@
                 selector.value = '';
                 return;
             }
-            completarFila(tr, r, archivo.name, 'Revisar');
+            completarFila(tr, r, archivo, 'Revisar');
             li.remove();
             if (!listaParaUbicar.children.length) { paraUbicar.hidden = true; }
         });
@@ -166,7 +202,7 @@
             return;
         }
 
-        completarFila(tr, r, archivo.name, r.estado);
+        completarFila(tr, r, archivo, r.estado);
         (r.clavesIncluidas || []).forEach(function (clave) {
             var anterior = fila(clave);
             if (anterior && !tieneDatos(anterior)) { marcarIncluida(anterior, r.periodo); }
@@ -251,6 +287,15 @@
     });
 
     entrada.addEventListener('change', function () { recibir(entrada.files); entrada.value = ''; });
+
+    // Factura adjuntada a mano en una fila.
+    formulario.addEventListener('change', function (e) {
+        if (!e.target.classList.contains('campo-factura')) { return; }
+        var tr = e.target.closest('tr');
+        campo(tr, 'cargar-mes__origen').textContent = '';
+        campo(tr, 'cargar-mes__origen').classList.remove('text-warning');
+        mostrarAdjunta(tr);
+    });
 
     zona.addEventListener('dragover', function (e) { e.preventDefault(); zona.classList.add('cargar-mes__zona--activa'); });
     zona.addEventListener('dragleave', function () { zona.classList.remove('cargar-mes__zona--activa'); });

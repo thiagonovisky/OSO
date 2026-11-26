@@ -4,36 +4,38 @@
     var sugeridos = ViewBag.TiposSugeridos as List<string> ?? new List<string>();
 }
 
-<h2>Agregar tipo de gasto</h2>
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Agregar tipo de gasto</h2>
+    @if (propiedad != null)
+    {
+        <p class="pagina-bajada"><strong>@propiedad.Direccion</strong></p>
+    }
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
 
+    <form asp-action="GuardarTipoGasto" asp-controller="Home" method="post" class="panel form-panel">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
 
-@if (propiedad != null)
-{
-    <p>Propiedad: @propiedad.Direccion</p>
-}
+        <div class="campo">
+            <label for="nombreTipo">Nombre del tipo de gasto</label>
+            <input type="text" id="nombreTipo" name="nombreTipo" list="tiposSugeridos" autocomplete="off"
+                   placeholder="Ej: Internet, Mantenimiento, Seguro" maxlength="@OSO.Models.Gastos.LargoMaximoNombre" required />
+            <datalist id="tiposSugeridos">
+                @foreach (var tipo in sugeridos)
+                {
+                    <option value="@tipo"></option>
+                }
+            </datalist>
+            <small class="campo__ayuda">Elegí uno de la lista para que tome lo que dice el contrato sobre quién lo paga; si no está, escribí el nombre.</small>
+        </div>
 
-<form asp-action="GuardarTipoGasto" asp-controller="Home" method="post">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
-
-    <div>
-        <label>Nombre del tipo de gasto</label>
-        <input type="text" name="nombreTipo" class="form-control" list="tiposSugeridos" autocomplete="off"
-               placeholder="Ej: Internet, Mantenimiento, Seguro" maxlength="@OSO.Models.Gastos.LargoMaximoNombre" required />
-        <datalist id="tiposSugeridos">
-            @foreach (var tipo in sugeridos)
-            {
-                <option value="@tipo"></option>
-            }
-        </datalist>
-        <small>Elegí uno de la lista para que tome lo que dice el contrato sobre quién lo paga; si no está, escribí el nombre.</small>
-    </div>
-
-    <button type="submit" class="btn btn-primary">Guardar tipo</button>
-    <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" class="btn btn-primary">Cancelar</a>
-</form>
+        <div class="form-acciones">
+            <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar tipo</button>
+        </div>
+    </form>
+</div>

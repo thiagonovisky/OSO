@@ -4,51 +4,51 @@
     string? returnUrl = ViewBag.ReturnUrl as string;
 }
 
-<div class="invitacion-page">
-<h2 class="invitacion-title">Invitación a la propiedad</h2>
-<div class="invitacion-body">
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Invitación a la propiedad</h2>
 
-@switch (estado)
-{
-    case "invalido":
-        <div class="alert alert-danger">El link de invitación no es válido o la propiedad ya no existe.</div>
-        break;
+    <section class="panel invitacion-body">
+        @switch (estado)
+        {
+            case "invalido":
+                <div class="alert alert-danger">El link de invitación no es válido o la propiedad ya no existe.</div>
+                break;
 
-    case "ocupada":
-        <div class="alert alert-danger">
-            Esta propiedad ya tiene un inquilino asignado. El link de invitación ya no está disponible.
-        </div>
-        break;
+            case "ocupada":
+                <div class="alert alert-danger">
+                    Esta propiedad ya tiene un inquilino asignado. El link de invitación ya no está disponible.
+                </div>
+                break;
 
-    case "yaVinculado":
-        <div class="alert alert-success">
-            Ya estás vinculado como inquilino de <strong>@Model?.Direccion</strong>.
-        </div>
-        <a asp-action="Bienvenida" asp-controller="Home" class="btn btn-primary">Ir al inicio</a>
-        break;
+            case "yaVinculado":
+                <div class="alert alert-success">
+                    Ya estás vinculado como inquilino de <strong>@Model?.Direccion</strong>.
+                </div>
+                <a asp-action="Bienvenida" asp-controller="Home" class="btn btn-primary">Ir al inicio</a>
+                break;
 
-    case "vinculado":
-        <div class="alert alert-success">
-            ¡Listo! Quedaste vinculado como inquilino de <strong>@Model?.Direccion</strong>.
-        </div>
-        <a asp-action="Bienvenida" asp-controller="Home" class="btn btn-primary">Ir al inicio</a>
-        break;
+            case "vinculado":
+                <div class="alert alert-success">
+                    ¡Listo! Quedaste vinculado como inquilino de <strong>@Model?.Direccion</strong>.
+                </div>
+                <a asp-action="Bienvenida" asp-controller="Home" class="btn btn-primary">Ir al inicio</a>
+                break;
 
-    case "noEsInquilino":
-        <p>Te invitaron a la propiedad ubicada en <strong>@Model?.Direccion</strong>.</p>
-        <div class="alert alert-warning">
-            Tenés la sesión iniciada con una cuenta de propietario. Para aceptar la invitación, iniciá sesión o registrate con una cuenta de inquilino.
-        </div>
-        <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión como inquilino</a>
-        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Registrarme como inquilino</a>
-        break;
+            case "noEsInquilino":
+                <p>Te invitaron a la propiedad ubicada en <strong>@Model?.Direccion</strong>.</p>
+                <div class="alert alert-warning">
+                    Tenés la sesión iniciada con una cuenta de propietario. Para aceptar la invitación, iniciá sesión o registrate con una cuenta de inquilino.
+                </div>
+                <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Iniciar sesión como inquilino</a>
+                <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Registrarme como inquilino</a>
+                break;
 
-    default: // sinSesion
-        <p>Te invitaron a la propiedad ubicada en <strong>@Model?.Direccion</strong>.</p>
-        <p>Para aceptar, iniciá sesión o registrate como inquilino. Vas a quedar vinculado automáticamente.</p>
-        <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Iniciar sesión</a>
-        <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Registrarme como inquilino</a>
-        break;
-}
-</div>
+            default: // sinSesion
+                <p>Te invitaron a la propiedad ubicada en <strong>@Model?.Direccion</strong>.</p>
+                <p>Para aceptar, iniciá sesión o registrate como inquilino. Vas a quedar vinculado automáticamente.</p>
+                <a asp-action="Login" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-secondary">Iniciar sesión</a>
+                <a asp-action="Registro" asp-controller="Home" asp-route-returnUrl="@returnUrl" class="btn btn-primary">Registrarme como inquilino</a>
+                break;
+        }
+    </section>
 </div>

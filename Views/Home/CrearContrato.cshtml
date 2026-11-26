@@ -3,30 +3,33 @@
     var inquilinos = ViewBag.Inquilinos as List<OSO.Models.Usuario> ?? new List<OSO.Models.Usuario>();
 }
 
-<h2>Cargar contrato a mano</h2>
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Cargar contrato a mano</h2>
+    <p class="pagina-bajada">Elegí el inquilino de <strong>@Model.Direccion</strong>. En el paso siguiente completás los datos del contrato y quién paga cada gasto.</p>
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
 
-<p>Elegí el inquilino. En el paso siguiente completás los datos del contrato y quién paga cada gasto.</p>
+    <form asp-action="GuardarContrato" asp-controller="Home" method="post" class="panel form-panel">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
 
-<form asp-action="GuardarContrato" asp-controller="Home" method="post">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+        <div class="campo">
+            <label for="idInquilino">Inquilino</label>
+            <select name="idInquilino" id="idInquilino" required>
+                <option value="">Elegí un inquilino</option>
+                @foreach (var inquilino in inquilinos)
+                {
+                    <option value="@inquilino.IdInquilino" selected="@(Model.IdInquilino == inquilino.IdInquilino)">@inquilino.Nombre @inquilino.Apellido</option>
+                }
+            </select>
+        </div>
 
-    <div class="form-group mb-3">
-        <label for="idInquilino">Inquilino</label>
-        <select name="idInquilino" id="idInquilino" class="form-control" required>
-            <option value="">Seleccione un inquilino</option>
-            @foreach (var inquilino in inquilinos)
-            {
-                <option value="@inquilino.IdInquilino" selected="@(Model.IdInquilino == inquilino.IdInquilino)">@inquilino.Nombre @inquilino.Apellido</option>
-            }
-        </select>
-    </div>
-
-    <button type="submit" class="btn btn-primary">Continuar</button>
-    <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Cancelar</a>
-</form>
+        <div class="form-acciones">
+            <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Continuar</button>
+        </div>
+    </form>
+</div>

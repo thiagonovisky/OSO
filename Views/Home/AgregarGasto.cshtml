@@ -8,86 +8,89 @@
     bool propietarioPago = ViewBag.PartePropietarioPagada == true;
 }
 
-<h2>@(corrigiendo ? "Corregir gasto de" : "Agregar gasto para") @tipo</h2>
-
-@if (propiedad != null)
-{
-    <p>Propiedad: @propiedad.Direccion</p>
-}
-
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
-
-@if (declarado)
-{
-    <div class="alert alert-warning">
-        Este monto lo cargó el inquilino al pagar y no está verificado. Si coincide con la factura, guardalo igual para darlo por revisado;
-        si no, poné el monto correcto: el reparto se recalcula y, si el monto sube, el inquilino ve la diferencia a pagar.
-    </div>
-}
-
-<form asp-action="GuardarGasto" asp-controller="Home" method="post" enctype="multipart/form-data">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
-    <input type="hidden" name="idGasto" value="@tipoGasto?.IdGasto" />
-
-    <div>
-        <label>Tipo de gasto</label>
-        <input type="text" value="@tipo" disabled class="form-control" />
-    </div>
-
-    <div class="factura-lector mb-3">
-        <label>Factura (opcional)</label>
-        <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
-        <button type="button" class="btn btn-secondary mt-1 btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="@tipo">Leer monto y vencimiento de la factura</button>
-        <small class="factura-estado d-block"></small>
-    </div>
-
-    <div>
-        <label>Mes</label>
-        <input type="date" name="mes" value="@Model.Periodo.ToString("yyyy-MM-dd")" required class="form-control" />
-    </div>
-
-    <div>
-        <label>Monto</label>
-        <input type="number" name="monto" step="0.01" min="0.01" value="@(corrigiendo ? OSO.Models.Formato.ParaInput(Model.Monto) : "")" required class="form-control" />
-    </div>
-
-    <div>
-        <label>Fecha de vencimiento</label>
-        <input type="date" name="fechaVencimiento" value="@Model.FechaVencimiento.ToString("yyyy-MM-dd")" required class="form-control" />
-    </div>
-
-    @if (propiedad?.IdInquilino != null)
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">@(corrigiendo ? "Corregir gasto de" : "Agregar gasto de") @tipo</h2>
+    @if (propiedad != null)
     {
-        <div>
-            <label>¿Quién paga?</label>
-            <select name="responsable" class="form-control">
-                <option value="">Según el contrato</option>
-                <option value="Propietario">Propietario (todo)</option>
-                <option value="Inquilino">Inquilino (todo)</option>
-            </select>
+        <p class="pagina-bajada"><strong>@propiedad.Direccion</strong></p>
+    }
+
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
+
+    @if (declarado)
+    {
+        <div class="alert alert-warning">
+            Este monto lo cargó el inquilino al pagar y no está verificado. Si coincide con la factura, guardalo igual para darlo por revisado;
+            si no, poné el monto correcto: el reparto se recalcula y, si el monto sube, el inquilino ve la diferencia a pagar.
         </div>
     }
 
-    <div>
-        <label>Estado</label>
-        <select name="estado" class="form-control">
-            <option value="A pagar" selected="@(!propietarioPago)">A pagar</option>
-            <option value="Pagado" selected="@propietarioPago">Pagado</option>
-        </select>
-    </div>
+    <form asp-action="GuardarGasto" asp-controller="Home" method="post" enctype="multipart/form-data" class="panel form-panel">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="idPropiedad" value="@propiedad?.IdPropiedad" />
+        <input type="hidden" name="idGasto" value="@tipoGasto?.IdGasto" />
 
-    <div>
-        <label>Comprobante</label>
-        <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
-    </div>
+        <div class="campo factura-lector">
+            <label for="factura">Factura (opcional)</label>
+            <div class="factura-lector__fila">
+                <input type="file" id="factura" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <button type="button" class="btn btn-secondary btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="@tipo">Leer monto y vencimiento</button>
+            </div>
+            <small class="campo__ayuda">La IA lee la factura y completa los campos de abajo. La factura no se guarda.</small>
+            <small class="factura-estado" role="status"></small>
+        </div>
 
-    <button type="submit" class="btn btn-primary">@(corrigiendo ? "Guardar corrección" : "Guardar gasto")</button>
-    <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-primary">Cancelar</a>
-</form>
+        <div class="campos-fila">
+            <div class="campo">
+                <label for="mes">Mes</label>
+                <input type="date" id="mes" name="mes" value="@Model.Periodo.ToString("yyyy-MM-dd")" required />
+            </div>
+            <div class="campo">
+                <label for="monto">Monto</label>
+                <input type="number" id="monto" name="monto" step="0.01" min="0.01" value="@(corrigiendo ? OSO.Models.Formato.ParaInput(Model.Monto) : "")" required />
+            </div>
+        </div>
+
+        <div class="campos-fila">
+            <div class="campo">
+                <label for="fechaVencimiento">Fecha de vencimiento</label>
+                <input type="date" id="fechaVencimiento" name="fechaVencimiento" value="@Model.FechaVencimiento.ToString("yyyy-MM-dd")" required />
+            </div>
+            <div class="campo">
+                <label for="estado">Estado</label>
+                <select id="estado" name="estado">
+                    <option value="A pagar" selected="@(!propietarioPago)">A pagar</option>
+                    <option value="Pagado" selected="@propietarioPago">Pagado</option>
+                </select>
+            </div>
+        </div>
+
+        @if (propiedad?.IdInquilino != null)
+        {
+            <div class="campo">
+                <label for="responsable">¿Quién paga?</label>
+                <select id="responsable" name="responsable">
+                    <option value="">Según el contrato</option>
+                    <option value="Propietario">Propietario (todo)</option>
+                    <option value="Inquilino">Inquilino (todo)</option>
+                </select>
+            </div>
+        }
+
+        <div class="campo">
+            <label for="comprobanteArchivo">Comprobante de pago (opcional)</label>
+            <input type="file" id="comprobanteArchivo" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+        </div>
+
+        <div class="form-acciones">
+            <a asp-action="ServicioDetalle" asp-controller="Home" asp-route-idPropiedad="@propiedad?.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">@(corrigiendo ? "Guardar corrección" : "Guardar gasto")</button>
+        </div>
+    </form>
+</div>
 
 @section Scripts {
     <script src="~/js/factura.js" asp-append-version="true"></script>

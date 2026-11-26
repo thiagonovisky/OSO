@@ -1,45 +1,49 @@
 @model OSO.Models.Propiedades
 
-<h2>Editar propiedad</h2>
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Editar propiedad</h2>
+    <p class="pagina-bajada">
+        Estado: <span class="estado-pill estado-pill--@(Model.EstaOcupada ? "info" : "neutro")">@(Model.EstaOcupada ? "Ocupada" : "Disponible")</span>
+        · Se actualiza solo cuando vinculás o desvinculás un inquilino.
+    </p>
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
 
+    <form asp-action="GuardarEdicionPropiedad" asp-controller="Home" method="post" enctype="multipart/form-data" class="panel form-panel">
+        <input type="hidden" asp-for="IdPropiedad" />
 
-<form asp-action="GuardarEdicionPropiedad" asp-controller="Home" method="post" enctype="multipart/form-data">
-	<input type="hidden" asp-for="IdPropiedad" />
+        <div class="campo">
+            <label asp-for="Direccion">Dirección</label>
+            <input asp-for="Direccion" maxlength="50" required />
+        </div>
 
-	<div class="mb-3">
-		<label asp-for="Direccion" class="form-label">Dirección</label>
-		<input asp-for="Direccion" class="form-control" maxlength="50" required />
-	</div>
+        <div class="campos-fila">
+            <div class="campo">
+                <label asp-for="Superficie">Superficie (m²)</label>
+                <input asp-for="Superficie" type="number" min="1" required />
+            </div>
+            <div class="campo">
+                <label asp-for="Ambientes">Ambientes</label>
+                <input asp-for="Ambientes" type="number" min="1" required />
+            </div>
+        </div>
 
-	<div class="mb-3">
-		<label asp-for="Superficie" class="form-label">Superficie</label>
-		<input asp-for="Superficie" type="number" min="1" class="form-control" required />
-	</div>
+        <div class="campo">
+            <span class="campo__etiqueta">Foto actual</span>
+            <img src="@Url.Content("~/imagenes/" + Model.Foto)" alt="Foto de @Model.Direccion" class="foto-propiedad--panel" />
+        </div>
 
-	<div class="mb-3">
-		<label asp-for="Ambientes" class="form-label">Ambientes</label>
-		<input asp-for="Ambientes" type="number" min="1" class="form-control" required />
-	</div>
+        <div class="campo">
+            <label for="foto">Nueva foto (opcional)</label>
+            <input type="file" id="foto" name="foto" accept=".jpg,.jpeg,.png,.webp,.gif" />
+        </div>
 
-	<p class="form-text">Estado: @(Model.EstaOcupada ? "ocupada" : "disponible"). Se actualiza solo cuando vinculás o desvinculás un inquilino.</p>
-
-	<div class="mb-3">
-		<label class="form-label">Foto actual</label>
-		<div>
-			<img src="@Url.Content("~/imagenes/" + Model.Foto)" alt="Foto de la propiedad" class="foto-propiedad" />
-		</div>
-	</div>
-
-	<div class="mb-3">
-		<label class="form-label">Nueva foto (opcional)</label>
-		<input type="file" name="foto" accept=".jpg,.jpeg,.png,.webp,.gif" class="form-control" />
-	</div>
-
-	<button type="submit" class="btn btn-primary">Guardar cambios</button>
-	<a asp-action="Propiedades" asp-controller="Home" class="btn btn-primary">Cancelar</a>
-</form>
+        <div class="form-acciones">
+            <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+    </form>
+</div>

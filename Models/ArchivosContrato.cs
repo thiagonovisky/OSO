@@ -35,7 +35,7 @@ public static class ArchivosContrato
         return null;
     }
 
-    // Igual que Validar, para una factura que solo se lee (no se guarda): mensajes sin hablar de contrato.
+    // Igual que Validar, para una factura: mensajes sin hablar de contrato.
     public static string? ValidarFactura(IFormFile? archivo)
     {
         if (archivo == null || archivo.Length == 0)
@@ -68,15 +68,43 @@ public static class ArchivosContrato
         return nombre;
     }
 
+    // Facturas de servicios que se guardan con el gasto, para que la otra parte pueda ver de dónde sale el monto.
+    // Mismo resguardo que los contratos: fuera de wwwroot y solo se entregan desde VerFactura.
+    public const string CarpetaFacturas = "App_Data/facturas";
+
+    public static string GuardarFactura(int idPropiedad, IFormFile archivo)
+    {
+        string carpeta = Path.Combine(Directory.GetCurrentDirectory(), CarpetaFacturas);
+        Directory.CreateDirectory(carpeta);
+
+        string nombre = $"factura_{idPropiedad}_{Guid.NewGuid():N}{ObtenerExtension(archivo.FileName)}";
+        using var stream = new FileStream(Path.Combine(carpeta, nombre), FileMode.CreateNew);
+        archivo.CopyTo(stream);
+        return nombre;
+    }
+
+    public static string? ObtenerRutaFactura(string? nombreGuardado) => ObtenerRuta(nombreGuardado, CarpetaFacturas);
+
+    public static void BorrarFactura(string? nombreGuardado)
+    {
+        string? ruta = ObtenerRutaFactura(nombreGuardado);
+        if (ruta != null)
+        {
+            File.Delete(ruta);
+        }
+    }
+
     // Ruta completa del archivo guardado, o null si el nombre no es válido o el archivo no existe.
-    public static string? ObtenerRuta(string? nombreGuardado)
+    public static string? ObtenerRuta(string? nombreGuardado) => ObtenerRuta(nombreGuardado, Carpeta);
+
+    private static string? ObtenerRuta(string? nombreGuardado, string carpeta)
     {
         if (string.IsNullOrWhiteSpace(nombreGuardado) || nombreGuardado != Path.GetFileName(nombreGuardado))
         {
             return null;
         }
 
-        string ruta = Path.Combine(ObtenerRutaCarpeta(), nombreGuardado);
+        string ruta = Path.Combine(Directory.GetCurrentDirectory(), carpeta, nombreGuardado);
         return File.Exists(ruta) ? ruta : null;
     }
 

@@ -1,30 +1,35 @@
 @model OSO.Models.RevisionContrato
 @{
     var c = Model.Contrato;
+    bool paraAceptar = c.Estado == "PendienteInquilino";
+    bool terminado = c.Estado == "Finalizado";
+    string pillEstado = paraAceptar ? "pagar" : terminado ? "neutro" : "pagado";
 }
 
-<div class="revision-contrato">
-    <h2>Contrato de alquiler</h2>
-    <p class="revision-subtitulo">
-        <strong>@Model.Propiedad.Direccion</strong> ·
-        Estado: <span class="revision-estado">@c.EstadoParaInquilino</span>
-        @if (!string.IsNullOrEmpty(c.ArchivoContrato))
-        {
-            <text> · </text><a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@c.IdContrato" target="_blank">Ver el archivo del contrato</a>
-        }
+<div class="pagina">
+    <h2 class="pagina-titulo">Contrato de alquiler</h2>
+    <p class="pagina-bajada">
+        <strong>@Model.Propiedad.Direccion</strong> · <span class="estado-pill estado-pill--@pillEstado">@c.EstadoParaInquilino</span>
     </p>
 
     @if (TempData["Error"] != null)
     {
-        <div class="alert alert-danger">@TempData["Error"]</div>
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
     }
 
     @if (TempData["Success"] != null)
     {
-        <div class="alert alert-success">@TempData["Success"]</div>
+        <div class="alert alert-success" role="status">@TempData["Success"]</div>
     }
 
-    @if (c.Estado == "Finalizado")
+    @if (paraAceptar)
+    {
+        <p class="aviso-pagina">
+            Tu propietario cargó este contrato y espera que lo aceptes. Revisá los datos y quién paga cada gasto; si está todo bien, aceptalo al final de la página.
+        </p>
+    }
+
+    @if (terminado)
     {
         <div class="alert alert-warning">
             <strong>Este contrato terminó el @Formato.Fecha(c.FechaFinReal)</strong> · Motivo: @OSO.Models.ReglasContrato.NombreMotivoFin(c.MotivoFin).
@@ -37,44 +42,56 @@
 
         @if (!string.IsNullOrWhiteSpace(c.DisconformidadInquilino))
         {
-            <div class="card p-3 mb-3">
-                <strong>Constancia de disconformidad</strong> (@c.FechaDisconformidad?.ToString("dd/MM/yyyy HH:mm"))
+            <section class="panel">
+                <h3>Constancia de disconformidad</h3>
+                <p class="panel__nota">Enviada el @c.FechaDisconformidad?.ToString("dd/MM/yyyy HH:mm")</p>
                 <p>@c.DisconformidadInquilino</p>
-            </div>
+            </section>
         }
         else if (c.MotivoFin != OSO.Models.ReglasContrato.FinDePlazo)
         {
-            <form asp-action="DejarDisconformidad" asp-controller="Home" method="post" class="card p-3 mb-3"
+            <form asp-action="DejarDisconformidad" asp-controller="Home" method="post" class="panel form-panel"
                   onsubmit="return confirm('La constancia se guarda una sola vez y no se puede editar. ¿Enviarla?');">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="idContrato" value="@c.IdContrato" />
-                <label for="texto"><strong>Dejar constancia de disconformidad</strong></label>
-                <p class="revision-ayuda">No cambia la terminación, pero queda registrada y la ven los dos. Se puede dejar una sola vez y no se edita.</p>
-                <textarea name="texto" id="texto" class="form-control mb-2" rows="4" maxlength="1000" required></textarea>
-                <button type="submit" class="btn btn-primary">Dejar constancia de disconformidad</button>
+                <div class="campo">
+                    <label for="texto">Dejar constancia de disconformidad</label>
+                    <span class="campo__ayuda">No cambia la terminación, pero queda registrada y la ven los dos. Se puede dejar una sola vez y no se edita.</span>
+                    <textarea name="texto" id="texto" rows="4" maxlength="1000" required></textarea>
+                </div>
+                <div class="form-acciones">
+                    <button type="submit" class="btn btn-primary">Enviar constancia</button>
+                </div>
             </form>
         }
     }
 
-    <div class="card p-3 mb-3">
-        <div class="revision-lectura">
-            <p><strong>Inicio:</strong> @Formato.Fecha(c.FechaInicio)</p>
-            <p><strong>Fin:</strong> @Formato.Fecha(c.FechaFin)</p>
-            <p><strong>Alquiler inicial:</strong> @Formato.Numero(c.MontoAlquiler) @c.Moneda</p>
-            <p><strong>Vence el día:</strong> @Formato.Dato(c.DiaVencimiento)</p>
-            <p><strong>Ajuste:</strong> @c.DescripcionAjuste</p>
-            <p><strong>Medio de pago:</strong> @Formato.Dato(c.MedioPago)</p>
-            <p><strong>Punitorio diario:</strong> @Formato.Dato(c.PunitorioDiario, "%")</p>
-            <p><strong>Depósito:</strong> @c.DepositoTexto</p>
-            <p><strong>Garantía:</strong> @Formato.Dato(c.TipoGarantia)</p>
-            <p><strong>Preaviso para rescindir:</strong> @Formato.Dato(c.PreavisoRescisionDias, " días")</p>
-            <p><strong>Régimen legal:</strong> @OSO.Models.ReglasContrato.NombreRegimen(c.RegimenLegal)</p>
+    <section class="panel">
+        <div class="panel__cabecera">
+            <h3>Datos del contrato</h3>
+            @if (!string.IsNullOrEmpty(c.ArchivoContrato))
+            {
+                <a asp-action="DescargarContrato" asp-controller="Home" asp-route-idContrato="@c.IdContrato" target="_blank" class="btn btn-secondary btn-sm">Ver el archivo del contrato</a>
+            }
         </div>
-    </div>
+        <dl class="datos">
+            <div><dt>Inicio</dt><dd>@Formato.Fecha(c.FechaInicio)</dd></div>
+            <div><dt>Fin</dt><dd>@Formato.Fecha(c.FechaFin)</dd></div>
+            <div><dt>Alquiler inicial</dt><dd>@Formato.Numero(c.MontoAlquiler) @c.Moneda</dd></div>
+            <div><dt>Vence el día</dt><dd>@Formato.Dato(c.DiaVencimiento)</dd></div>
+            <div><dt>Ajuste</dt><dd>@c.DescripcionAjuste</dd></div>
+            <div><dt>Medio de pago</dt><dd>@Formato.Dato(c.MedioPago)</dd></div>
+            <div><dt>Punitorio diario</dt><dd>@Formato.Dato(c.PunitorioDiario, "%")</dd></div>
+            <div><dt>Depósito</dt><dd>@c.DepositoTexto</dd></div>
+            <div><dt>Garantía</dt><dd>@Formato.Dato(c.TipoGarantia)</dd></div>
+            <div><dt>Preaviso para rescindir</dt><dd>@Formato.Dato(c.PreavisoRescisionDias, " días")</dd></div>
+            <div><dt>Régimen legal</dt><dd>@OSO.Models.ReglasContrato.NombreRegimen(c.RegimenLegal)</dd></div>
+        </dl>
+    </section>
 
-    <h3>Quién paga cada gasto</h3>
-    <div class="revision-tabla-wrap">
-        <table class="revision-tabla">
+    <section class="panel">
+        <h3>Quién paga cada gasto</h3>
+        <div class="tabla-wrap"><table class="table">
             <thead>
                 <tr><th>Gasto</th><th>Lo paga</th><th>Cláusula del contrato</th></tr>
             </thead>
@@ -82,31 +99,48 @@
                 @foreach (var regla in Model.Reglas)
                 {
                     <tr>
-                        <td>@regla.TipoGasto</td>
-                        <td>@regla.QuienPagaParaInquilino</td>
-                        <td class="revision-clausula">@(string.IsNullOrEmpty(regla.TextoClausula) ? "—" : regla.TextoClausula)</td>
+                        <td><strong>@regla.TipoGasto</strong></td>
+                        <td data-label="Lo paga">@regla.QuienPagaParaInquilino</td>
+                        <td data-label="Cláusula" class="celda-nota">@(string.IsNullOrEmpty(regla.TextoClausula) ? "—" : regla.TextoClausula)</td>
                     </tr>
                 }
             </tbody>
-        </table>
-    </div>
+        </table></div>
+    </section>
 
-    <div class="contrato-actions">
-        @if (c.Estado == "PendienteInquilino")
-        {
-            <form asp-action="AceptarContrato" asp-controller="Home" method="post">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="idContrato" value="@c.IdContrato" />
-                <button type="submit" class="btn btn-primary">Aceptar contrato</button>
-            </form>
-        }
-        @if (ViewBag.VolverANotificaciones == true)
-        {
-            <a asp-action="Notificaciones" asp-controller="Home" class="btn btn-primary">Volver a notificaciones</a>
-        }
-        else
-        {
-            <a asp-action="Propiedades" asp-controller="Home" class="btn btn-primary">Volver</a>
-        }
-    </div>
+    @if (paraAceptar)
+    {
+        <section class="panel panel--destacado">
+            <h3>¿Está todo bien?</h3>
+            <p class="panel__nota">Al aceptarlo, el contrato queda vigente y tus gastos aparecen en Mis gastos según quién paga cada uno.</p>
+            <div class="form-acciones">
+                @if (ViewBag.VolverANotificaciones == true)
+                {
+                    <a asp-action="Notificaciones" asp-controller="Home" class="btn btn-secondary">Volver a notificaciones</a>
+                }
+                else
+                {
+                    <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Volver</a>
+                }
+                <form asp-action="AceptarContrato" asp-controller="Home" method="post" class="form-en-linea">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="idContrato" value="@c.IdContrato" />
+                    <button type="submit" class="btn btn-primary">Aceptar contrato</button>
+                </form>
+            </div>
+        </section>
+    }
+    else
+    {
+        <div class="form-acciones form-acciones--centro">
+            @if (ViewBag.VolverANotificaciones == true)
+            {
+                <a asp-action="Notificaciones" asp-controller="Home" class="btn btn-secondary">Volver a notificaciones</a>
+            }
+            else
+            {
+                <a asp-action="Propiedades" asp-controller="Home" class="btn btn-secondary">Volver</a>
+            }
+        </div>
+    }
 </div>

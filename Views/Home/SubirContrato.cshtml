@@ -3,42 +3,46 @@
     var inquilinos = ViewBag.Inquilinos as List<OSO.Models.Usuario> ?? new List<OSO.Models.Usuario>();
 }
 
-<h2>Subir contrato</h2>
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Subir contrato</h2>
+    <p class="pagina-bajada">Subí el contrato de <strong>@Model.Direccion</strong> (PDF o foto, hasta 10 MB). Lo leemos con inteligencia artificial y completamos los datos; después los revisás y confirmás vos.</p>
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
 
-<p>Subí el contrato de <strong>@Model.Direccion</strong> (PDF o foto, hasta 10 MB). Lo leemos con inteligencia artificial y completamos los datos; después los revisás y confirmás vos.</p>
+    <form asp-action="SubirContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="panel form-panel" id="formSubirContrato">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
 
-<form asp-action="SubirContrato" asp-controller="Home" method="post" enctype="multipart/form-data">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+        <div class="campo">
+            <label for="idInquilino">Inquilino</label>
+            <select name="idInquilino" id="idInquilino" required>
+                <option value="">Elegí un inquilino</option>
+                @foreach (var inquilino in inquilinos)
+                {
+                    <option value="@inquilino.IdInquilino" selected="@(Model.IdInquilino == inquilino.IdInquilino)">@inquilino.Nombre @inquilino.Apellido</option>
+                }
+            </select>
+        </div>
 
-    <div class="form-group mb-3">
-        <label for="idInquilino">Inquilino</label>
-        <select name="idInquilino" id="idInquilino" class="form-control" required>
-            <option value="">Seleccione un inquilino</option>
-            @foreach (var inquilino in inquilinos)
-            {
-                <option value="@inquilino.IdInquilino" selected="@(Model.IdInquilino == inquilino.IdInquilino)">@inquilino.Nombre @inquilino.Apellido</option>
-            }
-        </select>
-    </div>
+        <div class="campo">
+            <label for="archivo">Archivo del contrato</label>
+            <input type="file" name="archivo" id="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp" required />
+        </div>
 
-    <div class="form-group mb-3">
-        <label for="archivo">Archivo del contrato</label>
-        <input type="file" name="archivo" id="archivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp" required />
-    </div>
+        <p class="aviso-pagina m-0" id="leyendo" role="status" hidden>Leyendo el contrato... puede tardar hasta un minuto.</p>
 
-    <button type="submit" class="btn btn-primary" id="btnSubir">Subir y leer contrato</button>
-    <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-primary">Cancelar</a>
-    <p class="mt-3" id="leyendo" hidden>Leyendo el contrato... puede tardar hasta un minuto.</p>
-</form>
+        <div class="form-acciones">
+            <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary" id="btnSubir">Subir y leer contrato</button>
+        </div>
+    </form>
+</div>
 
 <script>
-    document.querySelector('form[enctype="multipart/form-data"]').addEventListener('submit', function () {
+    document.getElementById('formSubirContrato').addEventListener('submit', function () {
         document.getElementById('btnSubir').disabled = true;
         document.getElementById('leyendo').hidden = false;
     });

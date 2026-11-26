@@ -1,61 +1,67 @@
 @model OSO.Models.GastoPropiedad
 @{
-	var propiedades = ViewBag.Propiedades as List<OSO.Models.Propiedades>;
-	int? idPropiedadElegida = ViewBag.IdPropiedadElegida as int?;
+    var propiedades = ViewBag.Propiedades as List<OSO.Models.Propiedades>;
+    int? idPropiedadElegida = ViewBag.IdPropiedadElegida as int?;
 }
 
-<h2>Agregar expensa extraordinaria</h2>
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Agregar expensa extraordinaria</h2>
+    <p class="pagina-bajada">Se reparte según lo que dice el contrato: a cada uno le aparece su parte en Mis gastos.</p>
 
-@if (TempData["Error"] != null)
-{
-    <div class="alert alert-danger">@TempData["Error"]</div>
-}
+    @if (TempData["Error"] != null)
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
 
+    <form asp-action="AgregarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data" class="panel form-panel">
+        @Html.AntiForgeryToken()
 
-<form asp-action="AgregarExpensa" asp-controller="Home" method="post" enctype="multipart/form-data">
-	@Html.AntiForgeryToken()
+        <div class="campo">
+            <label for="idPropiedad">Propiedad</label>
+            <select id="idPropiedad" name="idPropiedad" required>
+                <option value="">Elegí la propiedad</option>
+                @if (propiedades != null)
+                {
+                    foreach (var propiedad in propiedades)
+                    {
+                        <option value="@propiedad.IdPropiedad" selected="@(propiedad.IdPropiedad == idPropiedadElegida)">@propiedad.Direccion</option>
+                    }
+                }
+            </select>
+        </div>
 
-	<div class="mb-3">
-		<label class="form-label">Propiedad</label>
-		<select name="idPropiedad" class="form-control" required>
-			<option value="">Seleccionar propiedad</option>
-			@if (propiedades != null)
-			{
-				foreach (var propiedad in propiedades)
-				{
-					<option value="@propiedad.IdPropiedad" selected="@(propiedad.IdPropiedad == idPropiedadElegida)">@propiedad.Direccion</option>
-				}
-			}
-		</select>
-	</div>
+        <div class="campo factura-lector">
+            <label for="liquidacion">Liquidación de expensas (opcional)</label>
+            <div class="factura-lector__fila">
+                <input type="file" id="liquidacion" accept=".jpg,.jpeg,.png,.webp,.pdf" />
+                <button type="button" class="btn btn-secondary btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="Expensas extraordinarias" data-campo-monto="montoExtraordinarias" data-campo-vencimiento="FechaVencimiento">Leer monto y vencimiento</button>
+            </div>
+            <small class="factura-estado" role="status"></small>
+        </div>
 
-	<div class="factura-lector mb-3">
-		<label class="form-label">Liquidación de expensas (opcional)</label>
-		<input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control" />
-		<button type="button" class="btn btn-secondary mt-1 btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="Expensas extraordinarias" data-campo-monto="montoExtraordinarias" data-campo-vencimiento="FechaVencimiento">Leer monto y vencimiento</button>
-		<small class="factura-estado d-block"></small>
-	</div>
+        <div class="campos-fila">
+            <div class="campo">
+                <label for="monto">Monto de la expensa</label>
+                <input id="monto" name="montoExtraordinarias" type="number" step="0.01" min="0.01" required />
+            </div>
+            <div class="campo">
+                <label asp-for="FechaVencimiento">Fecha de vencimiento</label>
+                <input asp-for="FechaVencimiento" type="date" required />
+                <small class="campo__ayuda">Con la liquidación se completa solo; si no, te proponemos @OSO.Models.GastoPropiedad.DiasVencimientoPropuesto días desde hoy.</small>
+            </div>
+        </div>
 
-	<div class="mb-3">
-		<label for="monto" class="form-label">Monto de la expensa extraordinaria</label>
-		<input id="monto" name="montoExtraordinarias" type="number" step="0.01" min="0.01" required class="form-control" />
-		<small>Se reparte según lo que dice el contrato: a cada uno le aparece su parte en Mis gastos.</small>
-	</div>
+        <div class="campo">
+            <label asp-for="Aclaracion">Aclaración (opcional)</label>
+            <textarea asp-for="Aclaracion" rows="3" maxlength="255"></textarea>
+        </div>
 
-	<div class="mb-3">
-		<label asp-for="FechaVencimiento" class="form-label">Fecha de vencimiento</label>
-		<input asp-for="FechaVencimiento" type="date" class="form-control" required />
-		<small>Si leés la liquidación se completa sola; si no, te proponemos @OSO.Models.GastoPropiedad.DiasVencimientoPropuesto días desde hoy.</small>
-	</div>
-
-	<div class="mb-3">
-		<label asp-for="Aclaracion" class="form-label">Aclaración</label>
-		<textarea asp-for="Aclaracion" class="form-control" rows="3" maxlength="255"></textarea>
-	</div>
-
-	<button type="submit" class="btn btn-primary">Guardar expensa extraordinaria</button>
-	<a asp-action="Expensas" asp-controller="Home" class="btn btn-primary">Cancelar</a>
-</form>
+        <div class="form-acciones">
+            <a asp-action="Expensas" asp-controller="Home" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar expensa</button>
+        </div>
+    </form>
+</div>
 
 @section Scripts {
     <script src="~/js/factura.js" asp-append-version="true"></script>

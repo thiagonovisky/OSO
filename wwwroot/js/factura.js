@@ -1,5 +1,5 @@
-// "Leer monto de la factura": manda la factura elegida a la acción LeerFactura (la IA la lee, no se guarda)
-// y completa los campos del formulario (monto, vencimiento y mes). La persona revisa antes de guardar.
+// "Leer monto de la factura": manda la factura elegida a la acción LeerFactura (la IA la lee; si el campo tiene name,
+// el formulario la guarda después con el gasto) y completa los campos del formulario (monto, vencimiento y mes). La persona revisa antes de guardar.
 (function () {
     function completar(formulario, nombre, valor) {
         var campo = formulario.querySelector('[name="' + nombre + '"]');

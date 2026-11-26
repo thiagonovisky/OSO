@@ -5,87 +5,108 @@
     var pendientesInquilino = ViewBag.PendientesInquilino as List<OSO.Models.PendienteContrato>;
 }
 
-<div class="service-detail-page">
-    <h2 class="page-title">@tipo</h2>
+<div class="pagina">
+    <h2 class="pagina-titulo">@tipo</h2>
+    <p class="pagina-bajada">Mes por mes en <strong>@Model.Direccion</strong>.</p>
 
     @if (pendientesInquilino != null && pendientesInquilino.Count > 0)
     {
-        <div class="service-detail-panel">
-            <div class="service-header-row">
-                <h3>Meses sin cargar</h3>
-            </div>
-            <p>Estos meses del contrato todavía no tienen la factura cargada. Quien paga (vos o el inquilino) la carga desde Mis gastos al pagar su parte.</p>
-            <div class="months-grid">
-                @foreach (var pendiente in pendientesInquilino)
-                {
-                    <div class="month-item">
-                        <div class="month-name">@pendiente.Periodo.ToString("MMMM yyyy")</div>
-                        <div class="month-meta">
-                            <span class="service-status warn">Pendiente</span>
-                            <span>@pendiente.QuienPaga</span>
-                        </div>
-                    </div>
-                }
-            </div>
-        </div>
+        <section class="panel">
+            <h3>Meses sin cargar</h3>
+            <p class="panel__nota">Estos meses del contrato todavía no tienen la factura cargada. Quien paga (vos o el inquilino) la carga desde Mis gastos al pagar su parte.</p>
+            <div class="tabla-wrap"><table class="table">
+                <thead>
+                    <tr>
+                        <th>Mes</th>
+                        <th>Estado</th>
+                        <th>Lo paga</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pendiente in pendientesInquilino)
+                    {
+                        <tr>
+                            <td><strong>@OSO.Models.Formato.Mes(pendiente.Periodo)</strong></td>
+                            <td data-label="Estado"><span class="estado-pill estado-pill--pagar">Sin factura</span></td>
+                            <td data-label="Lo paga">@pendiente.QuienPaga</td>
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        </section>
     }
 
-    <div class="service-detail-panel">
-        <div class="service-header-row">
+    <section class="panel">
+        <div class="panel__cabecera">
             <h3>Gastos registrados</h3>
-            <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-primary">Agregar gasto</a>
+            <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@tipo" class="btn btn-primary btn-sm">Agregar gasto</a>
         </div>
 
         @if (gastos != null && gastos.Count > 0)
         {
-            <div class="months-grid">
-                @foreach (var gasto in gastos)
-                {
-                    var estadoActual = gasto.Estado;
-                    var nuevoEstado = estadoActual == "Pagado" ? "A pagar" : "Pagado";
+            <div class="tabla-wrap"><table class="table">
+                <thead>
+                    <tr>
+                        <th>Mes</th>
+                        <th>Estado</th>
+                        <th>Vencimiento</th>
+                        <th class="col-monto">Monto</th>
+                        <th><span class="visually-hidden">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var gasto in gastos)
+                    {
+                        var estadoActual = gasto.Estado;
+                        var nuevoEstado = estadoActual == "Pagado" ? "A pagar" : "Pagado";
 
-                    <div class="month-item">
-                        <div class="month-name">@gasto.Periodo.ToString("MMMM yyyy")</div>
-                        @if (gasto.EsIncluido)
-                        {
-                            <div class="month-meta">
-                                <span class="service-status muted">@gasto.Aclaracion</span>
-                            </div>
-                        }
-                        else
-                        {
-                        <div class="month-meta">
-                            <span>Monto: $@gasto.Monto</span>
-                            <span>Vto: @gasto.FechaVencimiento.ToString("dd/MM/yyyy")</span>
-                        </div>
-
-                        @if (gasto.CargadoPorInquilino)
-                        {
-                            <div class="month-meta">
-                                <span class="service-status warn">Monto declarado por el inquilino, sin verificar</span>
-                                <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@tipo" asp-route-periodo="@gasto.Periodo.ToString("yyyy-MM-dd")" class="btn btn-primary">Revisar o corregir monto</a>
-                            </div>
-                        }
-
-                        <form asp-action="GuardarEstadoGasto" asp-controller="Home" method="post" class="month-form">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
-                            <input type="hidden" name="idGastoPropiedad" value="@gasto.IdGastoPropiedad" />
-                            <input type="hidden" name="tipo" value="@tipo" />
-                            <input type="hidden" name="estado" value="@nuevoEstado" />
-
-                            <button type="submit" class="month-status @(estadoActual == "Pagado" ? "pending" : "paid")">
-                                @(estadoActual == "Pagado" ? "Marcar como A pagar" : "Marcar como Pagado")
-                            </button>
-                        </form>
-                        }
-                    </div>
-                }
-            </div>
+                        <tr>
+                            <td><strong>@OSO.Models.Formato.Mes(gasto.Periodo)</strong></td>
+                            @if (gasto.EsIncluido)
+                            {
+                                <td data-label="Estado" colspan="3"><small class="celda-sub">@gasto.Aclaracion</small></td>
+                                <td class="col-accion"></td>
+                            }
+                            else
+                            {
+                                <td data-label="Estado">
+                                    <span class="estado-pill estado-pill--@gasto.EstadoCss">@estadoActual</span>
+                                    @if (gasto.CargadoPorInquilino)
+                                    {
+                                        <small class="celda-sub">Monto declarado por el inquilino, sin verificar</small>
+                                    }
+                                </td>
+                                <td data-label="Vencimiento">@gasto.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+                                <td data-label="Monto" class="col-monto">@OSO.Models.Formato.Pesos(gasto.Monto)</td>
+                                <td class="col-accion">
+                                    @if (gasto.CargadoPorInquilino)
+                                    {
+                                        <a asp-action="AgregarGasto" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" asp-route-tipo="@tipo" asp-route-periodo="@gasto.Periodo.ToString("yyyy-MM-dd")" class="btn btn-primary btn-sm">Revisar monto</a>
+                                    }
+                                    <form asp-action="GuardarEstadoGasto" asp-controller="Home" method="post" class="form-en-linea">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+                                        <input type="hidden" name="idGastoPropiedad" value="@gasto.IdGastoPropiedad" />
+                                        <input type="hidden" name="tipo" value="@tipo" />
+                                        <input type="hidden" name="estado" value="@nuevoEstado" />
+                                        <button type="submit" class="btn btn-secondary btn-sm">
+                                            @(estadoActual == "Pagado" ? "Marcar a pagar" : "Marcar pagado")
+                                        </button>
+                                    </form>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
         }
         else
         {
-            <p>No hay gastos cargados para este servicio todavía.</p>
+            <p class="seccion-gastos__vacio">No hay gastos cargados para este servicio todavía.</p>
         }
+    </section>
+
+    <div class="form-acciones form-acciones--centro">
+        <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Volver al historial</a>
     </div>
 </div>

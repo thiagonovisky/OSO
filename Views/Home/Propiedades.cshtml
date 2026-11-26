@@ -38,21 +38,31 @@
 
 @if (esInquilino && ViewBag.ContratosFinalizados is List<OSO.Models.Contratos> finalizados && finalizados.Count > 0)
 {
-    <div class="card p-3 mb-3">
-        <h3>Contratos anteriores</h3>
-        <p class="revision-ayuda">Podés ver el contrato y tus gastos, pero ya no están vigentes.</p>
-        <ul>
-            @foreach (var terminado in finalizados)
-            {
-                <li>
-                    <strong>@terminado.Direccion</strong>: terminó el @terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")
-                    (@OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)) ·
-                    <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@terminado.IdContrato">Ver contrato</a>
-                </li>
-            }
-        </ul>
-        <a asp-action="MisGastos" asp-controller="Home" class="btn btn-primary">Ver mis gastos</a>
-    </div>
+    <section class="panel">
+        <div class="panel__cabecera">
+            <h3>Contratos anteriores</h3>
+            <a asp-action="MisGastos" asp-controller="Home" class="btn btn-secondary btn-sm">Ver mis gastos</a>
+        </div>
+        <p class="panel__nota">Podés ver el contrato y tus gastos, pero ya no están vigentes.</p>
+        <div class="tabla-wrap"><table class="table">
+            <thead>
+                <tr><th>Propiedad</th><th>Terminó</th><th>Motivo</th><th><span class="visually-hidden">Acciones</span></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var terminado in finalizados)
+                {
+                    <tr>
+                        <td><strong>@terminado.Direccion</strong></td>
+                        <td data-label="Terminó">@terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")</td>
+                        <td data-label="Motivo">@OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)</td>
+                        <td class="col-accion">
+                            <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@terminado.IdContrato" class="btn btn-secondary btn-sm">Ver contrato</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    </section>
 }
 
 @if (Model != null && Model.Count > 0)
@@ -66,7 +76,10 @@
                         <div class="summary-header">
                             <h3>@propiedad.Direccion</h3>
                         </div>
-                        <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="summary-image" alt="@propiedad.Direccion" />
+                        @if (!string.IsNullOrWhiteSpace(propiedad.Foto))
+                        {
+                            <img src="@Url.Content("~/imagenes/" + propiedad.Foto)" class="summary-image" alt="@propiedad.Direccion" onerror="this.remove()" />
+                        }
                     </div>
 
                     <div class="summary-info">
@@ -147,7 +160,7 @@
                         @if (!esInquilino)
                         {
                         <div class="property-actions">
-                            <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Servicios</a>
+                            <a asp-action="Servicios" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Historial</a>
                             <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Contrato</a>
                             <a asp-action="EditarPropiedad" asp-controller="Home" asp-route-idPropiedad="@propiedad.IdPropiedad" class="btn property-action-btn">Editar</a>
 

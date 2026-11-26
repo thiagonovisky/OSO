@@ -17,10 +17,10 @@ public static class MenuPrincipal
     // Pantallas que no son de ninguna sección del menú (no se marca ninguna).
     private static readonly string[] SinSeccion = { "Bienvenida", "Perfil", "Notificaciones", "Index", "Login", "Registro", "Error" };
 
-    // Las expensas extraordinarias las carga solo el propietario.
+    // Las expensas extraordinarias las carga solo el propietario. Las facturas de servicios las carga quien las recibe.
     public static List<ItemMenu> Para(bool esPropietario) => esPropietario
         ? new List<ItemMenu> { Expensas, MisGastos, CargarMes, Propiedades, Mensajeria, Calendario }
-        : new List<ItemMenu> { MisGastos, Propiedades, Mensajeria, Calendario };
+        : new List<ItemMenu> { MisGastos, CargarMes, Propiedades, Mensajeria, Calendario };
 
     // Acción del ítem activo para la pantalla actual, o null. Las pantallas de una propiedad (servicios, contrato, gastos...)
     // cuentan como parte de Propiedades.

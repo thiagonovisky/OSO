@@ -857,7 +857,7 @@ public class HomeController : Controller
     // de la factura y el comprobante.
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult PagarPendienteContrato(int idPropiedad, int idGasto, DateTime periodo, decimal monto, IFormFile? comprobanteArchivo)
+    public IActionResult PagarPendienteContrato(int idPropiedad, int idGasto, DateTime periodo, decimal monto, IFormFile? comprobanteArchivo, IFormFile? facturaArchivo)
     {
         int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
@@ -882,11 +882,26 @@ public class HomeController : Controller
             return RedirectToAction("MisGastos");
         }
 
+        // La factura es opcional; si viene, se guarda con el gasto para que la otra parte vea de dónde sale el monto.
+        bool conFactura = GestorArchivos.TieneContenido(facturaArchivo);
+        string? errorFactura = conFactura ? ArchivosContrato.ValidarFactura(facturaArchivo) : null;
+        if (errorFactura != null)
+        {
+            TempData["Mensaje"] = errorFactura;
+            return RedirectToAction("MisGastos");
+        }
+
         string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_contrato_{idPropiedad}_{idGasto}_{periodo:yyyyMM}");
+        string? factura = conFactura ? ArchivosContrato.GuardarFactura(idPropiedad, facturaArchivo!) : null;
 
         bool pagado = esPropietario
-            ? bd.PagarPendienteContrato(BD.LadoPropietario, idPropietario!.Value, idPropiedad, idGasto, periodo, monto, comprobante)
-            : bd.PagarPendienteContrato(BD.LadoInquilino, idInquilino!.Value, idPropiedad, idGasto, periodo, monto, comprobante);
+            ? bd.PagarPendienteContrato(BD.LadoPropietario, idPropietario!.Value, idPropiedad, idGasto, periodo, monto, comprobante, factura)
+            : bd.PagarPendienteContrato(BD.LadoInquilino, idInquilino!.Value, idPropiedad, idGasto, periodo, monto, comprobante, factura);
+
+        if (!pagado)
+        {
+            ArchivosContrato.BorrarFactura(factura);
+        }
 
         if (pagado)
         {
@@ -903,34 +918,51 @@ public class HomeController : Controller
         return RedirectToAction("MisGastos");
     }
 
-    // Todo lo que falta cargar del mes, de todas las propiedades del propietario, en una sola pantalla.
+    // Quién está cargando facturas: el propietario (sus propiedades) o el inquilino (sus alquileres). null si no hay sesión.
+    private (string Lado, int IdPersona)? QuienCarga()
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        if (idPropietario.HasValue)
+        {
+            return (BD.LadoPropietario, idPropietario.Value);
+        }
+
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        return idInquilino.HasValue ? (BD.LadoInquilino, idInquilino.Value) : null;
+    }
+
+    // Todas las facturas que faltan cargar, en una sola pantalla. La carga quien recibe la factura (propietario o inquilino),
+    // aunque le toque pagarla al otro: cargar no es pagar. Cada uno paga después su parte desde Mis gastos.
     [HttpGet]
     public IActionResult CargarMes()
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        if (!idPropietario.HasValue)
+        var quien = QuienCarga();
+        if (quien == null)
         {
             return RedirectToAction("Login");
         }
 
-        return View(bd.ObtenerFilasCargarMes(idPropietario.Value));
+        ViewBag.EsPropietario = quien.Value.Lado == BD.LadoPropietario;
+        return View(bd.ObtenerFilasCargarMes(quien.Value.Lado, quien.Value.IdPersona));
     }
 
     // Guarda las filas completas. Las vacías siguen pendientes; las que tienen error vuelven a la pantalla con lo escrito;
-    // las que el inquilino cargó mientras tanto no se pisan.
+    // las que la otra parte cargó mientras tanto no se pisan.
     [HttpPost]
     [ValidateAntiForgeryToken]
-    // Las filas vacías no se envían, pero un propietario atrasado puede tener cientos de filas completas.
-    [RequestFormLimits(ValueCountLimit = 20_000)]
+    // Las filas vacías no se envían, pero alguien atrasado puede tener cientos de filas completas, y cada una puede llevar su factura.
+    [RequestFormLimits(ValueCountLimit = 20_000, MultipartBodyLengthLimit = LimiteGuardarMes)]
+    [RequestSizeLimit(LimiteGuardarMes)]
     public IActionResult GuardarMes(List<FilaEnviada>? filas)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        if (!idPropietario.HasValue)
+        var quien = QuienCarga();
+        if (quien == null)
         {
             return RedirectToAction("Login");
         }
 
-        List<FilaCargarMes> pantalla = bd.ObtenerFilasCargarMes(idPropietario.Value);
+        var (lado, idPersona) = quien.Value;
+        List<FilaCargarMes> pantalla = bd.ObtenerFilasCargarMes(lado, idPersona);
         Dictionary<string, FilaCargarMes> porClave = pantalla.ToDictionary(f => f.Clave);
         static string ClaveDe(FilaEnviada f) => $"{f.IdPropiedad}-{f.IdGasto}-{f.Periodo:yyyyMM}";
         string Nombre(FilaEnviada f) => porClave.TryGetValue(ClaveDe(f), out FilaCargarMes? p)
@@ -950,13 +982,24 @@ public class HomeController : Controller
                 continue;
             }
 
-            switch (bd.GuardarFilaMes(idPropietario.Value, fila))
+            // Un mes incluido en otra factura no lleva factura propia.
+            string? factura = !fila.IncluidoEn.HasValue && GestorArchivos.TieneContenido(fila.Factura)
+                ? ArchivosContrato.GuardarFactura(fila.IdPropiedad, fila.Factura!)
+                : null;
+
+            ResultadoFilaMes resultado = bd.GuardarFilaMes(lado, idPersona, fila, factura);
+            if (resultado != ResultadoFilaMes.Guardado)
+            {
+                ArchivosContrato.BorrarFactura(factura);
+            }
+
+            switch (resultado)
             {
                 case ResultadoFilaMes.Guardado:
                     guardados++;
                     break;
                 case ResultadoFilaMes.YaCargado:
-                    yaCargados.Add($"{Nombre(fila)} ya lo había cargado el inquilino.");
+                    yaCargados.Add($"{Nombre(fila)} ya estaba cargado.");
                     break;
                 default:
                     errores[ClaveDe(fila)] = "Este servicio ya no está pendiente.";
@@ -974,10 +1017,37 @@ public class HomeController : Controller
         }
 
         // Con errores, la pantalla vuelve con lo que se escribió en las filas que no se guardaron.
+        // Las facturas adjuntas no vuelven (un navegador no deja reponer archivos): la pantalla avisa que hay que adjuntarlas de nuevo.
         ViewBag.Resumen = resumen;
         ViewBag.Errores = errores;
         ViewBag.Enviadas = (filas ?? []).GroupBy(ClaveDe).ToDictionary(g => g.Key, g => g.First());
-        return View("CargarMes", bd.ObtenerFilasCargarMes(idPropietario.Value));
+        ViewBag.EsPropietario = lado == BD.LadoPropietario;
+        return View("CargarMes", bd.ObtenerFilasCargarMes(lado, idPersona));
+    }
+
+    private const long LimiteGuardarMes = 200L * 1024 * 1024;
+
+    // Factura guardada con un gasto: solo la ven el propietario de la propiedad y el inquilino del contrato de ese mes.
+    [HttpGet]
+    public IActionResult VerFactura(int idGastoPropiedad)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        if (!idPropietario.HasValue && !idInquilino.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        string? factura = bd.ObtenerFacturaDeGasto(idGastoPropiedad, idPropietario, idInquilino);
+        string? ruta = ArchivosContrato.ObtenerRutaFactura(factura);
+        if (ruta == null)
+        {
+            TempData["Mensaje"] = "Ese gasto no tiene una factura guardada.";
+            return RedirectToAction("MisGastos");
+        }
+
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return PhysicalFile(ruta, ArchivosContrato.ObtenerTipoMime(factura!));
     }
 
     [HttpPost]
@@ -1394,8 +1464,8 @@ public class HomeController : Controller
 
         if (!leyoAlgo)
         {
+            // El aviso lo muestra la pantalla de revisión cada vez que se abre, no solo ahora.
             bd.GuardarExtraccion(idContrato, _extractor.Modelo, null, "Error", errorIa ?? "La respuesta de la IA no tenía datos del contrato.");
-            TempData["Error"] = "No pudimos leer el contrato; completalo a mano.";
             return RedirectToAction("RevisarContrato", new { idContrato });
         }
 
@@ -1461,8 +1531,8 @@ public class HomeController : Controller
     [RequestSizeLimit(11_534_336)]
     public async Task<IActionResult> LeerFacturaParaMes(IFormFile? factura)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        if (!idPropietario.HasValue)
+        var quien = QuienCarga();
+        if (quien == null)
         {
             return Unauthorized(new { ok = false, tipoError = "NoDisponible", mensaje = "Iniciá sesión para leer facturas." });
         }
@@ -1473,7 +1543,7 @@ public class HomeController : Controller
             return Json(new { ok = false, tipoError = nameof(TipoErrorIa.NoSeLeyo), mensaje = error });
         }
 
-        List<FilaCargarMes> filas = bd.ObtenerFilasCargarMes(idPropietario.Value);
+        List<FilaCargarMes> filas = bd.ObtenerFilasCargarMes(quien.Value.Lado, quien.Value.IdPersona);
         List<string> servicios = filas.Select(f => f.TipoGasto).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         using var memoria = new MemoryStream();
@@ -1595,6 +1665,12 @@ public class HomeController : Controller
         revision.Errores = ReglasContrato.Errores(contrato, revision.Reglas);
         revision.Advertencias = ReglasContrato.Advertencias(contrato, revision.Reglas);
         revision.ArmarCampos(extraccion);
+
+        if (json == null && !string.IsNullOrEmpty(contrato.ArchivoContrato))
+        {
+            revision.LecturaFallida = true;
+            revision.MotivoLecturaFallida = bd.ObtenerErrorUltimaExtraccion(contrato.IdContrato);
+        }
 
         // Las filas leídas por la IA con baja confianza también se marcan para revisar.
         return revision;

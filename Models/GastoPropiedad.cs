@@ -20,6 +20,14 @@ public class GastoPropiedad
 
     public bool CargadoPorInquilino => Aclaracion == AclaracionCargaInquilino;
 
+    // Archivo de la factura (en App_Data, se baja con VerFactura), si quien cargó el gasto la adjuntó.
+    public string? Factura { get; set; }
+
+    // Quién cargó el monto, contado para quien mira el gasto. Todo lo que no carga el inquilino lo carga el propietario.
+    public string CargadoPorPara(bool esPropietario) => CargadoPorInquilino == esPropietario
+        ? (esPropietario ? "Cargado por el inquilino" : "Cargado por el propietario")
+        : "Cargado por vos";
+
     // Mes cubierto por la factura de otro mes (las bimestrales): se guarda con monto 0 y esta aclaración,
     // así deja de figurar como pendiente sin generar deuda ni aviso.
     public const string PrefijoIncluido = "Incluido en la factura de ";
