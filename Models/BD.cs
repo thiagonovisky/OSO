@@ -1017,6 +1017,88 @@ public class BD
         return CalcularPendientesDePropiedad(connection, idPropiedad);
     }
 
+    // Filas de la pantalla "Cargar el mes": lo que falta cargar en todas las propiedades del propietario, de los dos lados,
+    // con el monto del mes anterior como sugerencia (los meses "incluidos", de monto 0, no sirven de sugerencia).
+    public List<FilaCargarMes> ObtenerFilasCargarMes(int idPropietario)
+    {
+        using SqlConnection connection = new(connectionString);
+        var parametros = new { IdPropietario = idPropietario };
+        const string filtro = "p.IdPropietario = @IdPropietario";
+        List<PendienteContrato> pendientes = CalcularPendientesContrato(connection, null, LadoInquilino, filtro, parametros)
+            .Concat(CalcularPendientesContrato(connection, null, LadoPropietario, filtro, parametros))
+            .ToList();
+
+        Dictionary<(int, int, DateTime), decimal> montos = connection.Query<(int IdPropiedad, int IdGasto, DateTime Periodo, decimal Monto)>(
+                @"SELECT gp.IdPropiedad, gp.IdGasto, gp.Periodo, gp.Monto
+                  FROM GastosPropiedad gp
+                  INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
+                  WHERE p.IdPropietario = @IdPropietario AND gp.Monto > 0",
+                parametros)
+            .GroupBy(x => (x.IdPropiedad, x.IdGasto, PrimerDiaDelMes(x.Periodo)))
+            .ToDictionary(g => g.Key, g => g.First().Monto);
+
+        return FilasCargarMes.Armar(pendientes, montos);
+    }
+
+    // Guarda una fila de "Cargar el mes". Nunca pisa un mes que ya tiene gasto (por ejemplo, si el inquilino lo cargó mientras
+    // tanto): el chequeo y el alta van en la misma transacción, con el mes bloqueado hasta terminar.
+    public ResultadoFilaMes GuardarFilaMes(int idPropietario, FilaEnviada fila)
+    {
+        DateTime mes = PrimerDiaDelMes(fila.Periodo);
+
+        using SqlConnection connection = new(connectionString);
+        connection.Open();
+        using var transaction = connection.BeginTransaction();
+
+        bool esSuya = connection.ExecuteScalar<int>(
+            "SELECT COUNT(1) FROM Propiedades WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario",
+            new { fila.IdPropiedad, IdPropietario = idPropietario }, transaction) > 0;
+        if (!esSuya)
+        {
+            return ResultadoFilaMes.NoCorresponde;
+        }
+
+        bool yaCargado = connection.ExecuteScalar<int>(
+            "SELECT COUNT(1) FROM GastosPropiedad WITH (UPDLOCK, HOLDLOCK) WHERE IdPropiedad = @IdPropiedad AND IdGasto = @IdGasto AND Periodo = @Periodo",
+            new { fila.IdPropiedad, fila.IdGasto, Periodo = mes }, transaction) > 0;
+        if (yaCargado)
+        {
+            return ResultadoFilaMes.YaCargado;
+        }
+
+        var parametros = new { IdPropietario = idPropietario, fila.IdPropiedad };
+        const string filtro = "p.IdPropietario = @IdPropietario AND c.IdPropiedad = @IdPropiedad";
+        bool esPendiente = CalcularPendientesContrato(connection, transaction, LadoInquilino, filtro, parametros)
+            .Concat(CalcularPendientesContrato(connection, transaction, LadoPropietario, filtro, parametros))
+            .Any(p => p.IdGasto == fila.IdGasto && p.Periodo == mes);
+        if (!esPendiente)
+        {
+            return ResultadoFilaMes.NoCorresponde;
+        }
+
+        var gasto = fila.IncluidoEn.HasValue
+            ? new GastoPropiedad
+            {
+                Periodo = mes,
+                Monto = 0,
+                FechaVencimiento = mes,
+                FechaAlta = DateTime.Today,
+                Aclaracion = GastoPropiedad.AclaracionIncluido(fila.IncluidoEn.Value)
+            }
+            : new GastoPropiedad
+            {
+                Periodo = mes,
+                Monto = fila.Monto ?? 0,
+                FechaVencimiento = fila.Vencimiento ?? DateTime.Today.AddDays(GastoPropiedad.DiasVencimientoPropuesto),
+                FechaAlta = DateTime.Today
+            };
+
+        int idGastoPropiedad = GuardarGastoPropiedad(connection, transaction, fila.IdPropiedad, fila.IdGasto, gasto);
+        AvisarGastoNuevoAlInquilino(connection, transaction, idGastoPropiedad);
+        transaction.Commit();
+        return ResultadoFilaMes.Guardado;
+    }
+
     private static List<PendienteContrato> CalcularPendientesDePropiedad(SqlConnection connection, int idPropiedad)
     {
         var parametros = new { IdPropiedad = idPropiedad };
