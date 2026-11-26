@@ -299,3 +299,6 @@ wwwroot/imagenes/propiedad_*
 .env
 .env.*
 *.bak
+
+# Tests locales: no se suben al repo
+OSO.Tests/
