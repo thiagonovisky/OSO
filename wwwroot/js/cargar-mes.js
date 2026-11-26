@@ -38,7 +38,8 @@
     }
 
     function completarFila(tr, r, archivo, marca) {
-        if (r.monto !== null && r.monto !== undefined) { campo(tr, 'campo-monto').value = r.monto; }
+        // Dos decimales: si no, el campo (step 0.01) no deja guardar.
+        if (r.monto !== null && r.monto !== undefined) { campo(tr, 'campo-monto').value = (Math.round(r.monto * 100) / 100).toString(); }
         if (r.vencimiento) { campo(tr, 'campo-vencimiento').value = r.vencimiento; }
         var origen = campo(tr, 'cargar-mes__origen');
         origen.textContent = (marca === 'Leida' ? '📄 leída: ' : '📄 revisar: ') + archivo;
@@ -122,15 +123,28 @@
         var selector = document.createElement('select');
         selector.className = 'form-select form-select-sm';
         selector.setAttribute('aria-label', 'Fila para ' + archivo.name);
-        selector.add(new Option('Elegí la fila', ''));
-        formulario.querySelectorAll('tr[data-clave]').forEach(function (tr) {
-            if (!tieneDatos(tr)) { selector.add(new Option(descripcion(tr), tr.dataset.clave)); }
-        });
+
+        // Las opciones se arman cada vez que se abre: otras facturas pueden haber completado filas mientras tanto.
+        function armarOpciones() {
+            selector.length = 0;
+            selector.add(new Option('Elegí la fila', ''));
+            formulario.querySelectorAll('tr[data-clave]').forEach(function (tr) {
+                if (!tieneDatos(tr)) { selector.add(new Option(descripcion(tr), tr.dataset.clave)); }
+            });
+        }
+        armarOpciones();
+        selector.addEventListener('focus', armarOpciones);
+        selector.addEventListener('mousedown', armarOpciones);
         li.appendChild(selector);
 
         selector.addEventListener('change', function () {
             var tr = fila(selector.value);
             if (!tr) { return; }
+            if (tieneDatos(tr)) {
+                alert('Esa fila ya tiene un monto o está incluida en otra factura. Elegí otra.');
+                armarOpciones();
+                return;
+            }
             if (r.periodo && !mismoMes(r.periodo, tr.dataset.periodo)
                 && !confirm('La factura es de ' + nombreMes(r.periodo) + '. ¿La cargás igual en ' + nombreMes(tr.dataset.periodo) + '?')) {
                 selector.value = '';
@@ -215,6 +229,25 @@
     formulario.querySelectorAll('tr[data-clave]').forEach(function (tr) {
         var incluido = campo(tr, 'campo-incluido').value;
         if (incluido) { marcarIncluida(tr, incluido); }
+    });
+
+    // Las filas vacías no se envían: el servidor las ignoraría igual, y con muchos meses atrasados
+    // el formulario superaría el límite de campos.
+    formulario.addEventListener('submit', function () {
+        formulario.querySelectorAll('tr[data-clave]').forEach(function (tr) {
+            if (!tieneDatos(tr)) {
+                tr.querySelectorAll('input').forEach(function (i) { i.disabled = true; });
+            }
+        });
+    });
+
+    // Si el navegador vuelve a esta página con el botón "Atrás", las filas deshabilitadas al enviar se rehabilitan.
+    window.addEventListener('pageshow', function () {
+        formulario.querySelectorAll('tr[data-clave]').forEach(function (tr) {
+            if (!campo(tr, 'campo-incluido').value) {
+                tr.querySelectorAll('input').forEach(function (i) { i.disabled = false; });
+            }
+        });
     });
 
     entrada.addEventListener('change', function () { recibir(entrada.files); entrada.value = ''; });

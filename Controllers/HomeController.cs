@@ -920,6 +920,8 @@ public class HomeController : Controller
     // las que el inquilino cargó mientras tanto no se pisan.
     [HttpPost]
     [ValidateAntiForgeryToken]
+    // Las filas vacías no se envían, pero un propietario atrasado puede tener cientos de filas completas.
+    [RequestFormLimits(ValueCountLimit = 20_000)]
     public IActionResult GuardarMes(List<FilaEnviada>? filas)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");

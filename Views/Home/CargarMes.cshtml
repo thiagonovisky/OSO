@@ -36,6 +36,8 @@
                         <td data-label="Servicio"><strong>@fila.TipoGasto</strong></td>
                         <td data-label="Quién paga"><small class="celda-sub">@fila.QuienPaga</small></td>
                         <td data-label="Monto" class="col-monto">
+                            @* filas.Index: al enviar, las filas vacías no mandan nada y los índices quedan salteados. *@
+                            <input type="hidden" name="filas.Index" value="@i" />
                             <input type="hidden" name="filas[@i].IdPropiedad" value="@fila.IdPropiedad" />
                             <input type="hidden" name="filas[@i].IdGasto" value="@fila.IdGasto" />
                             <input type="hidden" name="filas[@i].Periodo" value="@fila.Periodo.ToString("yyyy-MM-dd")" />
