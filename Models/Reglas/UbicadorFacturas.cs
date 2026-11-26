@@ -13,29 +13,58 @@ public static class ComparadorDomicilios
         ["general"] = "gral"
     };
 
-    private static readonly HashSet<string> Ignoradas = ["av", "calle", "piso", "dto", "depto"];
+    private static readonly HashSet<string> Ignoradas = ["av", "calle", "piso", "dto", "depto", "p", "de"];
 
-    // Coinciden si la factura tiene la misma altura y todas las palabras del nombre de la calle de la propiedad.
+    // Coinciden si la factura tiene la misma altura, todas las palabras del nombre de la calle y, si la propiedad indica
+    // una unidad ("3B", "piso 3 dto B"), también esa unidad: en un mismo edificio, la factura de otra unidad no coincide,
+    // y una factura sin unidad no alcanza para saber cuál es.
     public static bool Coinciden(string direccionPropiedad, string domicilioFactura)
     {
         List<string> propiedad = Palabras(direccionPropiedad);
-        int posAltura = propiedad.FindIndex(EsNumero);
+
+        // La altura es el primer número que tiene antes alguna palabra de la calle: así "25 de Mayo 300" o
+        // "Av. 9 de Julio 1000" toman 300 y 1000, no el número del nombre.
+        int posAltura = -1;
+        for (int i = 0; i < propiedad.Count && posAltura < 0; i++)
+        {
+            if (EsNumero(propiedad[i]) && propiedad.Take(i).Any(p => !Ignoradas.Contains(p)))
+            {
+                posAltura = i;
+            }
+        }
+
         if (posAltura < 0)
         {
             return false;
         }
 
-        HashSet<string> factura = Palabras(domicilioFactura).ToHashSet();
-        if (!factura.Contains(propiedad[posAltura]))
-        {
-            return false;
-        }
+        List<string> palabrasFactura = Palabras(domicilioFactura);
+        HashSet<string> factura = palabrasFactura.ToHashSet();
+        HashSet<string> facturaSeparada = palabrasFactura.SelectMany(SepararLetrasYNumeros).ToHashSet();
 
         List<string> calle = propiedad.Take(posAltura).Where(p => !Ignoradas.Contains(p)).ToList();
-        return calle.Count > 0 && calle.All(factura.Contains);
+        List<string> unidad = propiedad.Skip(posAltura + 1).SelectMany(SepararLetrasYNumeros).Where(p => !Ignoradas.Contains(p)).ToList();
+
+        return factura.Contains(propiedad[posAltura])
+            && calle.All(factura.Contains)
+            && unidad.All(facturaSeparada.Contains);
     }
 
     private static bool EsNumero(string palabra) => palabra.All(char.IsDigit);
+
+    // "3b" -> "3", "b"; "p3" -> "p", "3". Así "3B" coincide con "PISO 3 DTO B" o con "P3 DTO B".
+    private static IEnumerable<string> SepararLetrasYNumeros(string palabra)
+    {
+        int inicio = 0;
+        for (int i = 1; i <= palabra.Length; i++)
+        {
+            if (i == palabra.Length || char.IsDigit(palabra[i]) != char.IsDigit(palabra[i - 1]))
+            {
+                yield return palabra[inicio..i];
+                inicio = i;
+            }
+        }
+    }
 
     private static List<string> Palabras(string? texto)
     {
