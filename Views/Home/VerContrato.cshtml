@@ -1,15 +1,18 @@
 @model OSO.Models.RevisionContrato
 @{
     var c = Model.Contrato;
-    bool paraAceptar = c.Estado == "PendienteInquilino";
+    bool comoPropietario = ViewBag.ComoPropietario == true;
+    bool pendiente = c.Estado == "PendienteInquilino";
+    bool paraAceptar = pendiente && !comoPropietario;
     bool terminado = c.Estado == "Finalizado";
-    string pillEstado = paraAceptar ? "pagar" : terminado ? "neutro" : "pagado";
+    string pillEstado = pendiente ? "pagar" : terminado ? "neutro" : "pagado";
+    string textoEstado = comoPropietario && pendiente ? "Esperando al inquilino" : c.EstadoParaInquilino;
 }
 
 <div class="pagina">
     <h2 class="pagina-titulo">Contrato de alquiler</h2>
     <p class="pagina-bajada">
-        <strong>@Model.Propiedad.Direccion</strong> · <span class="estado-pill estado-pill--@pillEstado">@c.EstadoParaInquilino</span>
+        <strong>@Model.Propiedad.Direccion</strong> · <span class="estado-pill estado-pill--@pillEstado">@textoEstado</span>
     </p>
 
     @if (TempData["Error"] != null)
@@ -28,8 +31,14 @@
             Tu propietario cargó este contrato y espera que lo aceptes. Revisá los datos y quién paga cada gasto; si está todo bien, aceptalo al final de la página.
         </p>
     }
+    else if (comoPropietario && pendiente)
+    {
+        <p class="aviso-pagina">
+            Le enviaste este contrato al inquilino. Queda vigente cuando lo acepte; mientras tanto no se puede modificar.
+        </p>
+    }
 
-    @if (terminado)
+    @if (terminado && !comoPropietario)
     {
         <div class="alert alert-warning">
             <strong>Este contrato terminó el @Formato.Fecha(c.FechaFinReal)</strong> · Motivo: @OSO.Models.ReglasContrato.NombreMotivoFin(c.MotivoFin).
@@ -100,7 +109,7 @@
                 {
                     <tr>
                         <td><strong>@regla.TipoGasto</strong></td>
-                        <td data-label="Lo paga">@regla.QuienPagaParaInquilino</td>
+                        <td data-label="Lo paga">@(comoPropietario ? (regla.Responsable == "Compartido" ? $"Compartido ({Formato.Numero(regla.PorcentajeInquilino, "0.##")}% inquilino)" : regla.Responsable) : regla.QuienPagaParaInquilino)</td>
                         <td data-label="Cláusula" class="celda-nota">@(string.IsNullOrEmpty(regla.TextoClausula) ? "—" : regla.TextoClausula)</td>
                     </tr>
                 }
@@ -133,7 +142,11 @@
     else
     {
         <div class="form-acciones form-acciones--centro">
-            @if (ViewBag.VolverANotificaciones == true)
+            @if (comoPropietario)
+            {
+                <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.Propiedad.IdPropiedad" class="btn btn-secondary">Volver</a>
+            }
+            else if (ViewBag.VolverANotificaciones == true)
             {
                 <a asp-action="Notificaciones" asp-controller="Home" class="btn btn-secondary">Volver a notificaciones</a>
             }

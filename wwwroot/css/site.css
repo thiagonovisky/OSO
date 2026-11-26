@@ -1962,6 +1962,140 @@ input[type="file"]::file-selector-button:hover {
   width: 20px;
   height: 20px;
 }
+/* Selector de mes y año: el nombre del mes abre un panel con el año y los 12 meses. */
+.cal-picker {
+  position: relative;
+}
+.cal-picker__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  padding: 4px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radio-control);
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.cal-picker__toggle:hover, .cal-picker__toggle[aria-expanded="true"] {
+  border-color: var(--linea);
+  background: var(--niebla);
+  color: var(--blue-dark);
+}
+.cal-picker__toggle svg {
+  color: var(--blue-main);
+  transition: transform 0.15s ease;
+}
+.cal-picker__toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.cal-picker__panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 20;
+  width: 280px;
+  padding: 14px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-panel);
+  background: var(--white);
+  box-shadow: 0 12px 32px var(--shadow);
+  transform: translateX(-50%);
+}
+.cal-picker__panel[hidden] {
+  display: none;
+}
+.cal-picker__years {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.cal-picker__year {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #C7D3DE;
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--blue-dark);
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}
+.cal-picker__year-btn {
+  display: inline-flex;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-width: 0;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  background: var(--niebla);
+  color: var(--blue-main);
+  cursor: pointer;
+}
+.cal-picker__year-btn:hover:not(:disabled) {
+  background: var(--blue-main);
+  color: var(--white);
+}
+.cal-picker__year-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.cal-picker__year-btn:active, .cal-picker__toggle:active {
+  box-shadow: none;
+}
+.cal-picker__months {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.cal-picker__month {
+  padding: 8px 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--blue-dark);
+  text-align: center;
+  text-decoration: none;
+}
+.cal-picker__month:hover {
+  background: var(--niebla);
+  color: var(--blue-dark);
+}
+.cal-picker__month.is-today {
+  border-color: var(--blue-soft);
+}
+.cal-picker__month.is-selected {
+  background: var(--blue-main);
+  color: var(--white);
+  font-weight: 600;
+}
+.cal-picker__hoy {
+  display: block;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--linea);
+  color: var(--blue-main);
+  font-size: 0.95rem;
+  text-align: center;
+}
 .cal-grid-wrap {
   grid-column: 1;
   grid-row: 2;
@@ -2041,99 +2175,152 @@ a.cal-cell:hover {
   text-align: center;
 }
 
-/* Agregar evento */
+/* Agregar evento: tarjeta blanca con secciones (cuándo, dónde, invitado) en vez de una columna de campos sueltos. */
 .evt-page {
   max-width: 640px;
-  padding: 1.67% 1.11% 3.33%;
+  padding: 1.67% 16px 3.33%;
   text-align: center;
 }
 .evt-date {
-  margin: 0 0 1.39%;
+  margin: 0 0 20px;
   color: var(--blue-soft);
-  font-size: 2rem;
+  font-size: 1.5rem;
 }
 .evt-alert {
-  max-width: 420px;
-  margin: 0 auto 1.11%;
+  max-width: 560px;
+  margin: 0 auto 16px;
 }
 .evt-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-width: 420px;
+  gap: 18px;
+  max-width: 560px;
   margin: 0 auto;
-  padding: 1.94% 2.22%;
-  border-radius: 14px;
-  background: var(--blue-soft);
+  padding: 24px;
+  border: 1px solid var(--linea);
+  border-top: 4px solid var(--blue-main);
+  border-radius: var(--radio-panel);
+  background: var(--white);
+  box-shadow: 0 8px 24px var(--shadow);
   text-align: left;
 }
-.evt-label {
+.evt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-radius: var(--radio-control);
+  background: var(--niebla);
+}
+.evt-section__title {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 0.69% 0 0;
-  color: #000;
-  font-size: 1.25rem;
+  gap: 8px;
+  margin: 0;
+  color: var(--blue-dark);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.evt-section__title img {
+  width: 22px;
+  height: 22px;
+}
+.evt-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.evt-row {
+  display: grid;
+  gap: 12px;
+}
+.evt-row--3 {
+  grid-template-columns: 1.4fr 1fr 1fr;
+}
+.evt-label {
+  margin: 0;
+  color: var(--blue-dark);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.evt-label--sub {
+  color: rgba(30, 51, 72, 0.75);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.evt-opcional {
+  color: rgba(30, 51, 72, 0.5);
   font-weight: 400;
 }
-.evt-label img {
-  width: 24px;
-  min-width: 24px;
-  height: 24px;
-}
 .evt-input {
-  min-height: 44px;
-  padding: 0.56% 1.11%;
-  border: 1px solid #9CA3AF;
-  border-radius: 7px;
-  background: var(--white);
-  color: #374151;
-  font-size: 1rem;
-}
-.evt-input-icon {
-  position: relative;
-}
-.evt-input-icon .evt-input {
-  padding-right: 3.06%;
-}
-.evt-input-icon input[type="time"] {
-  cursor: pointer;
-}
-.evt-input-icon input[type="time"]::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset: 0;
   width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  opacity: 0;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #C7D3DE;
+  border-radius: 8px;
+  background: var(--white);
+  color: #1F2937;
+  font-size: 1rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.evt-input:hover {
+  border-color: var(--blue-soft);
+}
+.evt-input:focus {
+  border-color: var(--blue-main);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--blue-main-12);
+}
+.evt-input::placeholder {
+  color: #9CA3AF;
+}
+.evt-input--titulo {
+  min-height: 48px;
+  font-size: 1.2rem;
+}
+.evt-textarea {
+  min-height: 84px;
+  resize: vertical;
+  font-family: inherit;
+}
+input[type="date"].evt-input, input[type="time"].evt-input {
   cursor: pointer;
 }
-.evt-input-icon img {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  width: 24px;
-  height: 24px;
-  pointer-events: none;
+.evt-hint {
+  min-height: 1.2em;
+  margin: 0;
+  color: rgba(30, 51, 72, 0.6);
+  font-size: 0.85rem;
+}
+.evt-hint--error {
+  color: var(--danger-strong);
+}
+.evt-hint--derecha {
+  text-align: right;
 }
 .evt-actions {
   display: flex;
-  justify-content: center;
-  gap: 24px;
-  margin-top: 1.94%;
+  justify-content: flex-end;
+  gap: 12px;
+  max-width: 560px;
+  margin: 20px auto 0;
 }
 .evt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: auto;
-  min-width: 109px;
-  height: 41px;
-  padding: 0 1.88%;
+  min-width: 120px;
+  height: 42px;
+  padding: 0 20px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--blue-main);
   color: var(--white);
   font-size: 1rem;
-  font-weight: 400;
+  font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -2146,6 +2333,23 @@ a.cal-cell:hover {
   border-color: var(--blue-main);
   background: var(--niebla);
   color: var(--blue-dark);
+}
+@media (max-width: 560px) {
+  .evt-card {
+    padding: 16px;
+  }
+  .evt-row--3 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .evt-row--3 > .evt-field:first-child {
+    grid-column: 1 / -1;
+  }
+  .evt-actions {
+    justify-content: stretch;
+  }
+  .evt-actions .evt-btn {
+    flex: 1;
+  }
 }
 
 /* Mensajería: la lista de contactos va en un panel como el resto; el chat es un solo panel con la lista al costado,
@@ -3015,6 +3219,27 @@ form.form-panel {
 }
 .form-acciones__aparte {
   margin-right: auto;
+}
+
+/* Circulito de carga (por ejemplo, mientras la IA lee un contrato) */
+.cargando {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 20px;
+}
+.cargando__circulo {
+  width: 44px;
+  height: 44px;
+  border: 4px solid var(--niebla);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: cargando-girar 0.9s linear infinite;
+}
+@keyframes cargando-girar {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cargando__circulo { animation-duration: 2.5s; }
 }
 
 /* Datos de solo lectura: etiqueta chica arriba y el valor abajo, en columnas */

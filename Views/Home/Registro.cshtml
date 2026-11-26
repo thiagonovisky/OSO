@@ -1,5 +1,10 @@
-@{
+﻿@{
     bool desdeInvitacion = !string.IsNullOrWhiteSpace(ViewBag.ReturnUrl as string);
+    // Si el registro volvió con un error, se completan los campos con lo que ya se había cargado (menos las contraseñas y la foto).
+    var enviado = Context.Request.HasFormContentType ? Context.Request.Form : null;
+    string Previo(string campo) => enviado?[campo].ToString() ?? "";
+    bool eligioPropietario = Previo("esPropietario") == "true";
+    string paisPrevio = Previo("codigoPais");
 }
 <div class="auth-page auth-page--registro">
     <h1 class="auth-title">Creá tu cuenta</h1>
@@ -25,12 +30,12 @@
                 <fieldset class="auth-roles">
                     <legend>¿Cómo vas a usar OSO?</legend>
                     <label class="auth-rol">
-                        <input type="radio" name="esPropietario" value="false" checked />
+                        <input type="radio" name="esPropietario" value="false" checked="@(!eligioPropietario)" />
                         <span class="auth-rol__titulo">Soy inquilino/a</span>
                         <span class="auth-rol__detalle">Veo mi contrato y pago el alquiler y los gastos que me tocan.</span>
                     </label>
                     <label class="auth-rol">
-                        <input type="radio" name="esPropietario" value="true" />
+                        <input type="radio" name="esPropietario" value="true" checked="@eligioPropietario" />
                         <span class="auth-rol__titulo">Soy propietario/a</span>
                         <span class="auth-rol__detalle">Administro mis propiedades, contratos y gastos.</span>
                     </label>
@@ -40,17 +45,17 @@
             <div class="auth-fila">
                 <div class="auth-campo">
                     <label for="nombre">Nombre</label>
-                    <input type="text" id="nombre" name="nombre" maxlength="50" autocomplete="given-name" required />
+                    <input type="text" id="nombre" name="nombre" value="@Previo("nombre")" maxlength="50" autocomplete="given-name" required />
                 </div>
                 <div class="auth-campo">
                     <label for="apellido">Apellido</label>
-                    <input type="text" id="apellido" name="apellido" maxlength="50" autocomplete="family-name" required />
+                    <input type="text" id="apellido" name="apellido" value="@Previo("apellido")" maxlength="50" autocomplete="family-name" required />
                 </div>
             </div>
 
             <div class="auth-campo">
                 <label for="correo">Mail</label>
-                <input type="email" id="correo" name="correo" maxlength="100" autocomplete="email" required />
+                <input type="email" id="correo" name="correo" value="@Previo("correo")" maxlength="100" autocomplete="email" required />
             </div>
 
             <div class="auth-campo">
@@ -59,10 +64,10 @@
                     <select id="codigoPais" name="codigoPais" aria-label="País">
                         @foreach (var pais in OSO.Models.TelefonoFormato.Paises)
                         {
-                            <option value="@pais.Codigo" data-digitos="@pais.Digitos" data-ejemplo="@pais.Ejemplo">@pais.Nombre (+@pais.Codigo)</option>
+                            <option value="@pais.Codigo" selected="@(paisPrevio == pais.Codigo.ToString())" data-digitos="@pais.Digitos" data-ejemplo="@pais.Ejemplo">@pais.Nombre (+@pais.Codigo)</option>
                         }
                     </select>
-                    <input type="tel" id="telefono" name="telefono" required inputmode="numeric" autocomplete="tel-national"
+                    <input type="tel" id="telefono" name="telefono" value="@Previo("telefono")" required inputmode="numeric" autocomplete="tel-national"
                            placeholder="11-2345-6789"
                            title="Ingresá el número con código de área; los guiones se agregan solos" />
                 </div>

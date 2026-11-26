@@ -2,11 +2,13 @@
 @{
     ViewData["Title"] = "Agregar evento";
     var propiedades = ViewBag.Propiedades as List<OSO.Models.Propiedades> ?? new List<OSO.Models.Propiedades>();
+    var cultura = new System.Globalization.CultureInfo("es-AR");
+    string fechaLarga = cultura.TextInfo.ToTitleCase(Model.Fecha.ToString("dddd d 'de' MMMM 'de' yyyy", cultura));
 }
 
 <div class="evt-page">
     <h1 class="evt-title">AGREGAR EVENTO</h1>
-    <p class="evt-date">@Model.Fecha.ToString("dd/MM/yyyy")</p>
+    <p class="evt-date" id="evtFechaLarga">@fechaLarga</p>
 
     @if (TempData["Error"] != null)
     {
@@ -15,99 +17,160 @@
 
     <form asp-action="GuardarEvento" asp-controller="Home" method="post" class="evt-form">
         @Html.AntiForgeryToken()
-        <input type="hidden" name="Fecha" value="@Model.Fecha.ToString("yyyy-MM-dd")" />
 
         <div class="evt-card">
-            <label for="Titulo" class="evt-label">Añade un título</label>
-            <input id="Titulo" name="Titulo" type="text" class="evt-input" maxlength="100" required placeholder="Visita plomero" />
-
-            <label for="HoraInicio" class="evt-label evt-label--icon">
-                <img src="~/img/evento/alarma.svg" alt="" />Añade una hora de inicio
-            </label>
-            <div class="evt-input-icon">
-                <input id="HoraInicio" name="HoraInicio" type="time" class="evt-input" value="@Model.HoraInicio.ToString(@"hh\:mm")" required />
-                <img src="~/img/evento/alarma-campo.svg" alt="" />
+            <div class="evt-field">
+                <label for="Titulo" class="evt-label">Título</label>
+                <input id="Titulo" name="Titulo" type="text" class="evt-input evt-input--titulo" maxlength="100" required
+                       placeholder="Ej.: Visita del plomero" autofocus />
             </div>
 
-            <label for="HoraFin" class="evt-label evt-label--icon">
-                <img src="~/img/evento/alarma.svg" alt="" />Añade una hora de fin
-            </label>
-            <div class="evt-input-icon">
-                <input id="HoraFin" name="HoraFin" type="time" class="evt-input" value="@Model.HoraFin.ToString(@"hh\:mm")" required />
-                <img src="~/img/evento/alarma-campo.svg" alt="" />
+            <div class="evt-section">
+                <p class="evt-section__title">
+                    <img src="~/img/evento/alarma.svg" alt="" />Cuándo
+                </p>
+                <div class="evt-row evt-row--3">
+                    <div class="evt-field">
+                        <label for="Fecha" class="evt-label evt-label--sub">Fecha</label>
+                        <input id="Fecha" name="Fecha" type="date" class="evt-input" value="@Model.Fecha.ToString("yyyy-MM-dd")" required />
+                    </div>
+                    <div class="evt-field">
+                        <label for="HoraInicio" class="evt-label evt-label--sub">Desde</label>
+                        <input id="HoraInicio" name="HoraInicio" type="time" class="evt-input" value="@Model.HoraInicio.ToString(@"hh\:mm")" required />
+                    </div>
+                    <div class="evt-field">
+                        <label for="HoraFin" class="evt-label evt-label--sub">Hasta</label>
+                        <input id="HoraFin" name="HoraFin" type="time" class="evt-input" value="@Model.HoraFin.ToString(@"hh\:mm")" required />
+                    </div>
+                </div>
+                <p class="evt-hint" id="evtDuracion" aria-live="polite"></p>
             </div>
 
-            <label for="Ubicacion" class="evt-label evt-label--icon">
-                <img src="~/img/evento/ubicacion.svg" alt="" />Ubicación
-            </label>
-            <input id="Ubicacion" name="Ubicacion" type="text" class="evt-input" maxlength="150" placeholder="Av. Callao 921" value="@Model.Ubicacion" />
+            <div class="evt-section">
+                <p class="evt-section__title">
+                    <img src="~/img/evento/ubicacion.svg" alt="" />Dónde
+                </p>
+                <div class="evt-field">
+                    <label for="IdPropiedad" class="evt-label evt-label--sub">Propiedad <span class="evt-opcional">(opcional)</span></label>
+                    <select id="IdPropiedad" name="IdPropiedad" class="evt-input">
+                        <option value="">Ninguna</option>
+                        @foreach (var p in propiedades)
+                        {
+                            <option value="@p.IdPropiedad" data-direccion="@p.Direccion" selected="@(p.IdPropiedad == Model.IdPropiedad)">@p.Direccion</option>
+                        }
+                    </select>
+                </div>
+                <div class="evt-field">
+                    <label for="Ubicacion" class="evt-label evt-label--sub">Dirección</label>
+                    <input id="Ubicacion" name="Ubicacion" type="text" class="evt-input" maxlength="150" placeholder="Ej.: Av. Callao 921" value="@Model.Ubicacion" />
+                </div>
+            </div>
 
-            <label for="IdPropiedad" class="evt-label">Propiedad (opcional)</label>
-            <select id="IdPropiedad" name="IdPropiedad" class="evt-input">
-                <option value="">Ninguna</option>
-                @foreach (var p in propiedades)
-                {
-                    <option value="@p.IdPropiedad" data-direccion="@p.Direccion" selected="@(p.IdPropiedad == Model.IdPropiedad)">@p.Direccion</option>
-                }
-            </select>
+            <div class="evt-section">
+                <p class="evt-section__title">
+                    <img src="~/img/evento/invitado.svg" alt="" />Invitado
+                </p>
+                <div class="evt-field">
+                    <label for="Invitado" class="evt-label evt-label--sub">¿Invitar a alguien?</label>
+                    <select id="Invitado" name="Invitado" class="evt-input">
+                        <option value="No">No</option>
+                        <option value="Inquilino">Inquilino de la propiedad</option>
+                    </select>
+                    <p class="evt-hint" id="evtInvitadoAviso" hidden>Elegí una propiedad para poder invitar a su inquilino.</p>
+                </div>
+            </div>
 
-            <label for="Invitado" class="evt-label evt-label--icon">
-                <img src="~/img/evento/invitado.svg" alt="" />Añadir invitado
-            </label>
-            <select id="Invitado" name="Invitado" class="evt-input">
-                <option value="No">No</option>
-                <option value="Inquilino">Inquilino de la propiedad</option>
-            </select>
-
-            <label for="Descripcion" class="evt-label">Descripción... (opcional)</label>
-            <input id="Descripcion" name="Descripcion" type="text" class="evt-input" maxlength="300" placeholder="Arreglo en cañerías de la cocina" />
+            <div class="evt-field">
+                <label for="Descripcion" class="evt-label">Descripción <span class="evt-opcional">(opcional)</span></label>
+                <textarea id="Descripcion" name="Descripcion" class="evt-input evt-textarea" maxlength="300" rows="3"
+                          placeholder="Ej.: Arreglo en cañerías de la cocina"></textarea>
+                <p class="evt-hint evt-hint--derecha"><span id="evtDescContador">0</span>/300</p>
+            </div>
         </div>
 
         <div class="evt-actions">
-            <button type="submit" class="evt-btn">Guardar</button>
-            <a asp-action="Calendario" class="evt-btn evt-btn--secundario">Cancelar</a>
+            <a asp-action="Calendario" asp-route-anio="@Model.Fecha.Year" asp-route-mes="@Model.Fecha.Month" class="evt-btn evt-btn--secundario">Cancelar</a>
+            <button type="submit" class="evt-btn">Guardar evento</button>
         </div>
     </form>
 </div>
 
 @section Scripts {
     <script>
-        // Abre el selector de hora al hacer click en cualquier parte del campo
-        document.querySelectorAll('.evt-input-icon input[type="time"]').forEach(function (input) {
-            input.addEventListener('click', function () {
-                if (typeof input.showPicker === 'function') {
-                    try { input.showPicker(); } catch (e) { }
-                }
-            });
-        });
-
-        // La hora de fin acompaña a la de inicio (@((int)OSO.Models.Evento.DuracionPropuesta.TotalMinutes) minutos después) hasta que la cambies a mano.
         (function () {
+            var fecha = document.getElementById('Fecha');
+            var fechaLarga = document.getElementById('evtFechaLarga');
             var inicio = document.getElementById('HoraInicio');
             var fin = document.getElementById('HoraFin');
-            var minutos = @((int)OSO.Models.Evento.DuracionPropuesta.TotalMinutes);
-            var finTocado = false;
-            fin.addEventListener('input', function () { finTocado = true; });
-            inicio.addEventListener('change', function () {
-                if (finTocado || !inicio.value) { return; }
-                var partes = inicio.value.split(':');
-                var total = Math.min(parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10) + minutos, 23 * 60 + 59);
-                fin.value = String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
-            });
-        })();
-
-        // Al elegir una propiedad, la ubicación toma su dirección si todavía está vacía o era la de otra propiedad.
-        (function () {
+            var duracion = document.getElementById('evtDuracion');
             var propiedad = document.getElementById('IdPropiedad');
             var ubicacion = document.getElementById('Ubicacion');
+            var invitado = document.getElementById('Invitado');
+            var invitadoAviso = document.getElementById('evtInvitadoAviso');
+            var descripcion = document.getElementById('Descripcion');
+            var contador = document.getElementById('evtDescContador');
+
+            // Abre el selector nativo al hacer click en cualquier parte del campo de fecha u hora.
+            [fecha, inicio, fin].forEach(function (input) {
+                input.addEventListener('click', function () {
+                    if (typeof input.showPicker === 'function') {
+                        try { input.showPicker(); } catch (e) { }
+                    }
+                });
+            });
+
+            // El subtítulo sigue a la fecha elegida.
+            fecha.addEventListener('change', function () {
+                if (!fecha.value) { return; }
+                var p = fecha.value.split('-');
+                var d = new Date(+p[0], +p[1] - 1, +p[2]);
+                var texto = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).replace(',', '');
+                fechaLarga.textContent = texto.replace(/(^|\s)(\p{L})/gu, function (m, s, l) { return s + l.toUpperCase(); }).replace(/ De /g, ' de ');
+            });
+
+            // La hora de fin acompaña a la de inicio (@((int)OSO.Models.Evento.DuracionPropuesta.TotalMinutes) minutos después) hasta que la cambies a mano.
+            var minutosPropuestos = @((int)OSO.Models.Evento.DuracionPropuesta.TotalMinutes);
+            var finTocado = false;
+            function aMinutos(v) { var p = v.split(':'); return parseInt(p[0], 10) * 60 + parseInt(p[1], 10); }
+            function aHora(m) { return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); }
+            function mostrarDuracion() {
+                if (!inicio.value || !fin.value) { duracion.textContent = ''; return; }
+                var dif = aMinutos(fin.value) - aMinutos(inicio.value);
+                fin.setCustomValidity(dif <= 0 ? 'La hora de fin tiene que ser posterior a la de inicio.' : '');
+                duracion.classList.toggle('evt-hint--error', dif <= 0);
+                if (dif <= 0) { duracion.textContent = 'La hora de fin tiene que ser posterior a la de inicio.'; return; }
+                var h = Math.floor(dif / 60), m = dif % 60;
+                duracion.textContent = 'Duración: ' + (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m ? m + ' min' : '');
+            }
+            fin.addEventListener('input', function () { finTocado = true; mostrarDuracion(); });
+            inicio.addEventListener('input', function () {
+                if (!finTocado && inicio.value) {
+                    fin.value = aHora(Math.min(aMinutos(inicio.value) + minutosPropuestos, 23 * 60 + 59));
+                }
+                mostrarDuracion();
+            });
+            mostrarDuracion();
+
+            // Al elegir una propiedad, la dirección toma la suya si todavía está vacía o era la de otra propiedad.
+            // Sin propiedad no hay inquilino a quien invitar.
             var anterior = ubicacion.value;
+            function actualizarInvitado() {
+                var sinPropiedad = propiedad.value === '';
+                invitado.options[1].disabled = sinPropiedad;
+                if (sinPropiedad) { invitado.value = 'No'; }
+                invitadoAviso.hidden = !sinPropiedad;
+            }
             propiedad.addEventListener('change', function () {
                 var direccion = propiedad.selectedOptions[0].dataset.direccion || '';
                 if (ubicacion.value === '' || ubicacion.value === anterior) {
                     ubicacion.value = direccion;
                     anterior = direccion;
                 }
+                actualizarInvitado();
             });
+            actualizarInvitado();
+
+            descripcion.addEventListener('input', function () { contador.textContent = descripcion.value.length; });
         })();
     </script>
 }

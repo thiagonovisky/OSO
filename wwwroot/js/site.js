@@ -86,6 +86,16 @@
         }
     });
     function v_invalid(v) { return v.length < 8 || !/[^A-Za-z0-9]/.test(v); }
+
+    // Si las contraseñas no coinciden, el navegador avisa en el campo y no se envía el formulario: no se borra nada.
+    var confirmar = document.getElementById('confirmarContrasena');
+    if (confirmar) {
+        var revisarCoincidencia = function () {
+            confirmar.setCustomValidity(confirmar.value && confirmar.value !== input.value ? 'Las contraseñas no coinciden.' : '');
+        };
+        input.addEventListener('input', revisarCoincidencia);
+        confirmar.addEventListener('input', revisarCoincidencia);
+    }
 })();
 
 // Teléfono: selector de país + guiones automáticos (área-xxxx-xxxx)

@@ -208,7 +208,7 @@
         }
         else if (enCurso != null)
         {
-            <a asp-action="RevisarContrato" asp-controller="Home" asp-route-idContrato="@enCurso.IdContrato" class="btn btn-primary">@(enCurso.EsBorrador ? "Seguir revisando" : "Ver contrato")</a>
+            <a asp-action="@(enCurso.EsBorrador ? "RevisarContrato" : "VerContrato")" asp-controller="Home" asp-route-idContrato="@enCurso.IdContrato" class="btn btn-primary">@(enCurso.EsBorrador ? "Seguir revisando" : "Ver contrato")</a>
         }
     </div>
 </div>

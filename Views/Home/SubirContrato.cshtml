@@ -32,7 +32,7 @@
             <input type="file" name="archivo" id="archivo" accept=".pdf,.jpg,.jpeg,.png,.webp" required />
         </div>
 
-        <p class="aviso-pagina m-0" id="leyendo" role="status" hidden>Leyendo el contrato... puede tardar hasta un minuto.</p>
+        <p class="aviso-pagina m-0" id="leyendo" role="status" hidden>Subiendo el contrato...</p>
 
         <div class="form-acciones">
             <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Cancelar</a>
@@ -42,7 +42,14 @@
 </div>
 
 <script>
-    document.getElementById('formSubirContrato').addEventListener('submit', function () {
+    let enviado = false;
+    document.getElementById('formSubirContrato').addEventListener('submit', function (e) {
+        // Evita mandarlo dos veces (doble clic o Enter), que crearía el borrador y después daría error.
+        if (enviado) {
+            e.preventDefault();
+            return;
+        }
+        enviado = true;
         document.getElementById('btnSubir').disabled = true;
         document.getElementById('leyendo').hidden = false;
     });

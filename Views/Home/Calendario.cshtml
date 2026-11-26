@@ -16,7 +16,38 @@
                    aria-label="Mes anterior (@nombreMesAnterior @Model.MesAnterior.Year)">
                     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
                 </a>
-                <p class="cal-nav__current">@nombreMes @Model.Mes.Year</p>
+                @* Click en el mes abre un selector para saltar directo a cualquier mes y año. *@
+                <div class="cal-picker" id="calPicker" data-anio="@Model.Mes.Year" data-mes="@Model.Mes.Month" data-url="@Url.Action("Calendario")">
+                    <button type="button" class="cal-nav__current cal-picker__toggle" aria-haspopup="dialog" aria-expanded="false" aria-controls="calPickerPanel">
+                        @nombreMes @Model.Mes.Year
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    <div class="cal-picker__panel" id="calPickerPanel" role="dialog" aria-label="Elegir mes y año" hidden>
+                        <div class="cal-picker__years">
+                            <button type="button" class="cal-picker__year-btn" data-delta="-1" aria-label="Año anterior">
+                                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                            </button>
+                            <select class="cal-picker__year" aria-label="Año">
+                                @for (int a = 2000; a <= 2100; a++)
+                                {
+                                    <option value="@a" selected="@(a == Model.Mes.Year)">@a</option>
+                                }
+                            </select>
+                            <button type="button" class="cal-picker__year-btn" data-delta="1" aria-label="Año siguiente">
+                                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                            </button>
+                        </div>
+                        <div class="cal-picker__months">
+                            @for (int m = 1; m <= 12; m++)
+                            {
+                                var nombre = OSO.Models.CalendarioMes.NombreDelMes(new DateTime(2000, m, 1));
+                                <a class="cal-picker__month" data-mes="@m" title="@nombre"
+                                   asp-action="Calendario" asp-route-anio="@Model.Mes.Year" asp-route-mes="@m">@nombre.Substring(0, 3)</a>
+                            }
+                        </div>
+                        <a class="cal-picker__hoy" asp-action="Calendario" asp-route-anio="@DateTime.Today.Year" asp-route-mes="@DateTime.Today.Month">Ir a hoy</a>
+                    </div>
+                </div>
                 <a class="cal-nav__btn" asp-action="Calendario" asp-route-anio="@Model.MesSiguiente.Year" asp-route-mes="@Model.MesSiguiente.Month"
                    aria-label="Mes siguiente (@nombreMesSiguiente @Model.MesSiguiente.Year)">
                     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -75,3 +106,54 @@
         </aside>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var picker = document.getElementById('calPicker');
+            var toggle = picker.querySelector('.cal-picker__toggle');
+            var panel = document.getElementById('calPickerPanel');
+            var selectAnio = picker.querySelector('.cal-picker__year');
+            var meses = picker.querySelectorAll('.cal-picker__month');
+            var url = picker.dataset.url;
+            var anioActual = +picker.dataset.anio, mesActual = +picker.dataset.mes;
+            var hoy = new Date();
+
+            // Cada mes apunta al año elegido; se marcan el mes que se está viendo y el de hoy.
+            function pintar() {
+                var anio = +selectAnio.value;
+                meses.forEach(function (a) {
+                    var mes = +a.dataset.mes;
+                    a.href = url + '?anio=' + anio + '&mes=' + mes;
+                    a.classList.toggle('is-selected', anio === anioActual && mes === mesActual);
+                    a.classList.toggle('is-today', anio === hoy.getFullYear() && mes === hoy.getMonth() + 1);
+                });
+                picker.querySelectorAll('.cal-picker__year-btn').forEach(function (b) {
+                    var nuevo = anio + +b.dataset.delta;
+                    b.disabled = nuevo < 2000 || nuevo > 2100;
+                });
+            }
+            function abrir(si) {
+                panel.hidden = !si;
+                toggle.setAttribute('aria-expanded', si);
+                if (si) { selectAnio.value = anioActual; pintar(); selectAnio.focus(); }
+            }
+
+            toggle.addEventListener('click', function () { abrir(panel.hidden); });
+            selectAnio.addEventListener('change', pintar);
+            picker.querySelectorAll('.cal-picker__year-btn').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    selectAnio.value = +selectAnio.value + +b.dataset.delta;
+                    pintar();
+                });
+            });
+            document.addEventListener('click', function (e) {
+                if (!panel.hidden && !picker.contains(e.target)) { abrir(false); }
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !panel.hidden) { abrir(false); toggle.focus(); }
+            });
+            pintar();
+        })();
+    </script>
+}

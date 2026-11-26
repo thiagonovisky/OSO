@@ -13,7 +13,8 @@ public enum TipoErrorIa { Ninguno, SinCupo, NoDisponible, NoSeLeyo }
 public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ExtractorContratoGemini> logger)
 {
     private const string UrlBase = "https://generativelanguage.googleapis.com/v1beta/models/";
-    private static readonly TimeSpan TiempoMaximo = TimeSpan.FromSeconds(150);
+    // Alcanza para que cada modelo (principal + 2 de respaldo) tenga su intento completo aunque los anteriores se cuelguen.
+    private static readonly TimeSpan TiempoMaximo = TimeSpan.FromSeconds(200);
     private const int SegundosPorIntento = 60;
 
     // El modelo con el que se leyó el último pedido (se guarda junto a la extracción). Antes de leer, es el principal.
@@ -54,66 +55,69 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
             using var cts = new CancellationTokenSource(TiempoMaximo);
             using HttpClient cliente = httpClientFactory.CreateClient();
 
-            // Por cada modelo (el principal y después los de respaldo):
-            // - si está saturado (500/502/503/504), se reintenta una vez y después se pasa al siguiente;
-            // - si llegó a su límite de uso (429) o no respondió a tiempo, se pasa directo al siguiente.
-            HttpResponseMessage? respuesta = null;
-            bool algunoSeColgo = false;
-            foreach (string modelo in modelos)
+            // Se prueba una vez cada modelo (el principal y después los de respaldo), sin repetir el mismo seguido:
+            // si el principal está saturado, insistir con él solo gasta el tiempo que necesitan los de respaldo.
+            // Si todos fallaron y todavía queda tiempo, se da una segunda vuelta.
+            // Se corta antes solo si uno respondió bien o si el problema es el archivo (400): ahí otro modelo no cambia nada.
+            // Cualquier otro error (saturado, sin cupo, colgado, modelo inexistente o retirado) pasa al siguiente modelo.
+            // La última respuesta con código que se obtuvo (y de qué modelo): es la que se informa al final.
+            HttpResponseMessage? ultima = null;
+            string modeloDeLaUltima = ModeloPrincipal;
+            bool terminado = false;
+            try
             {
-                for (int intento = 0; intento < 2; intento++)
+                for (int vuelta = 0; vuelta < 2 && !terminado; vuelta++)
                 {
-                    if (intento > 0)
+                    if (vuelta > 0)
                     {
                         await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
                     }
 
-                    respuesta?.Dispose();
-                    Modelo = modelo;
-                    respuesta = await EnviarUnaVezAsync(cliente, modelo, cuerpo, key, cts.Token);
-                    if (respuesta == null)
+                    foreach (string modelo in modelos)
                     {
-                        algunoSeColgo = true;
-                        logger.LogWarning("Gemini ({Modelo}) no respondió en {Segundos} segundos", modelo, SegundosPorIntento);
-                        break;
+                        HttpResponseMessage? respuesta = await EnviarUnaVezAsync(cliente, modelo, cuerpo, key, cts.Token);
+                        if (respuesta == null)
+                        {
+                            logger.LogWarning("Gemini ({Modelo}) no respondió en {Segundos} segundos; se prueba con otro modelo", modelo, SegundosPorIntento);
+                            continue;
+                        }
+
+                        ultima?.Dispose();
+                        ultima = respuesta;
+                        modeloDeLaUltima = modelo;
+                        if (respuesta.IsSuccessStatusCode || respuesta.StatusCode == HttpStatusCode.BadRequest)
+                        {
+                            terminado = true;
+                            break;
+                        }
+
+                        logger.LogWarning("Gemini ({Modelo}) respondió con el código {Codigo}; se prueba con otro modelo", modelo, (int)respuesta.StatusCode);
                     }
-
-                    if (!EsErrorTemporal(respuesta.StatusCode))
-                    {
-                        break;
-                    }
-
-                    logger.LogWarning("Gemini ({Modelo}) respondió con el código {Codigo}", modelo, (int)respuesta.StatusCode);
-                }
-
-                if (respuesta != null && !EsErrorTemporal(respuesta.StatusCode) && respuesta.StatusCode != HttpStatusCode.TooManyRequests)
-                {
-                    break;
-                }
-
-                if (respuesta?.StatusCode == HttpStatusCode.TooManyRequests)
-                {
-                    logger.LogWarning("Gemini ({Modelo}) llegó a su límite de uso", modelo);
                 }
             }
+            catch (OperationCanceledException) when (ultima != null)
+            {
+                // Se acabó el tiempo total: se informa el último error real (saturado, sin cupo...) en vez de "tardó demasiado".
+                logger.LogWarning("Gemini: se terminó el tiempo total probando modelos");
+            }
 
-            if (respuesta == null)
+            Modelo = modeloDeLaUltima;
+            if (ultima == null)
             {
                 return (null, "Gemini tardó demasiado en responder.", TipoErrorIa.NoDisponible);
             }
 
-            using HttpResponseMessage final = respuesta;
+            using HttpResponseMessage final = ultima;
             if (!final.IsSuccessStatusCode)
             {
                 logger.LogWarning("Gemini ({Modelo}) respondió con el código {Codigo}", Modelo, (int)final.StatusCode);
                 string mensaje = final.StatusCode switch
                 {
-                    _ when algunoSeColgo => "Gemini tardó demasiado en responder.",
                     HttpStatusCode.TooManyRequests => "Se alcanzó el límite de uso gratuito de Gemini. Probá de nuevo más tarde.",
                     var c when EsErrorTemporal(c) => $"Gemini está saturado en este momento y no pudo leer {queLee}. Probá de nuevo en unos minutos.",
                     var c => $"Gemini no pudo procesar {queLee} (código {(int)c})."
                 };
-                return (null, mensaje, algunoSeColgo ? TipoErrorIa.NoDisponible : TipoDeError(final.StatusCode));
+                return (null, mensaje, TipoDeError(final.StatusCode));
             }
 
             string texto = await final.Content.ReadAsStringAsync(cts.Token);

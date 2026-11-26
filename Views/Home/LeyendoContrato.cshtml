@@ -1,0 +1,28 @@
+@model OSO.Models.Propiedades
+@{
+    int idContrato = (int)ViewBag.IdContrato;
+    string urlRevision = Url.Action("RevisarContrato", "Home", new { idContrato, recienSubido = true })!;
+}
+
+<div class="pagina pagina--angosta">
+    <h2 class="pagina-titulo">Leyendo el contrato</h2>
+    <p class="pagina-bajada"><strong>@Model.Direccion</strong></p>
+
+    <div class="cargando" aria-hidden="true">
+        <span class="cargando__circulo"></span>
+    </div>
+
+    <p class="aviso-pagina" role="status">
+        Estamos leyendo el contrato con inteligencia artificial. Puede tardar unos minutos si el servicio está con mucha demanda.
+        Esta página se actualiza sola cuando termine.
+    </p>
+
+    <div class="form-acciones form-acciones--centro">
+        <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Volver</a>
+        <a href="@urlRevision" class="btn btn-primary">Actualizar</a>
+    </div>
+</div>
+
+<script>
+    setTimeout(function () { window.location.replace('@Html.Raw(urlRevision)'); }, 4000);
+</script>

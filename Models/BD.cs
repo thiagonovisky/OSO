@@ -1717,24 +1717,63 @@ public class BD
         }
     }
 
-    public void EliminarPropiedad(int idPropiedad, int idPropietario)
+    // Elimina la propiedad con sus gastos, eventos y borradores de contrato. Si hay un inquilino de por medio
+    // (vinculado, o con un contrato pendiente, vigente o anterior) no se borra nada, para no dejarlo sin su
+    // historial y sin aviso: devuelve el motivo. Archivos = los de los borradores descartados, para borrar del disco.
+    public (string? Error, List<string> Archivos) EliminarPropiedad(int idPropiedad, int idPropietario)
     {
         using SqlConnection connection = new(connectionString);
         connection.Open();
         using var transaction = connection.BeginTransaction();
 
         var propiedad = connection.QueryFirstOrDefault<Propiedades>(
-            "SELECT * FROM Propiedades WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario",
+            "SELECT * FROM Propiedades WITH (UPDLOCK) WHERE IdPropiedad = @IdPropiedad AND IdPropietario = @IdPropietario",
             new { IdPropiedad = idPropiedad, IdPropietario = idPropietario },
             transaction: transaction);
 
         if (propiedad == null)
         {
             transaction.Rollback();
-            return;
+            return (null, new List<string>());
         }
 
+        var parametros = new { IdPropiedad = idPropiedad };
+        var estados = connection.Query<string>(
+            "SELECT DISTINCT Estado FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado <> 'Borrador'",
+            parametros, transaction).ToList();
+
+        string? error = null;
+        if (estados.Contains("Confirmado"))
+            error = "La propiedad tiene un contrato vigente. Terminá el contrato antes de eliminarla.";
+        else if (estados.Contains("PendienteInquilino"))
+            error = "La propiedad tiene un contrato esperando que el inquilino lo acepte. Cancelalo antes de eliminarla.";
+        else if (propiedad.IdInquilino.HasValue)
+            error = "La propiedad tiene un inquilino vinculado. Quitalo antes de eliminarla (le vamos a avisar).";
+        else if (estados.Count > 0)
+            error = "La propiedad tiene contratos anteriores con inquilinos. No se puede eliminar para no borrarles su historial.";
+
+        if (error != null)
+        {
+            transaction.Rollback();
+            return (error, new List<string>());
+        }
+
+        // Borradores: sólo los vio el propietario, se van con la propiedad.
+        var archivos = connection.Query<string>(
+            "SELECT ArchivoContrato FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado = 'Borrador' AND ISNULL(ArchivoContrato, '') <> ''",
+            parametros, transaction).ToList();
+        const string borradores = "SELECT IdContrato FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado = 'Borrador'";
+        connection.Execute($"DELETE FROM ContratoResponsabilidadGasto WHERE IdContrato IN ({borradores})", parametros, transaction);
+        connection.Execute($"DELETE FROM ExtraccionesContrato WHERE IdContrato IN ({borradores})", parametros, transaction);
+        connection.Execute("DELETE FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado = 'Borrador'", parametros, transaction);
+
         BorrarGastosDePropiedad(connection, transaction, idPropiedad, null);
+
+        // Eventos cargados sobre la propiedad sin un gasto atado (los de gastos ya se fueron arriba).
+        connection.Execute(
+            "DELETE n FROM Notificaciones n INNER JOIN Eventos e ON e.IdEvento = n.IdEvento WHERE e.IdPropiedad = @IdPropiedad",
+            parametros, transaction);
+        connection.Execute("DELETE FROM Eventos WHERE IdPropiedad = @IdPropiedad", parametros, transaction);
 
         connection.Execute(
             "DELETE FROM PropiedadTipoGasto WHERE IdPropiedad = @IdPropiedad",
@@ -1747,6 +1786,7 @@ public class BD
             transaction: transaction);
 
         transaction.Commit();
+        return (null, archivos);
     }
 
     // Borra pagos, responsables y gastos de la propiedad (de un tipo, o de todos si idGasto es null).

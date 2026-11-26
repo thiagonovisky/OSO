@@ -12,14 +12,14 @@ public class HomeController : Controller
     private readonly ILogger<HomeController> _logger;
     private readonly IDataProtector _protectorInvitaciones;
     private readonly BD bd = new();
-    private readonly ExtractorContratoGemini _extractor;
     private readonly ExtractorFacturaGemini _extractorFactura;
+    private readonly LectorContratos _lectorContratos;
 
-    public HomeController(ILogger<HomeController> logger, IDataProtectionProvider dataProtectionProvider, ExtractorContratoGemini extractor, ExtractorFacturaGemini extractorFactura)
+    public HomeController(ILogger<HomeController> logger, IDataProtectionProvider dataProtectionProvider, ExtractorFacturaGemini extractorFactura, LectorContratos lectorContratos)
     {
         _logger = logger;
-        _extractor = extractor;
         _extractorFactura = extractorFactura;
+        _lectorContratos = lectorContratos;
         _protectorInvitaciones = dataProtectionProvider.CreateProtector("OSO.InvitacionPropiedad");
     }
 
@@ -1454,30 +1454,12 @@ public class HomeController : Controller
 
         bd.GuardarNombreArchivoContrato(idContrato, ArchivosContrato.Guardar(idContrato, archivo!));
 
-        List<Gastos> catalogo = bd.ObtenerCatalogoGastos();
         using var memoria = new MemoryStream();
         await archivo!.CopyToAsync(memoria);
 
-        var (json, errorIa) = await _extractor.ExtraerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(archivo.FileName), catalogo.Select(g => g.TipoGasto));
-        ResultadoExtraccion resultado = ResultadoExtraccion.Parsear(json);
-        bool leyoAlgo = json != null && (resultado.Gastos.Count > 0 || resultado.ConfianzaPorCampo().Values.Any(c => c > 0));
-
-        if (!leyoAlgo)
-        {
-            // El aviso lo muestra la pantalla de revisión cada vez que se abre, no solo ahora.
-            bd.GuardarExtraccion(idContrato, _extractor.Modelo, null, "Error", errorIa ?? "La respuesta de la IA no tenía datos del contrato.");
-            return RedirectToAction("RevisarContrato", new { idContrato });
-        }
-
-        bd.GuardarExtraccion(idContrato, _extractor.Modelo, json, "Ok", null);
-
-        Contratos contrato = bd.ObtenerContratoPorId(idContrato)!;
-        ResultadoExtraccion.AplicarA(resultado, contrato);
-        bd.GuardarDatosContrato(contrato);
-        bd.GuardarReglasGasto(idContrato, ResultadoExtraccion.ReglasDesde(resultado, catalogo));
-
-        TempData["Success"] = "Leímos el contrato. Revisá los datos marcados antes de confirmar.";
-        return RedirectToAction("RevisarContrato", new { idContrato });
+        // La lectura sigue en segundo plano: la pantalla de revisión muestra "Leyendo..." hasta que termine.
+        _lectorContratos.Empezar(idContrato, memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(archivo.FileName));
+        return RedirectToAction("RevisarContrato", new { idContrato, recienSubido = true });
     }
 
     // Lee una factura (PDF o foto) con la IA y devuelve el monto, el vencimiento y el mes para completar el formulario.
@@ -1677,7 +1659,7 @@ public class HomeController : Controller
     }
 
     [HttpGet]
-    public IActionResult RevisarContrato(int idContrato)
+    public IActionResult RevisarContrato(int idContrato, bool recienSubido = false)
     {
         int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
@@ -1690,6 +1672,20 @@ public class HomeController : Controller
         if (contrato == null || propiedad == null)
         {
             return RedirectToAction("Propiedades");
+        }
+
+        // Mientras la IA lo está leyendo, el borrador todavía está vacío: se muestra una espera que se recarga sola.
+        if (_lectorContratos.EstaLeyendo(idContrato))
+        {
+            ViewBag.IdContrato = idContrato;
+            return View("LeyendoContrato", propiedad);
+        }
+
+        if (recienSubido && bd.ObtenerUltimaExtraccion(idContrato) != null)
+        {
+            TempData["Success"] = "Leímos el contrato. Revisá los datos marcados antes de confirmar.";
+            // Sin el parámetro, para que recargar la página no repita el aviso.
+            return RedirectToAction("RevisarContrato", new { idContrato });
         }
 
         return View(ArmarRevision(contrato, propiedad));
@@ -1853,19 +1849,40 @@ public class HomeController : Controller
     public IActionResult VerContrato(int idContrato, string? desde)
     {
         int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
 
-        if (!idInquilino.HasValue)
+        if (!idInquilino.HasValue && !idPropietario.HasValue)
         {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdPropietario").HasValue ? "Propiedades" : "Login");
+            return RedirectToAction("Login");
         }
 
         Contratos? contrato = bd.ObtenerContratoPorId(idContrato);
-        if (contrato == null || contrato.IdInquilino != idInquilino.Value || contrato.Estado == "Borrador")
+        if (contrato == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadPorId(contrato.IdPropiedad);
+        Propiedades? propiedad;
+        bool comoPropietario = false;
+        if (idInquilino.HasValue)
+        {
+            if (contrato.IdInquilino != idInquilino.Value || contrato.EsBorrador)
+            {
+                return RedirectToAction("Propiedades");
+            }
+            propiedad = bd.ObtenerPropiedadPorId(contrato.IdPropiedad);
+        }
+        else
+        {
+            // El propietario ve en solo lectura el contrato que ya envió. Si sigue en borrador, va a la revisión.
+            propiedad = bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario!.Value);
+            if (propiedad != null && contrato.EsBorrador)
+            {
+                return RedirectToAction("RevisarContrato", new { idContrato });
+            }
+            comoPropietario = true;
+        }
+
         if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
@@ -1875,6 +1892,7 @@ public class HomeController : Controller
         revision.Errores.Clear();
         revision.Advertencias.Clear();
         ViewBag.VolverANotificaciones = desde == "notificaciones";
+        ViewBag.ComoPropietario = comoPropietario;
         return View(revision);
     }
 
@@ -2134,7 +2152,19 @@ public class HomeController : Controller
             return RedirectToAction("Login");
         }
 
-        bd.EliminarPropiedad(idPropiedad, idPropietario.Value);
+        var (error, archivos) = bd.EliminarPropiedad(idPropiedad, idPropietario.Value);
+        if (error != null)
+        {
+            TempData["Error"] = error;
+        }
+        else
+        {
+            foreach (var archivo in archivos)
+            {
+                ArchivosContrato.Borrar(archivo);
+            }
+        }
+
         return RedirectToAction("Propiedades");
     }
 
