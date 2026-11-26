@@ -4,7 +4,10 @@ using System.Text.Json;
 namespace OSO.Models;
 
 // Lo que se leyó de una factura de servicio (luz, gas, agua, expensas...). Todo es opcional: lo que no se leyó queda en null.
-public record LecturaFactura(decimal? Monto, DateTime? Vencimiento, DateTime? Periodo, string? Proveedor, decimal Confianza)
+// Servicio y Domicilio sirven para ubicar la factura en la pantalla "Cargar el mes"; PeriodoDesde es el primer mes que cubre
+// (en las bimestrales, el anterior a Periodo).
+public record LecturaFactura(decimal? Monto, DateTime? Vencimiento, DateTime? Periodo, string? Proveedor, decimal Confianza,
+    string? Servicio = null, string? Domicilio = null, DateTime? PeriodoDesde = null)
 {
     // Con poca seguridad se le avisa a la persona que revise bien los datos antes de usarlos.
     public bool EsDudosa => Confianza < ReglasContrato.UmbralBajaConfianza;

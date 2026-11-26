@@ -14,6 +14,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Los tests son otro proyecto: sin esto, la web compilaría sus archivos como si fueran propios. -->
+    <Compile Remove="OSO.Tests\**" />
+    <Content Remove="OSO.Tests\**" />
+    <None Remove="OSO.Tests\**" />
+    <Watch Remove="OSO.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.89" />
     <PackageReference Include="Microsoft.AspNetCore.Session" Version="2.3.13" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
