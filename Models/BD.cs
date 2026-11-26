@@ -1395,6 +1395,13 @@ public class BD
             return;
         }
 
+        if (!gasto.TieneVencimiento)
+        {
+            connection.Execute("DELETE FROM Eventos WHERE IdGastoPropiedad = @IdGastoPropiedad AND Tipo = 'VencimientoGasto'",
+                new { IdGastoPropiedad = idGastoPropiedad }, transaction);
+            return;
+        }
+
         string titulo = GeneradorCalendario.ArmarTitulo($"Vence {datos.TipoGasto}", datos.Direccion);
         string descripcion = $"Gasto de {gasto.Periodo:MM/yyyy}: ${gasto.Monto:0.00}.";
 

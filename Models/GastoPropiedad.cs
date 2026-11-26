@@ -29,6 +29,9 @@ public class GastoPropiedad
 
     public bool EsIncluido => Monto == 0 && Aclaracion?.StartsWith(PrefijoIncluido) == true;
 
+    // Un gasto de monto 0 (como un mes incluido) no tiene nada que pagar: no va al calendario.
+    public bool TieneVencimiento => Monto > 0;
+
     // Datos de la parte del propietario (por ahora es el único responsable)
     public int IdGastoResponsable { get; set; }
     public decimal MontoResponsable { get; set; }
