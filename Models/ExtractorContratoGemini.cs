@@ -9,9 +9,17 @@ namespace OSO.Models;
 public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConfiguration configuration, ILogger<ExtractorContratoGemini> logger)
 {
     private const string UrlBase = "https://generativelanguage.googleapis.com/v1beta/models/";
-    private static readonly TimeSpan TiempoMaximo = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan TiempoMaximo = TimeSpan.FromSeconds(150);
+    private const int SegundosPorIntento = 60;
 
-    public string Modelo => configuration["Gemini:Modelo"] ?? "gemini-3.5-flash";
+    // El modelo con el que se leyó el último pedido (se guarda junto a la extracción). Antes de leer, es el principal.
+    public string Modelo { get; private set; } = configuration["Gemini:Modelo"] ?? ModeloPorDefecto;
+
+    private const string ModeloPorDefecto = "gemini-3.5-flash";
+    private string ModeloPrincipal => configuration["Gemini:Modelo"] ?? ModeloPorDefecto;
+
+    // Modelos a probar si el principal está saturado. Se configuran en appsettings.json (Gemini:ModelosRespaldo).
+    private string[] ModelosRespaldo => configuration.GetSection("Gemini:ModelosRespaldo").Get<string[]>() ?? [];
 
     public Task<(string? Json, string? Error)> ExtraerAsync(byte[] archivo, string mimeType, IEnumerable<string> tiposGasto) =>
         EnviarAsync(ArmarPedido(archivo, mimeType, tiposGasto.ToList()), "el contrato");
@@ -27,27 +35,75 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
         }
 
         string cuerpo = JsonSerializer.Serialize(pedidoGemini);
+        string[] modelos = [ModeloPrincipal, .. ModelosRespaldo.Where(m => !string.IsNullOrWhiteSpace(m) && m != ModeloPrincipal)];
 
         try
         {
             using var cts = new CancellationTokenSource(TiempoMaximo);
             using HttpClient cliente = httpClientFactory.CreateClient();
-            using var pedido = new HttpRequestMessage(HttpMethod.Post, $"{UrlBase}{Modelo}:generateContent")
-            {
-                Content = new StringContent(cuerpo, Encoding.UTF8, "application/json")
-            };
-            pedido.Headers.Add("x-goog-api-key", key);
 
-            using HttpResponseMessage respuesta = await cliente.SendAsync(pedido, cts.Token);
-            if (!respuesta.IsSuccessStatusCode)
+            // Por cada modelo (el principal y después los de respaldo):
+            // - si está saturado (500/502/503/504), se reintenta una vez y después se pasa al siguiente;
+            // - si llegó a su límite de uso (429) o no respondió a tiempo, se pasa directo al siguiente.
+            HttpResponseMessage? respuesta = null;
+            bool algunoSeColgo = false;
+            foreach (string modelo in modelos)
             {
-                logger.LogWarning("Gemini respondió con el código {Codigo}", (int)respuesta.StatusCode);
-                return (null, respuesta.StatusCode == HttpStatusCode.TooManyRequests
-                    ? "Se alcanzó el límite de uso gratuito de Gemini. Probá de nuevo en unos minutos."
-                    : $"Gemini no pudo procesar {queLee} (código {(int)respuesta.StatusCode}).");
+                for (int intento = 0; intento < 2; intento++)
+                {
+                    if (intento > 0)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(2), cts.Token);
+                    }
+
+                    respuesta?.Dispose();
+                    Modelo = modelo;
+                    respuesta = await EnviarUnaVezAsync(cliente, modelo, cuerpo, key, cts.Token);
+                    if (respuesta == null)
+                    {
+                        algunoSeColgo = true;
+                        logger.LogWarning("Gemini ({Modelo}) no respondió en {Segundos} segundos", modelo, SegundosPorIntento);
+                        break;
+                    }
+
+                    if (!EsErrorTemporal(respuesta.StatusCode))
+                    {
+                        break;
+                    }
+
+                    logger.LogWarning("Gemini ({Modelo}) respondió con el código {Codigo}", modelo, (int)respuesta.StatusCode);
+                }
+
+                if (respuesta != null && !EsErrorTemporal(respuesta.StatusCode) && respuesta.StatusCode != HttpStatusCode.TooManyRequests)
+                {
+                    break;
+                }
+
+                if (respuesta?.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    logger.LogWarning("Gemini ({Modelo}) llegó a su límite de uso", modelo);
+                }
             }
 
-            string texto = await respuesta.Content.ReadAsStringAsync(cts.Token);
+            if (respuesta == null)
+            {
+                return (null, "Gemini tardó demasiado en responder.");
+            }
+
+            using HttpResponseMessage final = respuesta;
+            if (!final.IsSuccessStatusCode)
+            {
+                logger.LogWarning("Gemini ({Modelo}) respondió con el código {Codigo}", Modelo, (int)final.StatusCode);
+                return (null, final.StatusCode switch
+                {
+                    _ when algunoSeColgo => "Gemini tardó demasiado en responder.",
+                    HttpStatusCode.TooManyRequests => "Se alcanzó el límite de uso gratuito de Gemini. Probá de nuevo más tarde.",
+                    var c when EsErrorTemporal(c) => $"Gemini está saturado en este momento y no pudo leer {queLee}. Probá de nuevo en unos minutos.",
+                    var c => $"Gemini no pudo procesar {queLee} (código {(int)c})."
+                });
+            }
+
+            string texto = await final.Content.ReadAsStringAsync(cts.Token);
             string? json = ExtraerTextoDeRespuesta(texto);
             return json == null ? (null, $"Gemini no devolvió datos para {queLee}.") : (json, null);
         }
@@ -60,6 +116,32 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
         {
             logger.LogWarning("No se pudo conectar con Gemini: {Tipo}", ex.GetType().Name);
             return (null, "No se pudo conectar con Gemini.");
+        }
+    }
+
+    private static bool EsErrorTemporal(HttpStatusCode codigo) => codigo is HttpStatusCode.InternalServerError
+        or HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+
+    // Cada intento necesita un HttpRequestMessage nuevo: no se puede reenviar el mismo.
+    // Devuelve null si el modelo no respondió en SegundosPorIntento segundos (el tiempo total lo corta el token de afuera).
+    private static async Task<HttpResponseMessage?> EnviarUnaVezAsync(HttpClient cliente, string modelo, string cuerpo, string key, CancellationToken tokenTotal)
+    {
+        using var porIntento = CancellationTokenSource.CreateLinkedTokenSource(tokenTotal);
+        porIntento.CancelAfter(TimeSpan.FromSeconds(SegundosPorIntento));
+
+        using var pedido = new HttpRequestMessage(HttpMethod.Post, $"{UrlBase}{modelo}:generateContent")
+        {
+            Content = new StringContent(cuerpo, Encoding.UTF8, "application/json")
+        };
+        pedido.Headers.Add("x-goog-api-key", key);
+        try
+        {
+            // SendAsync espera a tener la respuesta completa, así que el tiempo por intento cubre también la descarga.
+            return await cliente.SendAsync(pedido, porIntento.Token);
+        }
+        catch (OperationCanceledException) when (!tokenTotal.IsCancellationRequested)
+        {
+            return null;
         }
     }
 
