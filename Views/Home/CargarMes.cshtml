@@ -55,7 +55,10 @@
                             <input type="date" name="filas[@i].Vencimiento" class="form-control form-control-sm campo-vencimiento"
                                    value="@enviada?.Vencimiento?.ToString("yyyy-MM-dd")" aria-label="Vencimiento de @fila.TipoGasto en @fila.NombrePropiedad" />
                         </td>
-                        <td class="cargar-mes__factura"><small class="celda-sub"></small></td>
+                        <td class="cargar-mes__factura">
+                            <small class="celda-sub cargar-mes__origen"></small>
+                            <button type="button" class="btn btn-link btn-sm cargar-mes__marcar-incluido">Incluido en otra factura</button>
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -92,6 +95,26 @@ else
         @Html.AntiForgeryToken()
         <p>Completá el monto de cada factura que tengas. Las filas que dejes vacías siguen pendientes, y el inquilino puede cargar las que le tocan a él.</p>
 
+        <section class="cargar-mes__facturas" aria-labelledby="titulo-facturas">
+            <label class="cargar-mes__zona" id="zona-facturas">
+                <strong id="titulo-facturas">Soltá acá tus facturas</strong>
+                <span>o hacé clic para elegirlas. Hasta 10 por vez, en PDF o foto. La IA completa las filas y vos revisás antes de guardar. Las facturas no se guardan.</span>
+                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" id="archivos-facturas" class="visually-hidden"
+                       data-url="@Url.Action("LeerFacturaParaMes", "Home")" />
+            </label>
+            <p class="cargar-mes__estado" id="estado-facturas" role="status"></p>
+            <div id="para-ubicar" hidden>
+                <h3>Facturas para ubicar</h3>
+                <p>No pudimos saber con seguridad a qué fila va cada una. Elegí la fila y se completa.</p>
+                <ul class="cargar-mes__lista" id="lista-para-ubicar"></ul>
+            </div>
+            <div id="sin-leer" hidden>
+                <h3>Facturas sin leer</h3>
+                <ul class="cargar-mes__lista" id="lista-sin-leer"></ul>
+                <button type="button" class="btn btn-secondary btn-sm" id="reintentar-facturas" hidden>Reintentar</button>
+            </div>
+        </section>
+
         @foreach (var mes in recientes)
         {
             TablaMes(mes);
@@ -112,4 +135,8 @@ else
             <button type="submit" class="btn btn-primary">Guardar los completos</button>
         </div>
     </form>
+}
+
+@section Scripts {
+    <script src="~/js/cargar-mes.js" asp-append-version="true"></script>
 }

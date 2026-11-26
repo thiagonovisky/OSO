@@ -1452,6 +1452,52 @@ public class HomeController : Controller
         });
     }
 
+    // Lee una factura de la tanda de "Cargar el mes" y dice en qué fila va. No guarda la factura ni el gasto:
+    // la pantalla completa la fila y el propietario confirma con "Guardar los completos".
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(11_534_336)]
+    public async Task<IActionResult> LeerFacturaParaMes(IFormFile? factura)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        if (!idPropietario.HasValue)
+        {
+            return Unauthorized(new { ok = false, tipoError = "NoDisponible", mensaje = "Iniciá sesión para leer facturas." });
+        }
+
+        string? error = ArchivosContrato.ValidarFactura(factura);
+        if (error != null)
+        {
+            return Json(new { ok = false, tipoError = nameof(TipoErrorIa.NoSeLeyo), mensaje = error });
+        }
+
+        List<FilaCargarMes> filas = bd.ObtenerFilasCargarMes(idPropietario.Value);
+        List<string> servicios = filas.Select(f => f.TipoGasto).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        using var memoria = new MemoryStream();
+        await factura!.CopyToAsync(memoria);
+        var (lectura, errorIa, tipo) = await _extractorFactura.LeerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(factura.FileName), null, servicios);
+        if (lectura == null)
+        {
+            return Json(new { ok = false, tipoError = tipo.ToString(), mensaje = errorIa ?? "No pudimos leer la factura." });
+        }
+
+        Ubicacion ubicacion = UbicadorFacturas.Ubicar(lectura, filas);
+        return Json(new
+        {
+            ok = true,
+            monto = lectura.Monto,
+            vencimiento = lectura.Vencimiento?.ToString("yyyy-MM-dd"),
+            periodo = lectura.Periodo?.ToString("yyyy-MM-dd"),
+            proveedor = lectura.Proveedor,
+            servicio = lectura.Servicio,
+            domicilio = lectura.Domicilio,
+            estado = ubicacion.Estado.ToString(),
+            clave = ubicacion.Clave,
+            clavesIncluidas = ubicacion.ClavesIncluidas
+        });
+    }
+
     // El archivo solo lo bajan el propietario de la propiedad o el inquilino del contrato.
     [HttpGet]
     public IActionResult DescargarContrato(int idContrato)

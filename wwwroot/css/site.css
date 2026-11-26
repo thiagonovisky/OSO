@@ -2909,3 +2909,62 @@ a.cal-cell:hover {
     font-size: 1.8rem;
   }
 }
+
+/* ---- Cargar el mes ---- */
+.cargar-mes__facturas {
+  margin: 16px 0 24px;
+}
+
+.cargar-mes__zona {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  text-align: center;
+  padding: 22px 16px;
+  border: 2px dashed var(--blue-soft);
+  border-radius: 12px;
+  background: var(--icon-bg);
+  color: var(--blue-dark);
+  cursor: pointer;
+}
+
+.cargar-mes__zona:hover,
+.cargar-mes__zona:focus-within,
+.cargar-mes__zona--activa {
+  border-color: var(--brand-primary);
+  background: #d2e2f1;
+}
+
+.cargar-mes__estado:empty {
+  display: none;
+}
+
+.cargar-mes__estado {
+  margin: 10px 0 0;
+}
+
+.cargar-mes__lista {
+  padding-left: 18px;
+}
+
+.cargar-mes__lista li {
+  margin-bottom: 8px;
+}
+
+.cargar-mes__lista select {
+  display: inline-block;
+  width: auto;
+  max-width: 100%;
+  margin-left: 6px;
+}
+
+.cargar-mes__titulo {
+  margin-top: 20px;
+  text-transform: capitalize;
+}
+
+.cargar-mes__tabla .campo-monto,
+.cargar-mes__tabla .campo-vencimiento {
+  min-width: 120px;
+}
