@@ -9,6 +9,7 @@ public static class MenuPrincipal
 {
     private static readonly ItemMenu Expensas = new("Expensas", "Expensas extraordinarias", "Expensas", new[] { "Expensas", "AgregarExpensa" });
     private static readonly ItemMenu MisGastos = new("MisGastos", "Mis gastos", "Mis gastos", new[] { "MisGastos" });
+    private static readonly ItemMenu CargarMes = new("CargarMes", "Cargar servicios", "Servicios", new[] { "CargarMes", "GuardarMes" });
     private static readonly ItemMenu Propiedades = new("Propiedades", "Propiedades", "Propiedades", new[] { "Propiedades" });
     private static readonly ItemMenu Mensajeria = new("Mensajeria", "Mensajería", "Mensajería", new[] { "Mensajeria" });
     private static readonly ItemMenu Calendario = new("Calendario", "Calendario", "Calendario", new[] { "Calendario", "AgregarEvento", "GuardarEvento" });
@@ -18,7 +19,7 @@ public static class MenuPrincipal
 
     // Las expensas extraordinarias las carga solo el propietario.
     public static List<ItemMenu> Para(bool esPropietario) => esPropietario
-        ? new List<ItemMenu> { Expensas, MisGastos, Propiedades, Mensajeria, Calendario }
+        ? new List<ItemMenu> { Expensas, MisGastos, CargarMes, Propiedades, Mensajeria, Calendario }
         : new List<ItemMenu> { MisGastos, Propiedades, Mensajeria, Calendario };
 
     // Acción del ítem activo para la pantalla actual, o null. Las pantallas de una propiedad (servicios, contrato, gastos...)
@@ -30,7 +31,7 @@ public static class MenuPrincipal
             return null;
         }
 
-        ItemMenu? item = new[] { Expensas, MisGastos, Propiedades, Mensajeria, Calendario }.FirstOrDefault(i => i.Acciones.Contains(accion));
+        ItemMenu? item = new[] { Expensas, MisGastos, CargarMes, Propiedades, Mensajeria, Calendario }.FirstOrDefault(i => i.Acciones.Contains(accion));
         return item?.Accion ?? Propiedades.Accion;
     }
 }

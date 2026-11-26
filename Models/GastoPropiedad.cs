@@ -25,7 +25,7 @@ public class GastoPropiedad
     public const string PrefijoIncluido = "Incluido en la factura de ";
 
     public static string AclaracionIncluido(DateTime mesDeLaFactura) =>
-        PrefijoIncluido + mesDeLaFactura.ToString("MMMM yyyy", new System.Globalization.CultureInfo("es-AR"));
+        PrefijoIncluido + Formato.Mes(mesDeLaFactura);
 
     public bool EsIncluido => Monto == 0 && Aclaracion?.StartsWith(PrefijoIncluido) == true;
 

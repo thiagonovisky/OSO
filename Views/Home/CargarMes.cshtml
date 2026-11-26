@@ -1,0 +1,115 @@
+@model List<OSO.Models.FilaCargarMes>
+@{
+    var errores = ViewBag.Errores as Dictionary<string, string> ?? new Dictionary<string, string>();
+    var enviadas = ViewBag.Enviadas as Dictionary<string, OSO.Models.FilaEnviada> ?? new Dictionary<string, OSO.Models.FilaEnviada>();
+    var filas = Model ?? new List<OSO.Models.FilaCargarMes>();
+
+    // Mismo criterio que "Mis gastos": los últimos meses abiertos, los anteriores plegados.
+    var desdeReciente = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-(OSO.Models.PendienteContrato.MesesRecientes - 1));
+    var recientes = filas.Where(f => f.Periodo >= desdeReciente).GroupBy(f => f.Periodo).ToList();
+    var anteriores = filas.Where(f => f.Periodo < desdeReciente).GroupBy(f => f.Periodo).ToList();
+    int indice = 0;
+
+    void TablaMes(IGrouping<DateTime, OSO.Models.FilaCargarMes> mes)
+    {
+        <h3 class="cargar-mes__titulo">@OSO.Models.Formato.Mes(mes.Key)</h3>
+        <div class="tabla-wrap"><table class="table cargar-mes__tabla">
+            <thead>
+                <tr>
+                    <th>Propiedad</th>
+                    <th>Servicio</th>
+                    <th>Quién paga</th>
+                    <th class="col-monto">Monto</th>
+                    <th>Vence</th>
+                    <th><span class="visually-hidden">Factura</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var fila in mes)
+                {
+                    int i = indice++;
+                    enviadas.TryGetValue(fila.Clave, out var enviada);
+                    errores.TryGetValue(fila.Clave, out var error);
+                    <tr data-clave="@fila.Clave" data-propiedad="@fila.IdPropiedad" data-servicio="@fila.TipoGasto"
+                        data-periodo="@fila.Periodo.ToString("yyyy-MM-01")" data-direccion="@fila.NombrePropiedad">
+                        <td data-label="Propiedad">@fila.NombrePropiedad</td>
+                        <td data-label="Servicio"><strong>@fila.TipoGasto</strong></td>
+                        <td data-label="Quién paga"><small class="celda-sub">@fila.QuienPaga</small></td>
+                        <td data-label="Monto" class="col-monto">
+                            <input type="hidden" name="filas[@i].IdPropiedad" value="@fila.IdPropiedad" />
+                            <input type="hidden" name="filas[@i].IdGasto" value="@fila.IdGasto" />
+                            <input type="hidden" name="filas[@i].Periodo" value="@fila.Periodo.ToString("yyyy-MM-dd")" />
+                            <input type="hidden" name="filas[@i].IncluidoEn" value="@enviada?.IncluidoEn?.ToString("yyyy-MM-dd")" class="campo-incluido" />
+                            <input type="number" name="filas[@i].Monto" step="0.01" min="0.01" class="form-control form-control-sm campo-monto"
+                                   value="@OSO.Models.Formato.ParaInput(enviada?.Monto)"
+                                   placeholder="@(fila.MontoSugerido.HasValue ? "~" + OSO.Models.Formato.Numero(fila.MontoSugerido, "N0") : "")"
+                                   title="@(fila.MontoSugerido.HasValue ? "El mes anterior fue " + OSO.Models.Formato.Pesos(fila.MontoSugerido) : "")"
+                                   aria-label="Monto de @fila.TipoGasto en @fila.NombrePropiedad" />
+                            <small class="celda-sub cargar-mes__incluido" hidden></small>
+                            @if (error != null)
+                            {
+                                <small class="text-danger d-block">@error</small>
+                            }
+                        </td>
+                        <td data-label="Vence">
+                            <input type="date" name="filas[@i].Vencimiento" class="form-control form-control-sm campo-vencimiento"
+                                   value="@enviada?.Vencimiento?.ToString("yyyy-MM-dd")" aria-label="Vencimiento de @fila.TipoGasto en @fila.NombrePropiedad" />
+                        </td>
+                        <td class="cargar-mes__factura"><small class="celda-sub"></small></td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    }
+}
+
+<h2 class="gastos-title">Cargar servicios</h2>
+
+@if (TempData["Success"] != null)
+{
+    <p class="aviso-pagina" role="status">@TempData["Success"]</p>
+}
+@if (!string.IsNullOrEmpty(ViewBag.Resumen as string))
+{
+    <p class="aviso-pagina" role="status">@ViewBag.Resumen</p>
+}
+@if (errores.Count > 0)
+{
+    <div class="alert alert-danger">Algunas filas no se guardaron. Revisá los montos marcados.</div>
+}
+
+@if (filas.Count == 0)
+{
+    <div class="seccion-gastos gastos-vacio">
+        <p class="gastos-vacio__titulo">Estás al día: no hay servicios para cargar</p>
+        <p>Cuando empiece un mes de un contrato con servicios mensuales, vas a poder cargar sus facturas acá.</p>
+        <a asp-action="MisGastos" asp-controller="Home" class="btn btn-secondary">Ver mis gastos</a>
+    </div>
+}
+else
+{
+    <form asp-action="GuardarMes" asp-controller="Home" method="post" class="seccion-gastos cargar-mes" id="cargar-mes">
+        @Html.AntiForgeryToken()
+        <p>Completá el monto de cada factura que tengas. Las filas que dejes vacías siguen pendientes, y el inquilino puede cargar las que le tocan a él.</p>
+
+        @foreach (var mes in recientes)
+        {
+            TablaMes(mes);
+        }
+
+        @if (anteriores.Count > 0)
+        {
+            <details>
+                <summary><strong>Meses anteriores (@anteriores.Sum(m => m.Count()))</strong></summary>
+                @foreach (var mes in anteriores)
+                {
+                    TablaMes(mes);
+                }
+            </details>
+        }
+
+        <div class="oso-center-row">
+            <button type="submit" class="btn btn-primary">Guardar los completos</button>
+        </div>
+    </form>
+}

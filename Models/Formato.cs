@@ -11,6 +11,9 @@ public static class Formato
 
     public static string Numero(decimal? valor, string formato = "N2") => valor.HasValue ? valor.Value.ToString(formato, Argentina) : "-";
 
+    // "noviembre 2026"
+    public static string Mes(DateTime fecha) => fecha.ToString("MMMM yyyy", Argentina);
+
     public static string Fecha(DateTime? fecha) => fecha.HasValue && fecha.Value != default ? fecha.Value.ToString("dd/MM/yyyy") : "-";
 
     // Un dato opcional con su unidad (ej. "30 días"), o "-" si no está cargado.

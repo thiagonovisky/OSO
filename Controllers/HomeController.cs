@@ -903,6 +903,81 @@ public class HomeController : Controller
         return RedirectToAction("MisGastos");
     }
 
+    // Todo lo que falta cargar del mes, de todas las propiedades del propietario, en una sola pantalla.
+    [HttpGet]
+    public IActionResult CargarMes()
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        return View(bd.ObtenerFilasCargarMes(idPropietario.Value));
+    }
+
+    // Guarda las filas completas. Las vacías siguen pendientes; las que tienen error vuelven a la pantalla con lo escrito;
+    // las que el inquilino cargó mientras tanto no se pisan.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult GuardarMes(List<FilaEnviada>? filas)
+    {
+        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        if (!idPropietario.HasValue)
+        {
+            return RedirectToAction("Login");
+        }
+
+        List<FilaCargarMes> pantalla = bd.ObtenerFilasCargarMes(idPropietario.Value);
+        Dictionary<string, FilaCargarMes> porClave = pantalla.ToDictionary(f => f.Clave);
+        static string ClaveDe(FilaEnviada f) => $"{f.IdPropiedad}-{f.IdGasto}-{f.Periodo:yyyyMM}";
+        string Nombre(FilaEnviada f) => porClave.TryGetValue(ClaveDe(f), out FilaCargarMes? p)
+            ? $"{p.TipoGasto} de {p.NombrePropiedad} ({Formato.Mes(p.Periodo)})"
+            : $"El servicio de {Formato.Mes(f.Periodo)}";
+
+        var errores = new Dictionary<string, string>();
+        var yaCargados = new List<string>();
+        int guardados = 0;
+
+        foreach (FilaEnviada fila in (filas ?? []).Where(FilasCargarMes.TieneDatos))
+        {
+            string? error = FilasCargarMes.Validar(fila);
+            if (error != null)
+            {
+                errores[ClaveDe(fila)] = error;
+                continue;
+            }
+
+            switch (bd.GuardarFilaMes(idPropietario.Value, fila))
+            {
+                case ResultadoFilaMes.Guardado:
+                    guardados++;
+                    break;
+                case ResultadoFilaMes.YaCargado:
+                    yaCargados.Add($"{Nombre(fila)} ya lo había cargado el inquilino.");
+                    break;
+                default:
+                    errores[ClaveDe(fila)] = "Este servicio ya no está pendiente.";
+                    break;
+            }
+        }
+
+        string resumen = string.Join(" ", new[] { guardados > 0 ? $"Se cargaron {guardados} servicio{(guardados == 1 ? "" : "s")}." : null }
+            .Concat(yaCargados).Where(t => t != null));
+
+        if (errores.Count == 0)
+        {
+            TempData["Success"] = resumen.Length > 0 ? resumen : "No completaste ningún monto.";
+            return RedirectToAction("CargarMes");
+        }
+
+        // Con errores, la pantalla vuelve con lo que se escribió en las filas que no se guardaron.
+        ViewBag.Resumen = resumen;
+        ViewBag.Errores = errores;
+        ViewBag.Enviadas = (filas ?? []).GroupBy(ClaveDe).ToDictionary(g => g.Key, g => g.First());
+        return View("CargarMes", bd.ObtenerFilasCargarMes(idPropietario.Value));
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult PagarGasto(int idGastoResponsable, IFormFile? comprobanteArchivo)

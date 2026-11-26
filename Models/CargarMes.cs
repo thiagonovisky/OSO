@@ -32,6 +32,27 @@ public enum ResultadoFilaMes { Guardado, YaCargado, NoCorresponde }
 
 public static class FilasCargarMes
 {
+    private const decimal MontoMaximo = 9_999_999_999m;
+
+    // Una fila vacía (sin monto y sin marcar como incluida) no se guarda: sigue pendiente.
+    public static bool TieneDatos(FilaEnviada fila) => fila.Monto.HasValue || fila.IncluidoEn.HasValue;
+
+    // Devuelve el error de la fila, o null si se puede guardar.
+    public static string? Validar(FilaEnviada fila)
+    {
+        if (fila.IncluidoEn.HasValue)
+        {
+            return fila.IncluidoEn.Value.Date > fila.Periodo.Date ? null : "La factura que lo incluye tiene que ser de un mes posterior.";
+        }
+
+        if (fila.Monto is <= 0)
+        {
+            return "El monto tiene que ser mayor a cero.";
+        }
+
+        return fila.Monto > MontoMaximo ? "El monto no es válido." : null;
+    }
+
     // Arma las filas de la pantalla a partir de los pendientes de los dos lados (un mes compartido figura una sola vez).
     // montos: monto de cada gasto ya cargado por (IdPropiedad, IdGasto, mes), para sugerir el del mes anterior.
     public static List<FilaCargarMes> Armar(IEnumerable<PendienteContrato> pendientes, IReadOnlyDictionary<(int, int, DateTime), decimal> montos) =>

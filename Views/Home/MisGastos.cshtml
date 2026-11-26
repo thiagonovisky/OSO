@@ -131,6 +131,13 @@
 
 <h2 class="gastos-title">Mis gastos</h2>
 
+@if (esPropietario)
+{
+    <div class="oso-center-row">
+        <a asp-action="CargarMes" asp-controller="Home" class="btn btn-primary">Cargar servicios del mes</a>
+    </div>
+}
+
 @if (TempData["Mensaje"] != null)
 {
     <p class="aviso-pagina" role="status">@TempData["Mensaje"]</p>
