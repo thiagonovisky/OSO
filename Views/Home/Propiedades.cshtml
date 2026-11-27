@@ -53,7 +53,7 @@
                 {
                     <tr>
                         <td><strong>@terminado.Direccion</strong></td>
-                        <td data-label="Terminó">@terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")</td>
+                        <td data-label="Terminó">@(terminado.CanceladoAntesDeEmpezar ? "Cancelado antes de empezar" : terminado.FechaFinEfectiva.ToString("dd/MM/yyyy"))</td>
                         <td data-label="Motivo">@OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)</td>
                         <td class="col-accion">
                             <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@terminado.IdContrato" class="btn btn-secondary btn-sm">Ver contrato</a>

@@ -40,12 +40,21 @@
         </div>
 
         <div id="detalleOtroMotivo" hidden>
-            <div class="campo">
-                <label for="fechaFinReal">Fecha real de fin</label>
-                <input type="date" name="fechaFinReal" id="fechaFinReal"
-                       min="@Model.FechaInicio.ToString("yyyy-MM-dd")" max="@Model.FechaMaximaFinReal.ToString("yyyy-MM-dd")" />
-                <small class="campo__ayuda">No puede ser futura ni anterior al inicio del contrato.</small>
-            </div>
+            @if (Model.EmpiezaEnElFuturo)
+            {
+                <div class="alert alert-info">
+                    El contrato todavía no empezó (arranca el @Model.FechaInicio.ToString("dd/MM/yyyy")): se cancela sin cobrar ningún mes.
+                </div>
+            }
+            else
+            {
+                <div class="campo">
+                    <label for="fechaFinReal">Fecha real de fin</label>
+                    <input type="date" name="fechaFinReal" id="fechaFinReal"
+                           min="@Model.FechaInicio.ToString("yyyy-MM-dd")" max="@Model.FechaMaximaFinReal.ToString("yyyy-MM-dd")" />
+                    <small class="campo__ayuda">No puede ser futura ni anterior al inicio del contrato.</small>
+                </div>
+            }
             <div class="campo mt-3">
                 <label for="descripcion">¿Qué pasó? (obligatorio)</label>
                 <textarea name="descripcion" id="descripcion" rows="4" maxlength="500"></textarea>
@@ -60,11 +69,6 @@
     </form>
 </div>
 
-<script>
-    document.getElementById('motivo').addEventListener('change', function () {
-        var otro = this.value !== '' && this.value !== 'FinDePlazo';
-        document.getElementById('detalleOtroMotivo').hidden = !otro;
-        document.getElementById('descripcion').required = otro;
-        document.getElementById('fechaFinReal').required = otro;
-    });
-</script>
+@section Scripts {
+    <script src="~/js/terminar-contrato.js" asp-append-version="true"></script>
+}

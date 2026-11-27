@@ -1,5 +1,5 @@
 @{
-    var menu = OSO.Models.MenuPrincipal.Para(Context.Session.GetString("EsPropietario") == "true");
+    var menu = ViewBag.Menu as List<OSO.Models.ItemMenu> ?? new List<OSO.Models.ItemMenu>();
 }
 
 <div class="bienvenida">

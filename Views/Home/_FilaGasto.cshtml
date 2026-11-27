@@ -1,0 +1,71 @@
+@* Un gasto cargado: tu parte, su estado y, si falta pagarla, su formulario de pago, que se despliega con "Pagar". *@
+@model OSO.Models.GastoPropiedad
+@{
+    bool esPropietario = ViewBag.EsPropietario == true;
+    string otraParte = esPropietario ? "Parte del inquilino" : "Parte del propietario";
+}
+
+<tr>
+    <td>
+        <strong>@Model.TipoGasto</strong>
+        <small class="celda-sub">@Model.Periodo.ToString("MMMM yyyy") en @Model.NombrePropiedad</small>
+        @if (!Model.EsIncluido)
+        {
+            <small class="celda-sub gasto-origen">
+                @Model.CargadoPorPara(esPropietario)
+                @if (!string.IsNullOrEmpty(Model.Factura))
+                {
+                    <text> · </text><a href="@Url.Action("VerFactura", "Home", new { idGastoPropiedad = Model.IdGastoPropiedad })" target="_blank" rel="noopener">Ver factura</a>
+                }
+                else
+                {
+                    <text> · sin factura</text>
+                }
+            </small>
+        }
+    </td>
+    <td data-label="Estado">
+        @if (Model.EsIncluido)
+        {
+            <small class="celda-sub">@Model.Aclaracion</small>
+        }
+        else
+        {
+            <span class="estado-pill estado-pill--@Model.EstadoMiParteCss">@Model.EstadoMiParte</span>
+        }
+        @if (Model.FechaPago.HasValue && Model.MiPartePagada && !Model.EsIncluido)
+        {
+            <small class="celda-sub">el @Model.FechaPago.Value.ToString("dd/MM/yyyy")</small>
+        }
+    </td>
+    <td data-label="Vencimiento">@Model.FechaVencimiento.ToString("dd/MM/yyyy")</td>
+    <td data-label="Total" class="col-monto">@OSO.Models.Formato.Pesos(Model.Monto)</td>
+    <td data-label="Tu parte" class="col-monto"><span class="mi-parte">@OSO.Models.Formato.Pesos(Model.MontoResponsable)</span></td>
+    <td data-label="@otraParte" class="col-monto">@OSO.Models.Formato.Pesos(esPropietario ? Model.MontoInquilino : Model.MontoPropietario)</td>
+    <td class="col-accion">
+        @if (!Model.MiPartePagada)
+        {
+            <button type="button" class="btn btn-success btn-sm" data-despliega="@Model.IdFormularioPago" aria-expanded="false" aria-controls="@Model.IdFormularioPago">Pagar</button>
+        }
+        else if (!string.IsNullOrWhiteSpace(Model.Comprobante))
+        {
+            <a href="@Url.Content("~/comprobantes/" + Model.Comprobante)" target="_blank" class="btn btn-secondary btn-sm">Ver comprobante</a>
+        }
+    </td>
+</tr>
+@if (!Model.MiPartePagada)
+{
+    <tr class="fila-pago" id="@Model.IdFormularioPago" hidden>
+        <td colspan="7">
+            <form asp-action="PagarGasto" asp-controller="Home" method="post" enctype="multipart/form-data" class="pago-form pago-form--fila">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="idGastoResponsable" value="@Model.IdGastoResponsable" />
+                <div class="pago-campo">
+                    <span class="pago-form__label">Comprobante de pago de @OSO.Models.Formato.Pesos(Model.MontoResponsable - Model.MontoPagado)</span>
+                    <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Comprobante de pago" required />
+                </div>
+                <button type="submit" class="btn btn-success">Confirmar pago</button>
+            </form>
+        </td>
+    </tr>
+}

@@ -14,8 +14,8 @@
     bool esLanding = accionActual == "Index";
 
     // Menú principal (Models/MenuPrincipal): el mismo en el header, la bienvenida y el menú lateral.
-    var menu = OSO.Models.MenuPrincipal.Para(Context.Session.GetString("EsPropietario") == "true");
-    string? seccion = OSO.Models.MenuPrincipal.SeccionDe(accionActual);
+    var menu = ViewBag.Menu as List<OSO.Models.ItemMenu> ?? new List<OSO.Models.ItemMenu>();
+    string? seccion = ViewBag.SeccionMenu as string;
 }
 <body>
     <a class="oso-saltar" href="#contenido">Saltar al contenido</a>
@@ -76,8 +76,8 @@
     </header>
     @if (!esPaginaPublica)
     {
-        var nombreMenu = Context.Session.GetString("NombreUsuario");
-        bool esPropietario = Context.Session.GetString("EsPropietario") == "true";
+        string? nombreMenu = ViewBag.NombreUsuario as string;
+        bool esPropietario = ViewBag.UsuarioEsPropietario == true;
         int notificacionesNoLeidas = ViewBag.NotificacionesNoLeidas as int? ?? 0;
         // Accesos de la cuenta, debajo del menú principal.
         var deLaCuenta = new[] { ("Bienvenida", "Inicio"), ("Perfil", "Perfil"), ("Notificaciones", "Notificaciones") };

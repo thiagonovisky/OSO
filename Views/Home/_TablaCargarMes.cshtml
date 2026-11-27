@@ -1,0 +1,81 @@
+@* Una tabla de "Cargar servicios": las filas de un mes. Cada fila trae su número en el formulario y, si la pantalla volvió con errores, lo que se había escrito. *@
+@model OSO.Models.MesCargarMes
+
+<h3 class="cargar-mes__titulo">@OSO.Models.Formato.Mes(Model.Periodo)</h3>
+<div class="tabla-wrap"><table class="table cargar-mes__tabla">
+    <thead>
+        <tr>
+            <th>Propiedad</th>
+            <th>Servicio</th>
+            <th>Quién paga</th>
+            <th class="col-monto">Monto</th>
+            <th>Vence</th>
+            <th><span class="visually-hidden">Factura</span></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var fila in Model.Filas)
+        {
+            <tr data-clave="@fila.Clave" data-propiedad="@fila.IdPropiedad" data-servicio="@fila.TipoGasto"
+                data-periodo="@fila.Periodo.ToString("yyyy-MM-01")" data-direccion="@fila.NombrePropiedad">
+                <td data-label="Propiedad">@fila.NombrePropiedad</td>
+                <td data-label="Servicio"><strong>@fila.TipoGasto</strong></td>
+                <td data-label="Quién paga">
+                    @if (fila.LaPagaElOtro)
+                    {
+                        @* Que no se confunda con algo a pagar: cargarla no le genera nada a quien la carga. *@
+                        <span class="quien-paga quien-paga--otro">@fila.QuienPaga</span>
+                        <small class="celda-sub">Vos solo cargás el monto</small>
+                    }
+                    else
+                    {
+                        <span class="quien-paga">@fila.QuienPaga</span>
+                    }
+                </td>
+                <td data-label="Monto" class="col-monto">
+                    @* filas.Index: al enviar, las filas vacías no mandan nada y los índices quedan salteados. *@
+                    <input type="hidden" name="filas.Index" value="@fila.Indice" />
+                    <input type="hidden" name="filas[@fila.Indice].IdPropiedad" value="@fila.IdPropiedad" />
+                    <input type="hidden" name="filas[@fila.Indice].IdGasto" value="@fila.IdGasto" />
+                    <input type="hidden" name="filas[@fila.Indice].Periodo" value="@fila.Periodo.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="filas[@fila.Indice].IncluidoEn" value="@fila.Enviada?.IncluidoEn?.ToString("yyyy-MM-dd")" class="campo-incluido" />
+                    <input type="number" name="filas[@fila.Indice].Monto" step="0.01" min="0.01" class="form-control form-control-sm campo-monto"
+                           value="@OSO.Models.Formato.ParaInput(fila.Enviada?.Monto)"
+                           placeholder="@(fila.MontoSugerido.HasValue ? "~" + OSO.Models.Formato.Numero(fila.MontoSugerido, "N0") : "")"
+                           title="@(fila.MontoSugerido.HasValue ? "El mes anterior fue " + OSO.Models.Formato.Pesos(fila.MontoSugerido) : "")"
+                           aria-label="Monto de @fila.TipoGasto en @fila.NombrePropiedad" />
+                    <small class="celda-sub cargar-mes__incluido" hidden></small>
+                    @if (fila.Error != null)
+                    {
+                        <small class="text-danger d-block">@fila.Error</small>
+                    }
+                </td>
+                <td data-label="Vence">
+                    <input type="date" name="filas[@fila.Indice].Vencimiento" class="form-control form-control-sm campo-vencimiento"
+                           value="@fila.Enviada?.Vencimiento?.ToString("yyyy-MM-dd")" aria-label="Vencimiento de @fila.TipoGasto en @fila.NombrePropiedad" />
+                </td>
+                <td class="cargar-mes__factura">
+                    <small class="celda-sub cargar-mes__origen"></small>
+                    @* La factura se guarda con el gasto. Al soltar facturas arriba, cada una se adjunta sola a su fila. *@
+                    <label class="cargar-mes__adjuntar">
+                        <input type="file" name="filas[@fila.Indice].Factura" accept=".pdf,.jpg,.jpeg,.png,.webp" class="visually-hidden campo-factura"
+                               aria-label="Factura de @fila.TipoGasto en @fila.NombrePropiedad" />
+                        <span class="cargar-mes__adjuntar-texto">Adjuntar factura</span>
+                    </label>
+                    @if (fila.Enviada?.Factura != null && fila.Error != null)
+                    {
+                        <small class="text-warning d-block">Volvé a adjuntar la factura (@fila.Enviada.Factura.FileName).</small>
+                    }
+                    else if (fila.ElOtroPagaAlgo)
+                    {
+                        <small class="celda-sub cargar-mes__aviso-factura">Adjuntala así @fila.ElOtro puede ver de dónde sale el monto.</small>
+                    }
+                    <button type="button" class="cargar-mes__marcar-incluido">
+                        Marcar como incluido en otra factura
+                        <small class="cargar-mes__marcar-ayuda">(si el servicio es bimestral)</small>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table></div>

@@ -53,9 +53,15 @@ public class LectorContratos(IServiceScopeFactory scopeFactory, ILogger<LectorCo
         var bd = new BD();
 
         List<Gastos> catalogo = bd.ObtenerCatalogoGastos();
-        var (json, errorIa) = await extractor.ExtraerAsync(archivo, mimeType, catalogo.Select(g => g.TipoGasto));
+        var tiposGasto = new List<string>();
+        foreach (Gastos gasto in catalogo)
+        {
+            tiposGasto.Add(gasto.TipoGasto);
+        }
+
+        var (json, errorIa) = await extractor.ExtraerAsync(archivo, mimeType, tiposGasto);
         ResultadoExtraccion resultado = ResultadoExtraccion.Parsear(json);
-        bool leyoAlgo = json != null && (resultado.Gastos.Count > 0 || resultado.ConfianzaPorCampo().Values.Any(c => c > 0));
+        bool leyoAlgo = json != null && (resultado.Gastos.Count > 0 || resultado.ConfianzaPorCampo().Values.Count(c => c > 0) > 0);
 
         // Si mientras tanto el borrador se descartó, no hay nada que completar.
         Contratos? contrato = bd.ObtenerContratoPorId(idContrato);

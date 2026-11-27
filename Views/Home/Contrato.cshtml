@@ -140,19 +140,6 @@
                 </table></div>
             }
         </section>
-
-        <script>
-            (function () {
-                var input = document.getElementById('montoManual');
-                if (!input) { return; }
-                var calculado = parseFloat(input.dataset.calculado);
-                var aviso = document.getElementById('avisoAjuste');
-                input.addEventListener('input', function () {
-                    var propuesto = parseFloat(input.value);
-                    aviso.hidden = !(calculado > 0 && propuesto > 0 && Math.abs(propuesto - calculado) / calculado > 0.05);
-                });
-            })();
-        </script>
     }
     else if (enCurso != null)
     {
@@ -182,7 +169,14 @@
                 }
             </div>
             <dl class="datos">
-                <div><dt>Plazo</dt><dd>@terminado.FechaInicio.ToString("dd/MM/yyyy") al @terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")</dd></div>
+                <div><dt>Plazo</dt><dd>@if (terminado.CanceladoAntesDeEmpezar)
+                    {
+                        <text>Cancelado antes de empezar (iba a arrancar el @terminado.FechaInicio.ToString("dd/MM/yyyy"))</text>
+                    }
+                    else
+                    {
+                        <text>@terminado.FechaInicio.ToString("dd/MM/yyyy") al @terminado.FechaFinEfectiva.ToString("dd/MM/yyyy")</text>
+                    }</dd></div>
                 <div><dt>Motivo</dt><dd>@OSO.Models.ReglasContrato.NombreMotivoFin(terminado.MotivoFin)</dd></div>
                 @if (!string.IsNullOrWhiteSpace(terminado.DescripcionFin))
                 {
@@ -212,3 +206,7 @@
         }
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/contrato-ajuste.js" asp-append-version="true"></script>
+}

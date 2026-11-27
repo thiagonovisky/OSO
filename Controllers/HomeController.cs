@@ -26,24 +26,23 @@ public class HomeController : Controller
     // En cada pedido de un usuario logueado: si es inquilino, se generan los avisos de gastos por vencer.
     public override void OnActionExecuting(ActionExecutingContext context)
     {
-        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        int? idInquilino = IdInquilinoSesion;
+        int? idPropietario = IdPropietarioSesion;
 
-        if (idUsuario.HasValue && HttpMethods.IsGet(Request.Method))
+        if (UsuarioLogueado(out int idUsuario) && HttpMethods.IsGet(Request.Method))
         {
             // Las notificaciones nunca deben romper la navegación.
             try
             {
                 if (idInquilino.HasValue)
                 {
-                    bd.GenerarNotificacionesVencimiento(idUsuario.Value, idInquilino.Value);
+                    bd.GenerarNotificacionesVencimiento(idUsuario, idInquilino.Value);
                 }
 
                 if (idInquilino.HasValue || idPropietario.HasValue)
                 {
-                    bd.GenerarNotificacionesEventos(idUsuario.Value, idPropietario, idInquilino);
-                    bd.GenerarRecordatorioFacturas(idUsuario.Value, idInquilino, idPropietario);
+                    bd.GenerarNotificacionesEventos(idUsuario, idPropietario, idInquilino);
+                    bd.GenerarRecordatorioFacturas(idUsuario, idInquilino, idPropietario);
                 }
             }
             catch (Exception ex)
@@ -55,24 +54,85 @@ public class HomeController : Controller
         base.OnActionExecuting(context);
     }
 
-    // Después de la acción (ya marcó lo leído, ej. al abrir un chat) se cuenta lo no leído para la campanita.
+    // Antes de mostrar cualquier pantalla: el menú principal (header, menú lateral y bienvenida) y,
+    // ya marcado lo leído por la acción (ej. al abrir un chat), lo no leído para la campanita.
     public override void OnActionExecuted(ActionExecutedContext context)
     {
-        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
-
-        if (idUsuario.HasValue && context.Result is ViewResult)
+        if (context.Result is ViewResult)
         {
-            try
+            bool usuarioEsPropietario = HttpContext.Session.GetString("EsPropietario") == "true";
+            ViewBag.UsuarioEsPropietario = usuarioEsPropietario;
+            ViewBag.NombreUsuario = HttpContext.Session.GetString("NombreUsuario");
+            ViewBag.FotoPerfil = HttpContext.Session.GetString("FotoPerfil");
+            ViewBag.Menu = MenuPrincipal.Para(usuarioEsPropietario);
+            ViewBag.SeccionMenu = MenuPrincipal.SeccionDe(context.RouteData.Values["action"]?.ToString());
+
+            if (UsuarioLogueado(out int idUsuario))
             {
-                ViewBag.NotificacionesNoLeidas = bd.ContarNotificacionesNoLeidas(idUsuario.Value);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "No se pudieron contar las notificaciones");
+                try
+                {
+                    ViewBag.NotificacionesNoLeidas = bd.ContarNotificacionesNoLeidas(idUsuario);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "No se pudieron contar las notificaciones");
+                }
             }
         }
 
         base.OnActionExecuted(context);
+    }
+
+    // ---- Sesión ----
+
+    private int? IdPropietarioSesion => HttpContext.Session.GetInt32("IdPropietario");
+    private int? IdInquilinoSesion => HttpContext.Session.GetInt32("IdInquilino");
+
+    // Cada uno devuelve true si hay sesión de ese tipo, y en el out el id de quien la inició.
+    private bool PropietarioLogueado(out int idPropietario) => LeerIdDeSesion("IdPropietario", out idPropietario);
+    private bool InquilinoLogueado(out int idInquilino) => LeerIdDeSesion("IdInquilino", out idInquilino);
+    private bool UsuarioLogueado(out int idUsuario) => LeerIdDeSesion("IdUsuario", out idUsuario);
+
+    private bool LeerIdDeSesion(string clave, out int id)
+    {
+        int? valor = HttpContext.Session.GetInt32(clave);
+        id = valor ?? 0;
+        return valor.HasValue;
+    }
+
+    // Para las pantallas de un solo rol: quien inició sesión con el otro vuelve a sus propiedades; quien no, al login.
+    private IActionResult RedirigirSinPermiso() => RedirectToAction(UsuarioLogueado(out _) ? "Propiedades" : "Login");
+
+    // Quién está cargando facturas: el propietario (sus propiedades) o el inquilino (sus alquileres). false si no hay sesión.
+    private bool QuienCarga(out string lado, out int idPersona)
+    {
+        if (PropietarioLogueado(out idPersona))
+        {
+            lado = BD.LadoPropietario;
+            return true;
+        }
+
+        lado = BD.LadoInquilino;
+        return InquilinoLogueado(out idPersona);
+    }
+
+    private void GuardarSesion(Usuario usuario)
+    {
+        HttpContext.Session.Clear();
+        HttpContext.Session.SetInt32("IdUsuario", usuario.Id);
+        HttpContext.Session.SetString("FotoPerfil", usuario.FotoPerfil ?? string.Empty);
+        HttpContext.Session.SetString("NombreUsuario", usuario.Nombre ?? string.Empty);
+        HttpContext.Session.SetString("EsPropietario", usuario.IdPropietario > 0 ? "true" : "false");
+
+        if (usuario.IdPropietario > 0)
+        {
+            HttpContext.Session.SetInt32("IdPropietario", usuario.IdPropietario);
+        }
+
+        if (usuario.IdInquilino > 0)
+        {
+            HttpContext.Session.SetInt32("IdInquilino", usuario.IdInquilino);
+        }
     }
 
     // El token de invitación es el id de la propiedad cifrado/firmado: no se puede adivinar ni modificar.
@@ -106,29 +166,6 @@ public class HomeController : Controller
         }
 
         return RedirectToAction("Bienvenida");
-    }
-
-    private void GuardarSesion(Usuario usuario)
-    {
-        HttpContext.Session.Clear();
-        HttpContext.Session.SetInt32("IdUsuario", usuario.Id);
-        HttpContext.Session.SetString("FotoPerfil", usuario.FotoPerfil ?? string.Empty);
-        HttpContext.Session.SetString("NombreUsuario", usuario.Nombre ?? string.Empty);
-
-        if (usuario.IdPropietario > 0)
-        {
-            HttpContext.Session.SetInt32("IdPropietario", usuario.IdPropietario);
-            HttpContext.Session.SetString("EsPropietario", "true");
-        }
-        else
-        {
-            HttpContext.Session.SetString("EsPropietario", "false");
-        }
-
-        if (usuario.IdInquilino > 0)
-        {
-            HttpContext.Session.SetInt32("IdInquilino", usuario.IdInquilino);
-        }
     }
 
     public IActionResult Index()
@@ -220,28 +257,31 @@ public class HomeController : Controller
         return View();
     }
 
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult CerrarSesion()
+    {
+        HttpContext.Session.Clear();
+        return RedirectToAction("Login");
+    }
+
+    // ---- Perfil: cada dato se guarda por separado desde su lápiz ----
+
     [HttpGet]
     public IActionResult Perfil()
     {
-        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
-
-        if (!idUsuario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Usuario? usuario = bd.ObtenerUsuarioPorId(idUsuario.Value);
-
+        Usuario? usuario = UsuarioDeLaSesion();
         if (usuario == null)
         {
             HttpContext.Session.Clear();
             return RedirectToAction("Login");
         }
 
+        var (codigoPais, digitosTelefono) = TelefonoFormato.Separar(usuario.Telefono);
+        ViewBag.CodigoPais = codigoPais;
+        ViewBag.DigitosTelefono = digitosTelefono;
         return View(usuario);
     }
-
-    // ---- Edición del perfil: cada dato se guarda por separado desde su lápiz ----
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -261,7 +301,7 @@ public class HomeController : Controller
 
         string nueva = GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"perfil_{usuario.Correo}");
         bd.ActualizarFotoPerfil(usuario.IdUsuario, nueva);
-        BorrarFotoAnterior(usuario.FotoPerfil);
+        GestorArchivos.BorrarFotoPerfil(usuario.FotoPerfil);
         HttpContext.Session.SetString("FotoPerfil", nueva);
         return VolverAlPerfil(null, "Actualizaste tu foto de perfil.");
     }
@@ -345,8 +385,7 @@ public class HomeController : Controller
 
     private Usuario? UsuarioDeLaSesion()
     {
-        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
-        return idUsuario.HasValue ? bd.ObtenerUsuarioPorId(idUsuario.Value) : null;
+        return UsuarioLogueado(out int idUsuario) ? bd.ObtenerUsuarioPorId(idUsuario) : null;
     }
 
     private IActionResult VolverAlPerfil(string? error, string? exito)
@@ -364,37 +403,7 @@ public class HomeController : Controller
         return RedirectToAction("Perfil");
     }
 
-    // Las fotos que suben los usuarios se reemplazan; las de los usuarios de ejemplo (versionadas en el repo) no se borran.
-    private static void BorrarFotoAnterior(string? foto)
-    {
-        if (string.IsNullOrWhiteSpace(foto) || foto != Path.GetFileName(foto) || FotosDeEjemplo.Contains(foto))
-        {
-            return;
-        }
-
-        try
-        {
-            GestorArchivos.Borrar(GestorArchivos.CarpetaImagenes, foto);
-        }
-        catch (IOException)
-        {
-            // Si no se pudo borrar queda huérfana en disco; no afecta al perfil.
-        }
-    }
-
-    private static readonly string[] FotosDeEjemplo =
-    {
-        "perfil_prop@gmail.com_20261119083614524.jfif",
-        "perfil_inq@gmail.com_20261119084917425.jfif"
-    };
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult CerrarSesion()
-    {
-        HttpContext.Session.Clear();
-        return RedirectToAction("Login");
-    }
+    // ---- Propiedades e inquilinos ----
 
     [HttpGet]
     public IActionResult Invitacion(string? token)
@@ -408,30 +417,28 @@ public class HomeController : Controller
             return View((Propiedades?)null);
         }
 
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idInquilino = IdInquilinoSesion;
         ViewBag.ReturnUrl = Url.Action("Invitacion", "Home", new { token });
 
         // La propiedad ya tiene inquilino: el link deja de servir (salvo para mostrarle al propio inquilino que ya está vinculado).
         if (propiedad.IdInquilino.HasValue)
         {
             ViewBag.Estado = idInquilino == propiedad.IdInquilino ? "yaVinculado" : "ocupada";
-            return View(propiedad);
         }
-
-        if (!HttpContext.Session.GetInt32("IdUsuario").HasValue)
+        else if (!UsuarioLogueado(out _))
         {
             ViewBag.Estado = "sinSesion";
-            return View(propiedad);
         }
-
-        if (!idInquilino.HasValue)
+        else if (!idInquilino.HasValue)
         {
             ViewBag.Estado = "noEsInquilino";
-            return View(propiedad);
+        }
+        else
+        {
+            // El UPDATE sólo afecta la fila si IdInquilino sigue en NULL, así nunca quedan dos inquilinos.
+            ViewBag.Estado = bd.VincularInquilinoAPropiedad(propiedad.IdPropiedad, idInquilino.Value) ? "vinculado" : "ocupada";
         }
 
-        // El UPDATE sólo afecta la fila si IdInquilino sigue en NULL, así nunca quedan dos inquilinos.
-        ViewBag.Estado = bd.VincularInquilinoAPropiedad(propiedad.IdPropiedad, idInquilino.Value) ? "vinculado" : "ocupada";
         return View(propiedad);
     }
 
@@ -439,14 +446,12 @@ public class HomeController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult QuitarInquilino(int idPropiedad)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) != null)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario) != null)
         {
             // Con un contrato confirmado no se puede desvincular a secas: hay que terminarlo con su motivo.
             Contratos? vigente = bd.ObtenerContratoConfirmadoDePropiedad(idPropiedad);
@@ -461,114 +466,18 @@ public class HomeController : Controller
         return RedirectToAction("Propiedades");
     }
 
-    // El contrato Confirmado de una propiedad del propietario logueado; null si no corresponde.
-    private (Contratos? Contrato, Propiedades? Propiedad) ObtenerConfirmadoDelPropietario(int idContrato, int idPropietario)
-    {
-        Contratos? contrato = bd.ObtenerContratoPorId(idContrato);
-        Propiedades? propiedad = contrato == null ? null : bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario);
-        return propiedad != null && contrato!.Estado == "Confirmado" ? (contrato, propiedad) : (null, null);
-    }
-
-    [HttpGet]
-    public IActionResult TerminarContrato(int idContrato)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        var (contrato, propiedad) = ObtenerConfirmadoDelPropietario(idContrato, idPropietario.Value);
-        if (contrato == null || propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(contrato.IdInquilino);
-        ViewBag.Propiedad = propiedad;
-        ViewBag.NombreInquilino = inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido}".Trim() : "Inquilino";
-        return View(contrato);
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult TerminarContrato(int idContrato, string? motivo, DateTime? fechaFinReal, string? descripcion)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        var (contrato, propiedad) = ObtenerConfirmadoDelPropietario(idContrato, idPropietario.Value);
-        if (contrato == null || propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        string? error = ReglasContrato.ValidarTerminacion(contrato, motivo, fechaFinReal, descripcion, DateTime.Today);
-        if (error != null)
-        {
-            TempData["Error"] = error;
-            return RedirectToAction("TerminarContrato", new { idContrato });
-        }
-
-        // En fin de plazo la fecha real es la de fin del contrato; la descripción es opcional.
-        DateTime fechaReal = motivo == ReglasContrato.FinDePlazo ? contrato.FechaFin : fechaFinReal!.Value;
-        if (!bd.TerminarContrato(idContrato, motivo!, fechaReal, descripcion))
-        {
-            TempData["Error"] = "No se pudo terminar el contrato: puede que ya esté terminado.";
-            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
-        }
-
-        TempData["Success"] = "Terminaste el contrato. Le avisamos al inquilino y la propiedad quedó disponible.";
-        return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
-    }
-
-    // El inquilino no puede vetar la terminación, pero sí dejar por escrito que no está de acuerdo (una sola vez).
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult DejarDisconformidad(int idContrato, string? texto)
-    {
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-
-        if (!idInquilino.HasValue)
-        {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdPropietario").HasValue ? "Propiedades" : "Login");
-        }
-
-        if (string.IsNullOrWhiteSpace(texto) || texto.Trim().Length > ReglasContrato.LargoMaximoDisconformidad)
-        {
-            TempData["Error"] = $"Escribí tu disconformidad (hasta {ReglasContrato.LargoMaximoDisconformidad} caracteres).";
-            return RedirectToAction("VerContrato", new { idContrato });
-        }
-
-        if (!bd.DejarDisconformidad(idContrato, idInquilino.Value, texto))
-        {
-            TempData["Error"] = "No se pudo registrar: el contrato no es tuyo, no terminó por ese motivo o ya dejaste una constancia.";
-            return RedirectToAction("VerContrato", new { idContrato });
-        }
-
-        TempData["Success"] = "Quedó registrada tu disconformidad. La ven los dos.";
-        return RedirectToAction("VerContrato", new { idContrato });
-    }
-
     public IActionResult Propiedades()
     {
-        int? idActual = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idActual.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
-            int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+            int? idInquilino = IdInquilinoSesion;
             ViewBag.EsInquilino = idInquilino.HasValue;
             ViewBag.ContratosPendientes = idInquilino.HasValue ? bd.ObtenerContratosPendientesDeInquilino(idInquilino.Value) : new List<Contratos>();
             ViewBag.ContratosFinalizados = idInquilino.HasValue ? bd.ObtenerContratosFinalizadosDeInquilino(idInquilino.Value) : new List<Contratos>();
             return View(idInquilino.HasValue ? bd.ObtenerPropiedadesPorIdInquilino(idInquilino.Value) : new List<Propiedades>());
         }
 
-        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idActual.Value);
+        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario);
 
         // Las propiedades con inquilino muestran sus datos; las libres, el link para invitar a uno.
         var links = new Dictionary<int, string>();
@@ -585,17 +494,149 @@ public class HomeController : Controller
             }
         }
 
-        ViewBag.ContratosConfirmados = bd.ObtenerContratosConfirmadosPorPropietario(idActual.Value);
+        ViewBag.ContratosConfirmados = bd.ObtenerContratosConfirmadosPorPropietario(idPropietario);
         ViewBag.LinksInvitacion = links;
         ViewBag.InquilinosPorPropiedad = inquilinos;
         return View(propiedades);
     }
 
+    public IActionResult AgregarPropiedad()
+    {
+        if (!PropietarioLogueado(out _))
+        {
+            return RedirectToAction("Login");
+        }
+
+        return View();
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AgregarP(Propiedades propiedad, IFormFile? foto)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        string? error = propiedad.Validar() ?? GestorArchivos.ValidarImagenOpcional(foto);
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("AgregarPropiedad");
+        }
+
+        propiedad.IdPropietario = idPropietario;
+        propiedad.Direccion = propiedad.Direccion.Trim();
+        propiedad.Foto = GestorArchivos.TieneContenido(foto)
+            ? GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"propiedad_{idPropietario}")
+            : "default.jpg";
+        propiedad.FechaDeAlta = DateTime.Today;
+        propiedad.Estado = OSO.Models.Propiedades.EstadoDisponible;
+
+        bd.AgregarPropiedad(propiedad);
+        return RedirectToAction("Propiedades");
+    }
+
+    [HttpGet]
+    public IActionResult EditarPropiedad(int idPropiedad)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        return View(propiedad);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult GuardarEdicionPropiedad(Propiedades propiedad, IFormFile? foto)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedadActual = bd.ObtenerPropiedadDePropietario(propiedad.IdPropiedad, idPropietario);
+        if (propiedadActual == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        string? error = propiedad.Validar() ?? GestorArchivos.ValidarImagenOpcional(foto);
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("EditarPropiedad", new { idPropiedad = propiedad.IdPropiedad });
+        }
+
+        propiedad.IdPropietario = idPropietario;
+        propiedad.Direccion = propiedad.Direccion.Trim();
+        propiedad.Foto = GestorArchivos.TieneContenido(foto)
+            ? GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"propiedad_{idPropietario}")
+            : propiedadActual.Foto;
+
+        bd.EditarPropiedad(propiedad);
+        return RedirectToAction("Propiedades");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult InfoPropiedad(int idPropiedad)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        return View(propiedad);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult EliminarPropiedad(int idPropiedad)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        var (error, archivos) = bd.EliminarPropiedad(idPropiedad, idPropietario);
+        if (error != null)
+        {
+            TempData["Error"] = error;
+        }
+        else
+        {
+            foreach (var archivo in archivos)
+            {
+                ArchivosContrato.Borrar(archivo);
+            }
+        }
+
+        return RedirectToAction("Propiedades");
+    }
+
+    // ---- Calendario ----
+
     [HttpGet]
     public IActionResult Calendario(int? anio, int? mes)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = IdPropietarioSesion;
+        int? idInquilino = IdInquilinoSesion;
         if (!idPropietario.HasValue && !idInquilino.HasValue)
         {
             return RedirectToAction("Login");
@@ -625,13 +666,12 @@ public class HomeController : Controller
     [HttpGet]
     public IActionResult AgregarEvento(DateTime? fecha)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Calendario");
         }
 
-        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
+        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario);
         ViewBag.Propiedades = propiedades;
         Propiedades? unica = propiedades.Count == 1 ? propiedades[0] : null;
         return View(new Evento
@@ -648,8 +688,7 @@ public class HomeController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult GuardarEvento(Evento evento)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Calendario");
         }
@@ -662,12 +701,12 @@ public class HomeController : Controller
         }
 
         // Sólo se puede asociar el evento a una propiedad propia.
-        if (evento.IdPropiedad.HasValue && bd.ObtenerPropiedadDePropietario(evento.IdPropiedad.Value, idPropietario.Value) == null)
+        if (evento.IdPropiedad.HasValue && bd.ObtenerPropiedadDePropietario(evento.IdPropiedad.Value, idPropietario) == null)
         {
             evento.IdPropiedad = null;
         }
 
-        evento.IdPropietario = idPropietario.Value;
+        evento.IdPropietario = idPropietario;
 
         // Los eventos del contrato y de los gastos los arma el sistema: desde acá solo se crean manuales.
         evento.Tipo = "Manual";
@@ -677,79 +716,93 @@ public class HomeController : Controller
         return RedirectToAction("Calendario", new { anio = evento.Fecha.Year, mes = evento.Fecha.Month });
     }
 
+    // ---- Mensajería y notificaciones ----
+
     [HttpGet]
     public IActionResult Mensajeria(int? con)
     {
-        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
-        if (!idUsuario.HasValue)
+        if (!UsuarioLogueado(out int idUsuario))
         {
             return RedirectToAction("Login");
         }
 
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = IdPropietarioSesion;
 
         // Sólo se puede abrir el chat con alguien que sea contacto del usuario.
-        Contacto? activo = con.HasValue ? bd.ObtenerContacto(idUsuario.Value, idPropietario, idInquilino, con.Value) : null;
+        Contacto? activo = con.HasValue ? bd.ObtenerContacto(idUsuario, idPropietario, IdInquilinoSesion, con.Value) : null;
         if (activo != null)
         {
-            bd.MarcarMensajesComoLeidos(idUsuario.Value, activo.IdUsuario);
+            bd.MarcarMensajesComoLeidos(idUsuario, activo.IdUsuario);
             activo.NoLeidos = 0;
-            ViewBag.Mensajes = bd.ObtenerConversacion(idUsuario.Value, activo.IdUsuario);
+            ViewBag.Mensajes = bd.ObtenerConversacion(idUsuario, activo.IdUsuario);
         }
 
         ViewBag.Activo = activo;
         ViewBag.EsPropietario = idPropietario.HasValue;
-        return View(bd.ObtenerContactos(idUsuario.Value, idPropietario, idInquilino));
+        return View(bd.ObtenerContactos(idUsuario, idPropietario, IdInquilinoSesion));
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult EnviarMensaje(int idReceptor, string? texto)
     {
-        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
-        if (!idUsuario.HasValue)
+        if (!UsuarioLogueado(out int idUsuario))
         {
             return RedirectToAction("Login");
         }
 
-        Contacto? receptor = bd.ObtenerContacto(
-            idUsuario.Value,
-            HttpContext.Session.GetInt32("IdPropietario"),
-            HttpContext.Session.GetInt32("IdInquilino"),
-            idReceptor);
-
+        Contacto? receptor = bd.ObtenerContacto(idUsuario, IdPropietarioSesion, IdInquilinoSesion, idReceptor);
         if (receptor != null && Mensaje.EsTextoValido(texto))
         {
-            bd.EnviarMensaje(idUsuario.Value, idReceptor, texto!.Trim());
+            bd.EnviarMensaje(idUsuario, idReceptor, texto!.Trim());
         }
 
         return RedirectToAction("Mensajeria", new { con = idReceptor });
     }
 
-    public IActionResult Expensas()
+    public IActionResult Notificaciones()
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!UsuarioLogueado(out int idUsuario))
         {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
+            return RedirectToAction("Login");
         }
 
-        return View(bd.ObtenerExpensasPorIdPropietario(idPropietario.Value));
+        List<Notificacion> notificaciones = bd.ObtenerNotificaciones(idUsuario);
+        bd.MarcarNotificacionesComoLeidas(idUsuario);
+
+        // El aviso de "el propietario cargó el contrato" lleva directo al contrato que el inquilino todavía tiene que aceptar.
+        bool esInquilino = InquilinoLogueado(out int idInquilino);
+        if (esInquilino)
+        {
+            Notificacion.VincularContratosParaAceptar(notificaciones, bd.ObtenerContratosPendientesDeInquilino(idInquilino));
+        }
+
+        ViewBag.EsInquilino = esInquilino;
+        ViewBag.SinLeer = notificaciones.Count(n => !n.Leida);
+        return View(notificaciones);
+    }
+
+    // ---- Expensas extraordinarias ----
+
+    public IActionResult Expensas()
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirigirSinPermiso();
+        }
+
+        return View(bd.ObtenerExpensasPorIdPropietario(idPropietario));
     }
 
     [HttpGet]
     public IActionResult AgregarExpensa()
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
+            return RedirigirSinPermiso();
         }
 
-        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario.Value);
+        List<Propiedades> propiedades = bd.ObtenerPropiedadesPorIdPropietario(idPropietario);
         ViewBag.Propiedades = propiedades;
         // Con una sola propiedad ya viene elegida; el vencimiento se propone y se pisa si se lee la liquidación.
         ViewBag.IdPropiedadElegida = propiedades.Count == 1 ? propiedades[0].IdPropiedad : (int?)null;
@@ -760,25 +813,21 @@ public class HomeController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult AgregarExpensa(GastoPropiedad expensa, int idPropiedad, decimal montoExtraordinarias)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
+            return RedirigirSinPermiso();
         }
 
-        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) == null)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario) == null)
         {
             return RedirectToAction("Propiedades");
         }
 
         // Las ordinarias son un servicio mensual: las carga y paga quien corresponde desde Mis gastos.
         // Acá solo se cargan las extraordinarias, que llegan cuando el consorcio las decide.
-        string? error = montoExtraordinarias <= 0 ? "Ingresá el monto de la expensa extraordinaria (mayor a cero)." : null;
-
         // Validar() controla el resto (vencimiento, aclaración).
         expensa.Monto = montoExtraordinarias;
-        error ??= expensa.Validar();
+        string? error = montoExtraordinarias <= 0 ? "Ingresá el monto de la expensa extraordinaria (mayor a cero)." : expensa.Validar();
         if (error != null)
         {
             TempData["Error"] = error;
@@ -798,11 +847,9 @@ public class HomeController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult PagarExpensa(int idGastoResponsable, IFormFile? comprobanteArchivo)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdInquilino").HasValue ? "Propiedades" : "Login");
+            return RedirigirSinPermiso();
         }
 
         string? error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
@@ -813,8 +860,7 @@ public class HomeController : Controller
         }
 
         string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_expensa_{idGastoResponsable}");
-
-        if (bd.PagarParteDelPropietario(idGastoResponsable, idPropietario.Value, comprobante))
+        if (bd.PagarParteDelPropietario(idGastoResponsable, idPropietario, comprobante))
         {
             TempData["Mensaje"] = "Pago confirmado correctamente.";
         }
@@ -827,52 +873,88 @@ public class HomeController : Controller
         return RedirectToAction("Expensas");
     }
 
+    // ---- Mis gastos ----
+
     // Lo que le toca pagar a quien entra: al inquilino, su parte; al propietario, la suya (de todas sus propiedades).
     // Incluye los servicios del mes que el contrato le pone a cargo y que todavía nadie cargó.
     public IActionResult MisGastos()
     {
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (idPropietario.HasValue)
+        List<GastoPropiedad> gastos;
+        List<PendienteContrato> pendientes;
+        if (PropietarioLogueado(out int idPropietario))
         {
             ViewBag.EsPropietario = true;
             ViewBag.TieneContrato = true;
-            ViewBag.PendientesContrato = bd.ObtenerPendientesContratoPropietario(idPropietario.Value);
-            return View(bd.ObtenerGastosPorIdPropietario(idPropietario.Value));
+            pendientes = bd.ObtenerPendientesContratoPropietario(idPropietario);
+            gastos = bd.ObtenerGastosPorIdPropietario(idPropietario);
         }
-
-        if (!idInquilino.HasValue)
+        else if (InquilinoLogueado(out int idInquilino))
+        {
+            ViewBag.EsPropietario = false;
+            ViewBag.TieneContrato = bd.InquilinoTieneContratoConfirmado(idInquilino);
+            pendientes = bd.ObtenerPendientesContratoInquilino(idInquilino);
+            gastos = bd.ObtenerGastosPorIdInquilino(idInquilino);
+        }
+        else
         {
             return RedirectToAction("Login");
         }
 
-        ViewBag.EsPropietario = false;
-        ViewBag.TieneContrato = bd.InquilinoTieneContratoConfirmado(idInquilino.Value);
-        ViewBag.PendientesContrato = bd.ObtenerPendientesContratoInquilino(idInquilino.Value);
-        return View(bd.ObtenerGastosPorIdInquilino(idInquilino.Value));
+        ViewBag.PendientesRecientes = PendienteContrato.Recientes(pendientes, true);
+        ViewBag.PendientesAnteriores = PendienteContrato.Recientes(pendientes, false);
+        ViewBag.GastosAPagar = GastoPropiedad.PorPago(gastos, false);
+        ViewBag.GastosPagados = GastoPropiedad.PorPago(gastos, true);
+        ViewBag.HayGastos = gastos.Count > 0 || pendientes.Count > 0;
+        return View(gastos);
     }
 
     // Paga un pendiente que sale del contrato (sin gasto cargado): quien paga (inquilino o propietario) pone el monto
-    // de la factura y el comprobante.
+    // de la factura y el comprobante. Si es compartido, al otro le queda su parte para pagar.
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult PagarPendienteContrato(int idPropiedad, int idGasto, DateTime periodo, decimal monto, IFormFile? comprobanteArchivo, IFormFile? facturaArchivo)
     {
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idInquilino.HasValue && !idPropietario.HasValue)
+        if (!QuienCarga(out string lado, out int idPersona))
         {
             return RedirectToAction("Login");
         }
 
-        bool esPropietario = idPropietario.HasValue;
-
-        if (monto <= 0)
+        // La factura es opcional; si viene, se guarda con el gasto para que la otra parte vea de dónde sale el monto.
+        bool conFactura = GestorArchivos.TieneContenido(facturaArchivo);
+        string? error = monto <= 0 ? "Ingresá el monto de la factura (mayor a cero)." : GestorArchivos.ValidarComprobante(comprobanteArchivo);
+        error ??= conFactura ? ArchivosContrato.ValidarFactura(facturaArchivo) : null;
+        if (error != null)
         {
-            TempData["Mensaje"] = "Ingresá el monto de la factura (mayor a cero).";
+            TempData["Mensaje"] = error;
             return RedirectToAction("MisGastos");
+        }
+
+        string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_contrato_{idPropiedad}_{idGasto}_{periodo:yyyyMM}");
+        string? factura = conFactura ? ArchivosContrato.GuardarFactura(idPropiedad, facturaArchivo!) : null;
+
+        if (bd.PagarPendienteContrato(lado, idPersona, idPropiedad, idGasto, periodo, monto, comprobante, factura))
+        {
+            TempData["Mensaje"] = lado == BD.LadoPropietario
+                ? "Pago registrado. Si el gasto es compartido, al inquilino le queda su parte para pagar."
+                : "Pago registrado. El propietario ya puede ver el comprobante.";
+        }
+        else
+        {
+            ArchivosContrato.BorrarFactura(factura);
+            GestorArchivos.Borrar(GestorArchivos.CarpetaComprobantes, comprobante);
+            TempData["Mensaje"] = "No se pudo registrar el pago: ese gasto ya no está pendiente.";
+        }
+
+        return RedirectToAction("MisGastos");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult PagarGasto(int idGastoResponsable, IFormFile? comprobanteArchivo)
+    {
+        if (!QuienCarga(out string lado, out int idPersona))
+        {
+            return RedirectToAction("Login");
         }
 
         string? error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
@@ -882,157 +964,31 @@ public class HomeController : Controller
             return RedirectToAction("MisGastos");
         }
 
-        // La factura es opcional; si viene, se guarda con el gasto para que la otra parte vea de dónde sale el monto.
-        bool conFactura = GestorArchivos.TieneContenido(facturaArchivo);
-        string? errorFactura = conFactura ? ArchivosContrato.ValidarFactura(facturaArchivo) : null;
-        if (errorFactura != null)
-        {
-            TempData["Mensaje"] = errorFactura;
-            return RedirectToAction("MisGastos");
-        }
-
-        string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_contrato_{idPropiedad}_{idGasto}_{periodo:yyyyMM}");
-        string? factura = conFactura ? ArchivosContrato.GuardarFactura(idPropiedad, facturaArchivo!) : null;
-
+        string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_gasto_{idGastoResponsable}");
+        bool esPropietario = lado == BD.LadoPropietario;
         bool pagado = esPropietario
-            ? bd.PagarPendienteContrato(BD.LadoPropietario, idPropietario!.Value, idPropiedad, idGasto, periodo, monto, comprobante, factura)
-            : bd.PagarPendienteContrato(BD.LadoInquilino, idInquilino!.Value, idPropiedad, idGasto, periodo, monto, comprobante, factura);
-
-        if (!pagado)
-        {
-            ArchivosContrato.BorrarFactura(factura);
-        }
+            ? bd.PagarParteDelPropietario(idGastoResponsable, idPersona, comprobante)
+            : bd.PagarGastoInquilino(idGastoResponsable, idPersona, comprobante);
 
         if (pagado)
         {
-            TempData["Mensaje"] = esPropietario
-                ? "Pago registrado. Si el gasto es compartido, al inquilino le queda su parte para pagar."
-                : "Pago registrado. El propietario ya puede ver el comprobante.";
+            TempData["Mensaje"] = esPropietario ? "Pago registrado." : "Pago registrado. El comprobante quedó pendiente de verificación.";
         }
         else
         {
             GestorArchivos.Borrar(GestorArchivos.CarpetaComprobantes, comprobante);
-            TempData["Mensaje"] = "No se pudo registrar el pago: ese gasto ya no está pendiente.";
+            TempData["Mensaje"] = "No se pudo registrar el pago de ese gasto.";
         }
 
         return RedirectToAction("MisGastos");
     }
 
-    // Quién está cargando facturas: el propietario (sus propiedades) o el inquilino (sus alquileres). null si no hay sesión.
-    private (string Lado, int IdPersona)? QuienCarga()
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        if (idPropietario.HasValue)
-        {
-            return (BD.LadoPropietario, idPropietario.Value);
-        }
-
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-        return idInquilino.HasValue ? (BD.LadoInquilino, idInquilino.Value) : null;
-    }
-
-    // Todas las facturas que faltan cargar, en una sola pantalla. La carga quien recibe la factura (propietario o inquilino),
-    // aunque le toque pagarla al otro: cargar no es pagar. Cada uno paga después su parte desde Mis gastos.
-    [HttpGet]
-    public IActionResult CargarMes()
-    {
-        var quien = QuienCarga();
-        if (quien == null)
-        {
-            return RedirectToAction("Login");
-        }
-
-        ViewBag.EsPropietario = quien.Value.Lado == BD.LadoPropietario;
-        return View(bd.ObtenerFilasCargarMes(quien.Value.Lado, quien.Value.IdPersona));
-    }
-
-    // Guarda las filas completas. Las vacías siguen pendientes; las que tienen error vuelven a la pantalla con lo escrito;
-    // las que la otra parte cargó mientras tanto no se pisan.
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    // Las filas vacías no se envían, pero alguien atrasado puede tener cientos de filas completas, y cada una puede llevar su factura.
-    [RequestFormLimits(ValueCountLimit = 20_000, MultipartBodyLengthLimit = LimiteGuardarMes)]
-    [RequestSizeLimit(LimiteGuardarMes)]
-    public IActionResult GuardarMes(List<FilaEnviada>? filas)
-    {
-        var quien = QuienCarga();
-        if (quien == null)
-        {
-            return RedirectToAction("Login");
-        }
-
-        var (lado, idPersona) = quien.Value;
-        List<FilaCargarMes> pantalla = bd.ObtenerFilasCargarMes(lado, idPersona);
-        Dictionary<string, FilaCargarMes> porClave = pantalla.ToDictionary(f => f.Clave);
-        static string ClaveDe(FilaEnviada f) => $"{f.IdPropiedad}-{f.IdGasto}-{f.Periodo:yyyyMM}";
-        string Nombre(FilaEnviada f) => porClave.TryGetValue(ClaveDe(f), out FilaCargarMes? p)
-            ? $"{p.TipoGasto} de {p.NombrePropiedad} ({Formato.Mes(p.Periodo)})"
-            : $"El servicio de {Formato.Mes(f.Periodo)}";
-
-        var errores = new Dictionary<string, string>();
-        var yaCargados = new List<string>();
-        int guardados = 0;
-
-        foreach (FilaEnviada fila in (filas ?? []).Where(FilasCargarMes.TieneDatos))
-        {
-            string? error = FilasCargarMes.Validar(fila);
-            if (error != null)
-            {
-                errores[ClaveDe(fila)] = error;
-                continue;
-            }
-
-            // Un mes incluido en otra factura no lleva factura propia.
-            string? factura = !fila.IncluidoEn.HasValue && GestorArchivos.TieneContenido(fila.Factura)
-                ? ArchivosContrato.GuardarFactura(fila.IdPropiedad, fila.Factura!)
-                : null;
-
-            ResultadoFilaMes resultado = bd.GuardarFilaMes(lado, idPersona, fila, factura);
-            if (resultado != ResultadoFilaMes.Guardado)
-            {
-                ArchivosContrato.BorrarFactura(factura);
-            }
-
-            switch (resultado)
-            {
-                case ResultadoFilaMes.Guardado:
-                    guardados++;
-                    break;
-                case ResultadoFilaMes.YaCargado:
-                    yaCargados.Add($"{Nombre(fila)} ya estaba cargado.");
-                    break;
-                default:
-                    errores[ClaveDe(fila)] = "Este servicio ya no está pendiente.";
-                    break;
-            }
-        }
-
-        string resumen = string.Join(" ", new[] { guardados > 0 ? $"Se cargaron {guardados} servicio{(guardados == 1 ? "" : "s")}." : null }
-            .Concat(yaCargados).Where(t => t != null));
-
-        if (errores.Count == 0)
-        {
-            TempData["Success"] = resumen.Length > 0 ? resumen : "No completaste ningún monto.";
-            return RedirectToAction("CargarMes");
-        }
-
-        // Con errores, la pantalla vuelve con lo que se escribió en las filas que no se guardaron.
-        // Las facturas adjuntas no vuelven (un navegador no deja reponer archivos): la pantalla avisa que hay que adjuntarlas de nuevo.
-        ViewBag.Resumen = resumen;
-        ViewBag.Errores = errores;
-        ViewBag.Enviadas = (filas ?? []).GroupBy(ClaveDe).ToDictionary(g => g.Key, g => g.First());
-        ViewBag.EsPropietario = lado == BD.LadoPropietario;
-        return View("CargarMes", bd.ObtenerFilasCargarMes(lado, idPersona));
-    }
-
-    private const long LimiteGuardarMes = 200L * 1024 * 1024;
-
     // Factura guardada con un gasto: solo la ven el propietario de la propiedad y el inquilino del contrato de ese mes.
     [HttpGet]
     public IActionResult VerFactura(int idGastoPropiedad)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
+        int? idPropietario = IdPropietarioSesion;
+        int? idInquilino = IdInquilinoSesion;
         if (!idPropietario.HasValue && !idInquilino.HasValue)
         {
             return RedirectToAction("Login");
@@ -1050,416 +1006,60 @@ public class HomeController : Controller
         return PhysicalFile(ruta, ArchivosContrato.ObtenerTipoMime(factura!));
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult PagarGasto(int idGastoResponsable, IFormFile? comprobanteArchivo)
-    {
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+    // ---- Cargar el mes ----
 
-        if (!idInquilino.HasValue && !idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        string? error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
-        if (error != null)
-        {
-            TempData["Mensaje"] = error;
-            return RedirectToAction("MisGastos");
-        }
-
-        string comprobante = GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"pago_gasto_{idGastoResponsable}");
-
-        bool pagado = idPropietario.HasValue
-            ? bd.PagarParteDelPropietario(idGastoResponsable, idPropietario.Value, comprobante)
-            : bd.PagarGastoInquilino(idGastoResponsable, idInquilino!.Value, comprobante);
-
-        if (pagado)
-        {
-            TempData["Mensaje"] = idPropietario.HasValue ? "Pago registrado." : "Pago registrado. El comprobante quedó pendiente de verificación.";
-        }
-        else
-        {
-            GestorArchivos.Borrar(GestorArchivos.CarpetaComprobantes, comprobante);
-            TempData["Mensaje"] = "No se pudo registrar el pago de ese gasto.";
-        }
-
-        return RedirectToAction("MisGastos");
-    }
-
-    public IActionResult Notificaciones()
-    {
-        int? idUsuario = HttpContext.Session.GetInt32("IdUsuario");
-
-        if (!idUsuario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        List<Notificacion> notificaciones = bd.ObtenerNotificaciones(idUsuario.Value);
-        bd.MarcarNotificacionesComoLeidas(idUsuario.Value);
-
-        // Contratos que el inquilino todavía tiene que aceptar: el aviso de "el propietario cargó el contrato" lleva directo a ellos.
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-        ViewBag.ContratosPendientes = idInquilino.HasValue ? bd.ObtenerContratosPendientesDeInquilino(idInquilino.Value) : new List<Contratos>();
-        return View(notificaciones);
-    }
-
-    public IActionResult AgregarPropiedad()
-    {
-        if (!HttpContext.Session.GetInt32("IdPropietario").HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        return View();
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult AgregarP(Propiedades propiedad, IFormFile? foto)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        string? error = propiedad.Validar() ?? GestorArchivos.ValidarImagenOpcional(foto);
-        if (error != null)
-        {
-            TempData["Error"] = error;
-            return RedirectToAction("AgregarPropiedad");
-        }
-
-        propiedad.IdPropietario = idPropietario.Value;
-        propiedad.Direccion = propiedad.Direccion.Trim();
-        propiedad.Foto = GestorArchivos.TieneContenido(foto)
-            ? GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"propiedad_{idPropietario.Value}")
-            : "default.jpg";
-        propiedad.FechaDeAlta = DateTime.Today;
-        propiedad.Estado = OSO.Models.Propiedades.EstadoDisponible;
-
-        bd.AgregarPropiedad(propiedad);
-        return RedirectToAction("Propiedades");
-    }
-
+    // Todas las facturas que faltan cargar, en una sola pantalla. La carga quien recibe la factura (propietario o inquilino),
+    // aunque le toque pagarla al otro: cargar no es pagar. Cada uno paga después su parte desde Mis gastos.
     [HttpGet]
-    public IActionResult EditarPropiedad(int idPropiedad)
+    public IActionResult CargarMes()
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!QuienCarga(out string lado, out int idPersona))
         {
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
-        if (propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        return View(propiedad);
+        return MostrarCargarMes(lado, idPersona, null, new Dictionary<string, string>());
     }
 
+    private const long LimiteGuardarMes = 200L * 1024 * 1024;
+
+    // Guarda las filas completas. Las vacías siguen pendientes; las que tienen error vuelven a la pantalla con lo escrito;
+    // las que la otra parte cargó mientras tanto no se pisan.
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult GuardarEdicionPropiedad(Propiedades propiedad, IFormFile? foto)
+    // Las filas vacías no se envían, pero alguien atrasado puede tener cientos de filas completas, y cada una puede llevar su factura.
+    [RequestFormLimits(ValueCountLimit = 20_000, MultipartBodyLengthLimit = LimiteGuardarMes)]
+    [RequestSizeLimit(LimiteGuardarMes)]
+    public IActionResult GuardarMes(List<FilaEnviada>? filas)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!QuienCarga(out string lado, out int idPersona))
         {
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedadActual = bd.ObtenerPropiedadDePropietario(propiedad.IdPropiedad, idPropietario.Value);
-
-        if (propiedadActual == null)
+        ResultadoCargaMes resultado = FilasCargarMes.Guardar(lado, idPersona, filas ?? new List<FilaEnviada>());
+        if (resultado.Errores.Count == 0)
         {
-            return RedirectToAction("Propiedades");
+            TempData["Success"] = resultado.Resumen.Length > 0 ? resultado.Resumen : "No completaste ningún monto.";
+            return RedirectToAction("CargarMes");
         }
 
-        string? error = propiedad.Validar() ?? GestorArchivos.ValidarImagenOpcional(foto);
-        if (error != null)
-        {
-            TempData["Error"] = error;
-            return RedirectToAction("EditarPropiedad", new { idPropiedad = propiedad.IdPropiedad });
-        }
-
-        propiedad.IdPropietario = idPropietario.Value;
-        propiedad.Direccion = propiedad.Direccion.Trim();
-        propiedad.Foto = GestorArchivos.TieneContenido(foto)
-            ? GestorArchivos.Guardar(foto!, GestorArchivos.CarpetaImagenes, $"propiedad_{idPropietario.Value}")
-            : propiedadActual.Foto;
-
-        bd.EditarPropiedad(propiedad);
-        return RedirectToAction("Propiedades");
+        // Con errores, la pantalla vuelve con lo que se escribió en las filas que no se guardaron.
+        // Las facturas adjuntas no vuelven (un navegador no deja reponer archivos): la pantalla avisa que hay que adjuntarlas de nuevo.
+        ViewBag.Resumen = resultado.Resumen;
+        return MostrarCargarMes(lado, idPersona, filas, resultado.Errores);
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult InfoPropiedad(int idPropiedad)
+    private IActionResult MostrarCargarMes(string lado, int idPersona, List<FilaEnviada>? enviadas, Dictionary<string, string> errores)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
-        if (propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        return View(propiedad);
-    }
-
-    [HttpGet]
-    public IActionResult Contrato(int idPropiedad)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
-        if (propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        ViewBag.Propiedad = propiedad;
-        ViewBag.Contrato = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
-        ViewBag.ContratoEnCurso = bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad);
-        ViewBag.UltimoFinalizado = bd.ObtenerUltimoContratoFinalizado(idPropiedad);
-
-        if (ViewBag.Contrato is Contratos vigente)
-        {
-            Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(vigente.IdInquilino);
-            ViewBag.NombreInquilino = inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido}".Trim() : $"Inquilino {vigente.IdInquilino}";
-
-            List<AjusteContrato> ajustes = bd.ObtenerAjustes(vigente.IdContrato);
-            var (fecha, _, calculo) = PrepararProximoAjuste(vigente, ajustes);
-            ViewBag.Ajustes = ajustes;
-            ViewBag.ProximoAjuste = fecha;
-            ViewBag.PuedeAplicarAjuste = fecha.HasValue && CalculadoraAjuste.YaCorresponde(fecha.Value);
-            ViewBag.CalculoAjuste = calculo;
-        }
-
-        return View(propiedad);
-    }
-
-    // Próxima fecha de ajuste del contrato, desde cuándo se calcula y el monto que da el índice (o qué falta).
-    private (DateTime? Fecha, DateTime Desde, ResultadoAjuste? Calculo) PrepararProximoAjuste(Contratos contrato, List<AjusteContrato> ajustes)
-    {
-        DateTime? ultimo = ajustes.Count > 0 ? ajustes.Max(a => a.Fecha) : null;
-        DateTime? proxima = CalculadoraAjuste.ProximaFecha(contrato, ultimo);
-        DateTime desde = ultimo ?? contrato.FechaInicio;
-
-        if (proxima == null || proxima.Value > contrato.FechaFin)
-        {
-            return (null, desde, null);
-        }
-
-        ResultadoAjuste calculo = CalculadoraAjuste.Calcular(contrato.IndiceAjuste!, contrato.MontoAlquiler, desde, proxima.Value,
-            contrato.PorcentajeFijo, bd.ObtenerValorIndice);
-        return (proxima, desde, calculo);
-    }
-
-    // El propietario aplica el ajuste cuando llega la fecha. Con la ley (ICL / Casa Propia) el monto es el calculado;
-    // con el DNU puede escribir otro (se guarda como Manual, junto con el calculado).
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult AplicarAjuste(int idContrato, decimal? montoManual)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Contratos? contrato = bd.ObtenerContratoPorId(idContrato);
-        Propiedades? propiedad = contrato == null ? null : bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario.Value);
-        if (contrato == null || propiedad == null || contrato.Estado != "Confirmado")
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        var (fecha, _, calculo) = PrepararProximoAjuste(contrato, bd.ObtenerAjustes(idContrato));
-        if (fecha == null || calculo == null || !CalculadoraAjuste.YaCorresponde(fecha.Value))
-        {
-            TempData["Error"] = "Todavía no corresponde aplicar un ajuste.";
-            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
-        }
-
-        bool puedeCambiarMonto = contrato.PermiteMontoManual;
-        decimal? montoElegido = puedeCambiarMonto && montoManual.HasValue ? Math.Round(montoManual.Value, 2) : calculo.MontoNuevo;
-
-        if (montoElegido == null)
-        {
-            TempData["Error"] = (calculo.Faltante ?? "No se pudo calcular el ajuste") + (puedeCambiarMonto ? ", o ingresá el monto a mano." : ".");
-            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
-        }
-
-        if (montoElegido <= 0 || montoElegido > 9_999_999_999m)
-        {
-            TempData["Error"] = "El monto del alquiler no es válido.";
-            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
-        }
-
-        bool esManual = calculo.MontoNuevo != montoElegido;
-        if (!bd.AplicarAjuste(idContrato, fecha.Value, calculo, montoElegido.Value, esManual ? "Manual" : "Calculado"))
-        {
-            TempData["Error"] = "Ese ajuste ya estaba aplicado.";
-            return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
-        }
-
-        string aviso = $"Ajuste aplicado: el alquiler pasa a {Formato.Pesos(montoElegido)}.";
-        if (esManual && calculo.MontoNuevo.HasValue && CalculadoraAjuste.SeAlejaDelCalculado(montoElegido.Value, calculo.MontoNuevo.Value))
-        {
-            aviso += " Ojo: el monto se aleja más de un 5% del calculado por el índice.";
-        }
-
-        TempData["Success"] = aviso;
-        return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
-    }
-
-    [HttpGet]
-    public IActionResult CrearContrato(int idPropiedad)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
-        if (propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        if (bd.ObtenerContratoActivoPorPropiedad(idPropiedad) != null || bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad) != null)
-        {
-            return RedirectToAction("Contrato", new { idPropiedad });
-        }
-
-        ViewBag.Propiedad = propiedad;
-        ViewBag.Inquilinos = ObtenerInquilinosParaContrato(propiedad);
-        return View(propiedad);
-    }
-
-    // Si ya hay un inquilino vinculado, el contrato sólo puede ser con él.
-    private List<Usuario> ObtenerInquilinosParaContrato(Propiedades propiedad)
-    {
-        if (propiedad.IdInquilino.HasValue)
-        {
-            Usuario? inquilinoActual = bd.ObtenerUsuarioPorIdInquilino(propiedad.IdInquilino.Value);
-            return inquilinoActual != null ? new List<Usuario> { inquilinoActual } : new List<Usuario>();
-        }
-
-        return bd.ObtenerInquilinosDisponibles();
-    }
-
-    // Devuelve el inquilino con el que se puede hacer el contrato, o null si el elegido no corresponde.
-    private int? ElegirInquilinoParaContrato(Propiedades propiedad, int idInquilino)
-    {
-        int idElegido = propiedad.IdInquilino ?? idInquilino;
-        return ObtenerInquilinosParaContrato(propiedad).Any(i => i.IdInquilino == idElegido) ? idElegido : null;
-    }
-
-    [HttpGet]
-    public IActionResult SubirContrato(int idPropiedad)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
-        if (propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        if (bd.ObtenerContratoActivoPorPropiedad(idPropiedad) != null || bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad) != null)
-        {
-            return RedirectToAction("Contrato", new { idPropiedad });
-        }
-
-        ViewBag.Inquilinos = ObtenerInquilinosParaContrato(propiedad);
-        return View(propiedad);
-    }
-
-    // Sube el contrato, lo lee con Gemini y deja un Borrador listo para revisar.
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    [RequestSizeLimit(11_534_336)] // 10 MB del archivo + lo que ocupa el resto del formulario
-    public async Task<IActionResult> SubirContrato(int idPropiedad, int idInquilino, IFormFile? archivo)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
-        if (propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        string? error = ArchivosContrato.Validar(archivo);
-        int? idInquilinoContrato = ElegirInquilinoParaContrato(propiedad, idInquilino);
-        if (error == null && idInquilinoContrato == null)
-        {
-            error = "Debe seleccionar un inquilino para crear el contrato.";
-        }
-
-        if (error != null)
-        {
-            TempData["Error"] = error;
-            return RedirectToAction("SubirContrato", new { idPropiedad });
-        }
-
-        int idContrato;
-        try
-        {
-            idContrato = bd.CrearContratoBorrador(idPropiedad, idInquilinoContrato!.Value);
-        }
-        catch (InvalidOperationException ex)
-        {
-            TempData["Error"] = ex.Message;
-            return RedirectToAction("Contrato", new { idPropiedad });
-        }
-
-        bd.GuardarNombreArchivoContrato(idContrato, ArchivosContrato.Guardar(idContrato, archivo!));
-
-        using var memoria = new MemoryStream();
-        await archivo!.CopyToAsync(memoria);
-
-        // La lectura sigue en segundo plano: la pantalla de revisión muestra "Leyendo..." hasta que termine.
-        _lectorContratos.Empezar(idContrato, memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(archivo.FileName));
-        return RedirectToAction("RevisarContrato", new { idContrato, recienSubido = true });
+        List<FilaCargarMes> filas = bd.ObtenerFilasCargarMes(lado, idPersona);
+        PantallaCargarMes pantalla = FilasCargarMes.ArmarPantalla(filas, enviadas, errores);
+        ViewBag.EsPropietario = lado == BD.LadoPropietario;
+        ViewBag.HayErrores = errores.Count > 0;
+        ViewBag.MesesRecientes = pantalla.Recientes;
+        ViewBag.MesesAnteriores = pantalla.Anteriores;
+        ViewBag.CantidadAnteriores = pantalla.CantidadAnteriores;
+        return View("CargarMes", filas);
     }
 
     // Lee una factura (PDF o foto) con la IA y devuelve el monto, el vencimiento y el mes para completar el formulario.
@@ -1469,7 +1069,7 @@ public class HomeController : Controller
     [RequestSizeLimit(11_534_336)]
     public async Task<IActionResult> LeerFactura(IFormFile? factura, string? tipo)
     {
-        if (!HttpContext.Session.GetInt32("IdPropietario").HasValue && !HttpContext.Session.GetInt32("IdInquilino").HasValue)
+        if (!QuienCarga(out _, out _))
         {
             return Unauthorized(new { ok = false, mensaje = "Iniciá sesión para leer la factura." });
         }
@@ -1513,8 +1113,7 @@ public class HomeController : Controller
     [RequestSizeLimit(11_534_336)]
     public async Task<IActionResult> LeerFacturaParaMes(IFormFile? factura)
     {
-        var quien = QuienCarga();
-        if (quien == null)
+        if (!QuienCarga(out string lado, out int idPersona))
         {
             return Unauthorized(new { ok = false, tipoError = "NoDisponible", mensaje = "Iniciá sesión para leer facturas." });
         }
@@ -1525,12 +1124,10 @@ public class HomeController : Controller
             return Json(new { ok = false, tipoError = nameof(TipoErrorIa.NoSeLeyo), mensaje = error });
         }
 
-        List<FilaCargarMes> filas = bd.ObtenerFilasCargarMes(quien.Value.Lado, quien.Value.IdPersona);
-        List<string> servicios = filas.Select(f => f.TipoGasto).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
+        List<FilaCargarMes> filas = bd.ObtenerFilasCargarMes(lado, idPersona);
         using var memoria = new MemoryStream();
         await factura!.CopyToAsync(memoria);
-        var (lectura, errorIa, tipo) = await _extractorFactura.LeerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(factura.FileName), null, servicios);
+        var (lectura, errorIa, tipo) = await _extractorFactura.LeerAsync(memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(factura.FileName), null, FilasCargarMes.Servicios(filas));
         if (lectura == null)
         {
             return Json(new { ok = false, tipoError = tipo.ToString(), mensaje = errorIa ?? "No pudimos leer la factura." });
@@ -1552,13 +1149,202 @@ public class HomeController : Controller
         });
     }
 
+    // ---- Contrato: alta, ajustes y terminación (propietario) ----
+
+    [HttpGet]
+    public IActionResult Contrato(int idPropiedad)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        Contratos? vigente = bd.ObtenerContratoActivoPorPropiedad(idPropiedad);
+        ViewBag.Propiedad = propiedad;
+        ViewBag.Contrato = vigente;
+        ViewBag.ContratoEnCurso = bd.ObtenerContratoEnCursoPorPropiedad(idPropiedad);
+        ViewBag.UltimoFinalizado = bd.ObtenerUltimoContratoFinalizado(idPropiedad);
+
+        if (vigente != null)
+        {
+            Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(vigente.IdInquilino);
+            List<AjusteContrato> ajustes = bd.ObtenerAjustes(vigente.IdContrato);
+            ProximoAjuste? proximo = AjustesDeContrato.Proximo(vigente, ajustes);
+            ViewBag.NombreInquilino = inquilino?.NombreCompleto ?? $"Inquilino {vigente.IdInquilino}";
+            ViewBag.Ajustes = ajustes;
+            ViewBag.ProximoAjuste = proximo?.Fecha;
+            ViewBag.PuedeAplicarAjuste = proximo?.YaCorresponde == true;
+            ViewBag.CalculoAjuste = proximo?.Calculo;
+        }
+
+        return View(propiedad);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult AplicarAjuste(int idContrato, decimal? montoManual)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        var (contrato, propiedad) = ObtenerConfirmadoDelPropietario(idContrato, idPropietario);
+        if (contrato == null || propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        var (aplicado, mensaje) = AjustesDeContrato.Aplicar(contrato, montoManual);
+        TempData[aplicado ? "Success" : "Error"] = mensaje;
+        return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
+    }
+
+    [HttpGet]
+    public IActionResult CrearContrato(int idPropiedad)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        if (bd.TieneContratoActivoOEnCurso(idPropiedad))
+        {
+            return RedirectToAction("Contrato", new { idPropiedad });
+        }
+
+        ViewBag.Propiedad = propiedad;
+        ViewBag.Inquilinos = bd.ObtenerInquilinosParaContrato(propiedad);
+        return View(propiedad);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult GuardarContrato(int idPropiedad, int idInquilino)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        // Una propiedad tiene un único inquilino: si ya hay uno, se usa siempre ése.
+        int? idInquilinoContrato = ReglasContrato.ElegirInquilino(propiedad, idInquilino, bd.ObtenerInquilinosParaContrato(propiedad));
+        if (idInquilinoContrato == null)
+        {
+            TempData["Error"] = "Debe seleccionar un inquilino para crear el contrato.";
+            return RedirectToAction("CrearContrato", new { idPropiedad });
+        }
+
+        // El contrato nace en Borrador: se completa y se confirma en la pantalla de revisión.
+        int? idContrato = CrearBorrador(idPropiedad, idInquilinoContrato.Value);
+        return idContrato.HasValue
+            ? RedirectToAction("RevisarContrato", new { idContrato = idContrato.Value })
+            : RedirectToAction("Contrato", new { idPropiedad });
+    }
+
+    [HttpGet]
+    public IActionResult SubirContrato(int idPropiedad)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        if (bd.TieneContratoActivoOEnCurso(idPropiedad))
+        {
+            return RedirectToAction("Contrato", new { idPropiedad });
+        }
+
+        ViewBag.Inquilinos = bd.ObtenerInquilinosParaContrato(propiedad);
+        return View(propiedad);
+    }
+
+    // Sube el contrato, lo lee con Gemini y deja un Borrador listo para revisar.
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(11_534_336)] // 10 MB del archivo + lo que ocupa el resto del formulario
+    public async Task<IActionResult> SubirContrato(int idPropiedad, int idInquilino, IFormFile? archivo)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        int? idInquilinoContrato = ReglasContrato.ElegirInquilino(propiedad, idInquilino, bd.ObtenerInquilinosParaContrato(propiedad));
+        string? error = ArchivosContrato.Validar(archivo)
+                        ?? (idInquilinoContrato == null ? "Debe seleccionar un inquilino para crear el contrato." : null);
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("SubirContrato", new { idPropiedad });
+        }
+
+        int? idContrato = CrearBorrador(idPropiedad, idInquilinoContrato!.Value);
+        if (idContrato == null)
+        {
+            return RedirectToAction("Contrato", new { idPropiedad });
+        }
+
+        bd.GuardarNombreArchivoContrato(idContrato.Value, ArchivosContrato.Guardar(idContrato.Value, archivo!));
+        using var memoria = new MemoryStream();
+        await archivo!.CopyToAsync(memoria);
+
+        // La lectura sigue en segundo plano: la pantalla de revisión muestra "Leyendo..." hasta que termine.
+        _lectorContratos.Empezar(idContrato.Value, memoria.ToArray(), ArchivosContrato.ObtenerTipoMime(archivo.FileName));
+        return RedirectToAction("RevisarContrato", new { idContrato = idContrato.Value, recienSubido = true });
+    }
+
+    // Crea el contrato en Borrador. Si no se puede (por ejemplo, la propiedad ya tiene otro en curso),
+    // deja el motivo para mostrar y devuelve null.
+    private int? CrearBorrador(int idPropiedad, int idInquilino)
+    {
+        try
+        {
+            return bd.CrearContratoBorrador(idPropiedad, idInquilino);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+            return null;
+        }
+    }
+
     // El archivo solo lo bajan el propietario de la propiedad o el inquilino del contrato.
     [HttpGet]
     public IActionResult DescargarContrato(int idContrato)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-
+        int? idPropietario = IdPropietarioSesion;
+        int? idInquilino = IdInquilinoSesion;
         if (!idPropietario.HasValue && !idInquilino.HasValue)
         {
             return RedirectToAction("Login");
@@ -1581,43 +1367,67 @@ public class HomeController : Controller
         return PhysicalFile(ruta, ArchivosContrato.ObtenerTipoMime(contrato.ArchivoContrato!));
     }
 
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult GuardarContrato(int idPropiedad, int idInquilino)
+    // El contrato Confirmado de una propiedad del propietario logueado; null si no corresponde.
+    private (Contratos? Contrato, Propiedades? Propiedad) ObtenerConfirmadoDelPropietario(int idContrato, int idPropietario)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
+        Contratos? contrato = bd.ObtenerContratoPorId(idContrato);
+        Propiedades? propiedad = contrato == null ? null : bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario);
+        return propiedad != null && contrato!.Estado == "Confirmado" ? (contrato, propiedad) : (null, null);
+    }
 
-        if (!idPropietario.HasValue)
+    [HttpGet]
+    public IActionResult TerminarContrato(int idContrato)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
-        if (propiedad == null)
+        var (contrato, propiedad) = ObtenerConfirmadoDelPropietario(idContrato, idPropietario);
+        if (contrato == null || propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        // Una propiedad tiene un único inquilino: si ya hay uno, se usa siempre ése.
-        int? idInquilinoContrato = ElegirInquilinoParaContrato(propiedad, idInquilino);
-        if (idInquilinoContrato == null)
+        Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(contrato.IdInquilino);
+        ViewBag.Propiedad = propiedad;
+        ViewBag.NombreInquilino = inquilino?.NombreCompleto ?? "Inquilino";
+        return View(contrato);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult TerminarContrato(int idContrato, string? motivo, DateTime? fechaFinReal, string? descripcion)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
         {
-            TempData["Error"] = "Debe seleccionar un inquilino para crear el contrato.";
-            return RedirectToAction("CrearContrato", new { idPropiedad });
+            return RedirectToAction("Login");
         }
 
-        // El contrato nace en Borrador: se completa y se confirma en la pantalla de revisión.
-        try
+        var (contrato, propiedad) = ObtenerConfirmadoDelPropietario(idContrato, idPropietario);
+        if (contrato == null || propiedad == null)
         {
-            int idContrato = bd.CrearContratoBorrador(idPropiedad, idInquilinoContrato.Value);
-            return RedirectToAction("RevisarContrato", new { idContrato });
+            return RedirectToAction("Propiedades");
         }
-        catch (InvalidOperationException ex)
+
+        string? error = ReglasContrato.ValidarTerminacion(contrato, motivo, fechaFinReal, descripcion, DateTime.Today);
+        if (error != null)
         {
-            TempData["Error"] = ex.Message;
-            return RedirectToAction("Contrato", new { idPropiedad });
+            TempData["Error"] = error;
+            return RedirectToAction("TerminarContrato", new { idContrato });
         }
+
+        DateTime fechaReal = ReglasContrato.FechaFinReal(contrato, motivo!, fechaFinReal, DateTime.Today);
+        if (bd.TerminarContrato(idContrato, motivo!, fechaReal, descripcion))
+        {
+            TempData["Success"] = "Terminaste el contrato. Le avisamos al inquilino y la propiedad quedó disponible.";
+        }
+        else
+        {
+            TempData["Error"] = "No se pudo terminar el contrato: puede que ya esté terminado.";
+        }
+
+        return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
     }
 
     // ---- Revisión del contrato (propietario) y aceptación (inquilino) ----
@@ -1630,45 +1440,15 @@ public class HomeController : Controller
         return propiedad != null && contrato!.Estado == "Borrador" ? (contrato, propiedad) : (null, null);
     }
 
-    private RevisionContrato ArmarRevision(Contratos contrato, Propiedades propiedad)
-    {
-        string? json = bd.ObtenerUltimaExtraccion(contrato.IdContrato);
-        ResultadoExtraccion? extraccion = json == null ? null : ResultadoExtraccion.Parsear(json);
-        Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(contrato.IdInquilino);
-
-        var revision = new RevisionContrato
-        {
-            Contrato = contrato,
-            Propiedad = propiedad,
-            NombreInquilino = inquilino != null ? $"{inquilino.Nombre} {inquilino.Apellido}".Trim() : "Inquilino",
-            Reglas = bd.ObtenerReglasGasto(contrato.IdContrato)
-        };
-
-        revision.Errores = ReglasContrato.Errores(contrato, revision.Reglas);
-        revision.Advertencias = ReglasContrato.Advertencias(contrato, revision.Reglas);
-        revision.ArmarCampos(extraccion);
-
-        if (json == null && !string.IsNullOrEmpty(contrato.ArchivoContrato))
-        {
-            revision.LecturaFallida = true;
-            revision.MotivoLecturaFallida = bd.ObtenerErrorUltimaExtraccion(contrato.IdContrato);
-        }
-
-        // Las filas leídas por la IA con baja confianza también se marcan para revisar.
-        return revision;
-    }
-
     [HttpGet]
     public IActionResult RevisarContrato(int idContrato, bool recienSubido = false)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        var (contrato, propiedad) = ObtenerBorradorDelPropietario(idContrato, idPropietario.Value);
+        var (contrato, propiedad) = ObtenerBorradorDelPropietario(idContrato, idPropietario);
         if (contrato == null || propiedad == null)
         {
             return RedirectToAction("Propiedades");
@@ -1688,83 +1468,26 @@ public class HomeController : Controller
             return RedirectToAction("RevisarContrato", new { idContrato });
         }
 
-        return View(ArmarRevision(contrato, propiedad));
-    }
-
-    // Valida lo que llegó del formulario y lo copia al contrato guardado. Devuelve un error si no se puede guardar.
-    private static string? CopiarDatosRevision(Contratos destino, Contratos recibido)
-    {
-        if (recibido.FechaInicio == default || recibido.FechaFin == default)
-        {
-            return "Completá las fechas de inicio y fin del contrato.";
-        }
-
-        if (recibido.FechaFin <= recibido.FechaInicio)
-        {
-            return "La fecha de fin tiene que ser posterior a la de inicio.";
-        }
-
-        if (recibido.MontoAlquiler < 0 || recibido.MontoAlquiler > 9_999_999_999m)
-        {
-            return "El monto del alquiler no es válido.";
-        }
-
-        if ((recibido.PorcentajeFijo ?? 0) is < 0 or > 100 || (recibido.PunitorioDiario ?? 0) is < 0 or > 100)
-        {
-            return "Los porcentajes tienen que estar entre 0 y 100.";
-        }
-
-        if ((recibido.MontoDeposito ?? 0) is < 0 or > 9_999_999_999m)
-        {
-            return "El monto del depósito no es válido.";
-        }
-
-        static string? Opcion(string? valor, string[] permitidas) => permitidas.FirstOrDefault(p => string.Equals(p, valor?.Trim(), StringComparison.OrdinalIgnoreCase));
-        static string? Texto(string? valor, int largo) => string.IsNullOrWhiteSpace(valor) ? null : (valor.Trim().Length > largo ? valor.Trim()[..largo] : valor.Trim());
-
-        destino.FechaInicio = recibido.FechaInicio.Date;
-        destino.FechaFin = recibido.FechaFin.Date;
-        destino.MontoAlquiler = recibido.MontoAlquiler;
-        destino.FechaFirma = recibido.FechaFirma?.Date;
-        destino.FechaPrimerAjuste = recibido.FechaPrimerAjuste?.Date;
-        destino.Moneda = Opcion(recibido.Moneda, RevisionContrato.Monedas) ?? "ARS";
-        destino.Destino = Opcion(recibido.Destino, RevisionContrato.Destinos);
-        destino.IndiceAjuste = Opcion(recibido.IndiceAjuste, RevisionContrato.Indices);
-        destino.FrecuenciaAjusteMeses = recibido.FrecuenciaAjusteMeses is >= 1 and <= 60 ? recibido.FrecuenciaAjusteMeses : null;
-        destino.PorcentajeFijo = recibido.PorcentajeFijo;
-        destino.DiaVencimiento = recibido.DiaVencimiento is >= 1 and <= 31 ? recibido.DiaVencimiento : null;
-        destino.MedioPago = Texto(recibido.MedioPago, 200);
-        destino.PunitorioDiario = recibido.PunitorioDiario;
-        destino.MontoDeposito = recibido.MontoDeposito;
-        destino.MonedaDeposito = Opcion(recibido.MonedaDeposito, RevisionContrato.Monedas);
-        destino.TipoGarantia = Opcion(recibido.TipoGarantia, RevisionContrato.Garantias);
-        destino.PreavisoRescisionDias = recibido.PreavisoRescisionDias is >= 0 and <= 365 ? recibido.PreavisoRescisionDias : null;
-        destino.CondicionesRescision = Texto(recibido.CondicionesRescision, 1000);
-
-        // El régimen sale de la fecha de firma; si la ley impone índice y frecuencia, se pisan.
-        ReglasContrato.AplicarRegimen(destino);
-        return null;
+        return View(RevisionContrato.ParaRevisar(contrato, propiedad));
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult GuardarRevision(Contratos contrato, List<ReglaGasto>? reglas, string accion)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
         // Todo sale del contrato guardado; del formulario solo se toman los datos editables.
-        var (guardado, propiedad) = ObtenerBorradorDelPropietario(contrato.IdContrato, idPropietario.Value);
+        var (guardado, propiedad) = ObtenerBorradorDelPropietario(contrato.IdContrato, idPropietario);
         if (guardado == null || propiedad == null)
         {
             return RedirectToAction("Propiedades");
         }
 
-        string? error = CopiarDatosRevision(guardado, contrato);
+        string? error = guardado.CopiarDatosRevision(contrato);
         if (error != null)
         {
             TempData["Error"] = error;
@@ -1773,25 +1496,7 @@ public class HomeController : Controller
 
         // Reglas de gasto: solo se acepta responsable y porcentaje de tipos que existen en el contrato.
         List<ReglaGasto> reglasGuardadas = bd.ObtenerReglasGasto(guardado.IdContrato);
-        foreach (ReglaGasto actual in reglasGuardadas)
-        {
-            ReglaGasto? recibida = reglas?.FirstOrDefault(r => r.IdGasto == actual.IdGasto);
-            if (recibida == null || !ReglaGasto.OpcionesResponsable.Contains(recibida.Responsable))
-            {
-                continue;
-            }
-
-            decimal porcentaje = Math.Round(Math.Clamp(recibida.PorcentajeInquilino, 0m, 100m), 2);
-            bool cambio = recibida.Responsable != actual.Responsable
-                          || (recibida.Responsable == "Compartido" && porcentaje != actual.PorcentajeInquilino);
-            if (cambio)
-            {
-                actual.Responsable = recibida.Responsable;
-                actual.PorcentajeInquilino = porcentaje;
-                actual.Origen = "Manual";
-            }
-        }
-
+        ReglasContrato.CopiarCambiosDeReparto(reglasGuardadas, reglas);
         bd.GuardarDatosContrato(guardado);
         bd.GuardarReglasGasto(guardado.IdContrato, reglasGuardadas);
 
@@ -1801,8 +1506,7 @@ public class HomeController : Controller
             return RedirectToAction("RevisarContrato", new { idContrato = guardado.IdContrato });
         }
 
-        List<string> errores = ReglasContrato.Errores(guardado, reglasGuardadas);
-        if (errores.Count > 0)
+        if (ReglasContrato.Errores(guardado, reglasGuardadas).Count > 0)
         {
             TempData["Error"] = "Todavía no se puede confirmar: corregí los puntos marcados.";
             return RedirectToAction("RevisarContrato", new { idContrato = guardado.IdContrato });
@@ -1821,14 +1525,12 @@ public class HomeController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult DescartarBorrador(int idContrato)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        var (contrato, propiedad) = ObtenerBorradorDelPropietario(idContrato, idPropietario.Value);
+        var (contrato, propiedad) = ObtenerBorradorDelPropietario(idContrato, idPropietario);
         if (contrato == null || propiedad == null)
         {
             return RedirectToAction("Propiedades");
@@ -1844,13 +1546,13 @@ public class HomeController : Controller
         return RedirectToAction("Contrato", new { idPropiedad = propiedad.IdPropiedad });
     }
 
-    // El inquilino ve el contrato en solo lectura y, si está pendiente, lo acepta.
+    // Contrato en solo lectura. El inquilino lo ve y, si está pendiente, lo acepta.
+    // El propietario ve así el contrato que ya envió; si sigue en borrador, va a la revisión.
     [HttpGet]
     public IActionResult VerContrato(int idContrato, string? desde)
     {
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
+        int? idInquilino = IdInquilinoSesion;
+        int? idPropietario = IdPropietarioSesion;
         if (!idInquilino.HasValue && !idPropietario.HasValue)
         {
             return RedirectToAction("Login");
@@ -1862,52 +1564,36 @@ public class HomeController : Controller
             return RedirectToAction("Propiedades");
         }
 
-        Propiedades? propiedad;
-        bool comoPropietario = false;
-        if (idInquilino.HasValue)
-        {
-            if (contrato.IdInquilino != idInquilino.Value || contrato.EsBorrador)
-            {
-                return RedirectToAction("Propiedades");
-            }
-            propiedad = bd.ObtenerPropiedadPorId(contrato.IdPropiedad);
-        }
-        else
-        {
-            // El propietario ve en solo lectura el contrato que ya envió. Si sigue en borrador, va a la revisión.
-            propiedad = bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario!.Value);
-            if (propiedad != null && contrato.EsBorrador)
-            {
-                return RedirectToAction("RevisarContrato", new { idContrato });
-            }
-            comoPropietario = true;
-        }
+        bool comoPropietario = !idInquilino.HasValue;
+        Propiedades? propiedad = comoPropietario
+            ? bd.ObtenerPropiedadDePropietario(contrato.IdPropiedad, idPropietario!.Value)
+            : contrato.IdInquilino == idInquilino!.Value ? bd.ObtenerPropiedadPorId(contrato.IdPropiedad) : null;
 
-        if (propiedad == null)
+        if (propiedad == null || (contrato.EsBorrador && !comoPropietario))
         {
             return RedirectToAction("Propiedades");
         }
 
-        RevisionContrato revision = ArmarRevision(contrato, propiedad);
-        revision.Errores.Clear();
-        revision.Advertencias.Clear();
+        if (contrato.EsBorrador)
+        {
+            return RedirectToAction("RevisarContrato", new { idContrato });
+        }
+
         ViewBag.VolverANotificaciones = desde == "notificaciones";
         ViewBag.ComoPropietario = comoPropietario;
-        return View(revision);
+        return View(RevisionContrato.ParaLeer(contrato, propiedad));
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult AceptarContrato(int idContrato)
     {
-        int? idInquilino = HttpContext.Session.GetInt32("IdInquilino");
-
-        if (!idInquilino.HasValue)
+        if (!InquilinoLogueado(out int idInquilino))
         {
-            return RedirectToAction(HttpContext.Session.GetInt32("IdPropietario").HasValue ? "Propiedades" : "Login");
+            return RedirigirSinPermiso();
         }
 
-        if (bd.AceptarPorInquilino(idContrato, idInquilino.Value))
+        if (bd.AceptarPorInquilino(idContrato, idInquilino))
         {
             TempData["Success"] = "Aceptaste el contrato. Ya está vigente.";
         }
@@ -1919,18 +1605,43 @@ public class HomeController : Controller
         return RedirectToAction("Propiedades");
     }
 
+    // El inquilino no puede vetar la terminación, pero sí dejar por escrito que no está de acuerdo (una sola vez).
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult DejarDisconformidad(int idContrato, string? texto)
+    {
+        if (!InquilinoLogueado(out int idInquilino))
+        {
+            return RedirigirSinPermiso();
+        }
+
+        if (string.IsNullOrWhiteSpace(texto) || texto.Trim().Length > ReglasContrato.LargoMaximoDisconformidad)
+        {
+            TempData["Error"] = $"Escribí tu disconformidad (hasta {ReglasContrato.LargoMaximoDisconformidad} caracteres).";
+        }
+        else if (!bd.DejarDisconformidad(idContrato, idInquilino, texto))
+        {
+            TempData["Error"] = "No se pudo registrar: el contrato no es tuyo, no terminó por ese motivo o ya dejaste una constancia.";
+        }
+        else
+        {
+            TempData["Success"] = "Quedó registrada tu disconformidad. La ven los dos.";
+        }
+
+        return RedirectToAction("VerContrato", new { idContrato });
+    }
+
+    // ---- Servicios y gastos de una propiedad (propietario) ----
+
     [HttpGet]
     public IActionResult Servicios(int idPropiedad)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
         if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
@@ -1944,15 +1655,12 @@ public class HomeController : Controller
     [HttpGet]
     public IActionResult ServicioDetalle(int idPropiedad, string tipo)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
         if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
@@ -1962,21 +1670,19 @@ public class HomeController : Controller
         ViewBag.IdPropiedad = idPropiedad;
         ViewBag.Propiedad = propiedad;
         ViewBag.Gastos = bd.ObtenerGastosPorServicioYTipo(idPropiedad, tipo);
-        ViewBag.PendientesInquilino = bd.ObtenerPendientesContratoPropiedad(idPropiedad).Where(x => x.TipoGasto == tipo).ToList();
+        ViewBag.PendientesInquilino = bd.ObtenerPendientesContratoPropiedad(idPropiedad, tipo);
         return View(propiedad);
     }
 
     [HttpGet]
     public IActionResult AgregarGasto(int idPropiedad, string? tipo, DateTime? periodo)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
         if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
@@ -2009,17 +1715,74 @@ public class HomeController : Controller
         });
     }
 
-    [HttpGet]
-    public IActionResult AgregarTipoGasto(int idPropiedad)
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult GuardarGasto(int idPropiedad, int idGasto, DateTime mes, decimal monto, DateTime fechaVencimiento, string estado, IFormFile? comprobanteArchivo, string? responsable)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
+        if (propiedad == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        Gastos? tipoGasto = bd.PropiedadTieneTipoGasto(idPropiedad, idGasto) ? bd.ObtenerTipoGastoPorId(idGasto) : null;
+        if (tipoGasto == null)
+        {
+            return RedirectToAction("Servicios", new { idPropiedad });
+        }
+
+        var gasto = new GastoPropiedad { IdGasto = idGasto, Periodo = mes, Monto = monto, FechaVencimiento = fechaVencimiento, FechaAlta = DateTime.Today };
+        bool conComprobante = GestorArchivos.TieneContenido(comprobanteArchivo);
+        string? error = mes == default ? "Debe indicar el mes del gasto." : gasto.Validar();
+        error ??= conComprobante ? GestorArchivos.ValidarComprobante(comprobanteArchivo) : null;
+        if (error != null)
+        {
+            TempData["Error"] = error;
+            return RedirectToAction("AgregarGasto", new { idPropiedad, tipo = tipoGasto.TipoGasto });
+        }
+
+        string? comprobante = conComprobante
+            ? GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"gasto_{idPropiedad}_{idGasto}")
+            : null;
+
+        // Si no se elige a nadie, el gasto se reparte según el contrato.
+        string? responsableManual = GastoPropiedad.ResponsableElegido(responsable, propiedad.IdInquilino.HasValue);
+        bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante, responsableManual);
+        return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo = tipoGasto.TipoGasto });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult GuardarEstadoGasto(int idPropiedad, int idGastoPropiedad, string tipo, string estado)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario) == null)
+        {
+            return RedirectToAction("Propiedades");
+        }
+
+        bd.ActualizarEstadoGasto(idPropiedad, idGastoPropiedad, estado == "Pagado");
+        return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo });
+    }
+
+    [HttpGet]
+    public IActionResult AgregarTipoGasto(int idPropiedad)
+    {
+        if (!PropietarioLogueado(out int idPropietario))
+        {
+            return RedirectToAction("Login");
+        }
+
+        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario);
         if (propiedad == null)
         {
             return RedirectToAction("Propiedades");
@@ -2032,96 +1795,14 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult GuardarGasto(int idPropiedad, int idGasto, DateTime mes, decimal monto, DateTime fechaVencimiento, string estado, IFormFile? comprobanteArchivo, string? responsable)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        Propiedades? propiedad = bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value);
-        if (propiedad == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        Gastos? tipoGasto = bd.PropiedadTieneTipoGasto(idPropiedad, idGasto) ? bd.ObtenerTipoGastoPorId(idGasto) : null;
-        if (tipoGasto == null)
-        {
-            return RedirectToAction("Servicios", new { idPropiedad });
-        }
-
-        var gasto = new GastoPropiedad
-        {
-            IdGasto = idGasto,
-            Periodo = mes,
-            Monto = monto,
-            FechaVencimiento = fechaVencimiento,
-            FechaAlta = DateTime.Today
-        };
-
-        string? error = mes == default ? "Debe indicar el mes del gasto." : gasto.Validar();
-        if (error == null && GestorArchivos.TieneContenido(comprobanteArchivo))
-        {
-            error = GestorArchivos.ValidarComprobante(comprobanteArchivo);
-        }
-
-        if (error != null)
-        {
-            TempData["Error"] = error;
-            return RedirectToAction("AgregarGasto", new { idPropiedad, tipo = tipoGasto.TipoGasto });
-        }
-
-        string? comprobante = GestorArchivos.TieneContenido(comprobanteArchivo)
-            ? GestorArchivos.Guardar(comprobanteArchivo!, GestorArchivos.CarpetaComprobantes, $"gasto_{idPropiedad}_{idGasto}")
-            : null;
-
-        // Si no se elige a nadie, el gasto se reparte según el contrato. Al inquilino solo se le asigna si la propiedad tiene uno.
-        string? responsableManual = responsable switch
-        {
-            "Propietario" => "Propietario",
-            "Inquilino" when propiedad.IdInquilino.HasValue => "Inquilino",
-            _ => null
-        };
-
-        bd.AgregarGasto(idPropiedad, idGasto, gasto, estado == "Pagado", comprobante, responsableManual);
-        return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo = tipoGasto.TipoGasto });
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public IActionResult GuardarEstadoGasto(int idPropiedad, int idGastoPropiedad, string tipo, string estado)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) == null)
-        {
-            return RedirectToAction("Propiedades");
-        }
-
-        bd.ActualizarEstadoGasto(idPropiedad, idGastoPropiedad, estado == "Pagado");
-        return RedirectToAction("ServicioDetalle", new { idPropiedad, tipo });
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
     public IActionResult GuardarTipoGasto(int idPropiedad, string? nombreTipo)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) == null)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario) == null)
         {
             return RedirectToAction("Propiedades");
         }
@@ -2143,43 +1824,14 @@ public class HomeController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult EliminarPropiedad(int idPropiedad)
-    {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
-        {
-            return RedirectToAction("Login");
-        }
-
-        var (error, archivos) = bd.EliminarPropiedad(idPropiedad, idPropietario.Value);
-        if (error != null)
-        {
-            TempData["Error"] = error;
-        }
-        else
-        {
-            foreach (var archivo in archivos)
-            {
-                ArchivosContrato.Borrar(archivo);
-            }
-        }
-
-        return RedirectToAction("Propiedades");
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
     public IActionResult EliminarTipoGasto(int idPropiedad, int idGasto)
     {
-        int? idPropietario = HttpContext.Session.GetInt32("IdPropietario");
-
-        if (!idPropietario.HasValue)
+        if (!PropietarioLogueado(out int idPropietario))
         {
             return RedirectToAction("Login");
         }
 
-        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario.Value) != null)
+        if (bd.ObtenerPropiedadDePropietario(idPropiedad, idPropietario) != null)
         {
             bd.EliminarTipoGastoDePropiedad(idPropiedad, idGasto);
         }

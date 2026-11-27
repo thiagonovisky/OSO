@@ -1,0 +1,45 @@
+@* Un mes que el contrato pone a tu cargo y todavía no tiene gasto cargado. Debajo, su formulario de pago, que se despliega con "Pagar". *@
+@model OSO.Models.PendienteContrato
+@{
+    string otraParte = ViewBag.EsPropietario == true ? "Parte del inquilino" : "Parte del propietario";
+}
+
+<tr>
+    <td>
+        <strong>@Model.TipoGasto</strong>
+        <small class="celda-sub">@Model.Periodo.ToString("MMMM yyyy") en @Model.NombrePropiedad</small>
+    </td>
+    <td data-label="Estado"><span class="estado-pill estado-pill--pagar">A pagar</span></td>
+    <td data-label="Vencimiento">-</td>
+    <td data-label="Total" class="col-monto celda-nota">Sin factura</td>
+    <td data-label="Tu parte" class="col-monto celda-nota">@Model.TextoACargo</td>
+    <td data-label="@otraParte" class="col-monto">-</td>
+    <td class="col-accion">
+        <button type="button" class="btn btn-success btn-sm" data-despliega="@Model.IdFormularioPago" aria-expanded="false" aria-controls="@Model.IdFormularioPago">Pagar</button>
+    </td>
+</tr>
+<tr class="fila-pago" id="@Model.IdFormularioPago" hidden>
+    <td colspan="7">
+        <form asp-action="PagarPendienteContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="pago-form pago-form--fila">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="idPropiedad" value="@Model.IdPropiedad" />
+            <input type="hidden" name="idGasto" value="@Model.IdGasto" />
+            <input type="hidden" name="periodo" value="@Model.Periodo.ToString("yyyy-MM-dd")" />
+            <div class="pago-campo factura-lector">
+                <span class="pago-form__label">1. Factura de @Model.TipoGasto (la IA lee el monto y queda guardada con el gasto)</span>
+                <input type="file" name="facturaArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Factura de @Model.TipoGasto" />
+                <button type="button" class="btn btn-secondary btn-sm btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="@Model.TipoGasto">Leer monto de la factura</button>
+                <small class="factura-estado"></small>
+            </div>
+            <div class="pago-campo">
+                <span class="pago-form__label">2. @Model.TextoMonto.TrimEnd('$', ' ')</span>
+                <input type="number" name="monto" min="0.01" step="0.01" placeholder="$" aria-label="@Model.TextoMonto" class="form-control form-control-sm" required />
+            </div>
+            <div class="pago-campo">
+                <span class="pago-form__label">3. Comprobante de pago</span>
+                <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Comprobante de pago" required />
+            </div>
+            <button type="submit" class="btn btn-success">Confirmar pago</button>
+        </form>
+    </td>
+</tr>

@@ -246,7 +246,17 @@ public class BD
     // Inserta solo los períodos que todavía no están; nunca pisa un valor cargado. Devuelve cuántos agregó.
     public int InsertarIndicesFaltantes(string indice, IEnumerable<(DateTime Periodo, decimal Valor)> valores, string fuente)
     {
-        var filas = valores.Where(v => v.Valor > 0).GroupBy(v => v.Periodo.Date).Select(g => new { p = g.Key.ToString("yyyy-MM-dd"), v = g.First().Valor }).ToList();
+        // Un valor por fecha (el primero que llega); los valores en cero no son publicaciones reales.
+        var periodos = new HashSet<DateTime>();
+        var filas = new List<object>();
+        foreach ((DateTime periodo, decimal valor) in valores)
+        {
+            if (valor > 0 && periodos.Add(periodo.Date))
+            {
+                filas.Add(new { p = periodo.Date.ToString("yyyy-MM-dd"), v = valor });
+            }
+        }
+
         if (filas.Count == 0)
         {
             return 0;
@@ -594,6 +604,24 @@ public class BD
     }
 
 
+    // La propiedad ya tiene un contrato vigente o uno en curso (borrador o esperando al inquilino): no se puede crear otro.
+    public bool TieneContratoActivoOEnCurso(int idPropiedad)
+    {
+        return ObtenerContratoActivoPorPropiedad(idPropiedad) != null || ObtenerContratoEnCursoPorPropiedad(idPropiedad) != null;
+    }
+
+    // Con quién se puede hacer el contrato de la propiedad: si ya hay un inquilino vinculado, sólo con él.
+    public List<Usuario> ObtenerInquilinosParaContrato(Propiedades propiedad)
+    {
+        if (!propiedad.IdInquilino.HasValue)
+        {
+            return ObtenerInquilinosDisponibles();
+        }
+
+        Usuario? inquilinoActual = ObtenerUsuarioPorIdInquilino(propiedad.IdInquilino.Value);
+        return inquilinoActual != null ? new List<Usuario> { inquilinoActual } : new List<Usuario>();
+    }
+
     public List<Usuario> ObtenerInquilinosDisponibles()
     {
         using SqlConnection connection = new(connectionString);
@@ -740,8 +768,8 @@ public class BD
         }
 
         List<ParteGasto> partes = RepartoGasto.Repartir(gasto.Monto, porcentajeInquilino);
-        ParteGasto parteInquilino = partes.First(p => p.Responsable == "Inquilino");
-        ParteGasto partePropietario = partes.First(p => p.Responsable == "Propietario");
+        ParteGasto parteInquilino = partes.FirstOrDefault(p => p.Responsable == "Inquilino")!;
+        ParteGasto partePropietario = partes.FirstOrDefault(p => p.Responsable == "Propietario")!;
 
         connection.Execute(
             @"MERGE GastoResponsables AS destino
@@ -972,10 +1000,20 @@ public class BD
         }
 
         // Meses que ya tienen un gasto cargado (por cualquiera de los dos): ahí cada uno ve su parte como gasto a pagar.
-        var cargados = connection.Query<(int IdPropiedad, int IdGasto, DateTime Periodo)>(
+        var idsPropiedades = new HashSet<int>();
+        foreach (ReglaPendienteContrato regla in reglas)
+        {
+            idsPropiedades.Add(regla.IdPropiedad);
+        }
+
+        var cargados = new HashSet<(int, int, DateTime)>();
+        foreach (var gasto in connection.Query<(int IdPropiedad, int IdGasto, DateTime Periodo)>(
             "SELECT IdPropiedad, IdGasto, Periodo FROM GastosPropiedad WHERE IdPropiedad IN @Ids",
-            new { Ids = reglas.Select(r => r.IdPropiedad).Distinct().ToList() },
-            transaction).Select(x => (x.IdPropiedad, x.IdGasto, PrimerDiaDelMes(x.Periodo))).ToHashSet();
+            new { Ids = idsPropiedades },
+            transaction))
+        {
+            cargados.Add((gasto.IdPropiedad, gasto.IdGasto, PrimerDiaDelMes(gasto.Periodo)));
+        }
 
         DateTime mesActual = PrimerDiaDelMes(DateTime.Today);
         foreach (ReglaPendienteContrato regla in reglas)
@@ -1000,11 +1038,26 @@ public class BD
             }
         }
 
-        return pendientes
-            .OrderByDescending(x => x.Periodo)
-            .ThenBy(x => x.NombrePropiedad)
-            .ThenBy(x => x.TipoGasto)
-            .ToList();
+        // Del mes más nuevo al más viejo; dentro de cada mes, por propiedad y servicio.
+        Listas.OrdenarEstable(pendientes, (a, b) =>
+        {
+            int orden = b.Periodo.CompareTo(a.Periodo);
+            if (orden == 0)
+            {
+                orden = string.Compare(a.NombrePropiedad, b.NombrePropiedad);
+            }
+
+            return orden != 0 ? orden : string.Compare(a.TipoGasto, b.TipoGasto);
+        });
+        return pendientes;
+    }
+
+    // Los pendientes de los dos lados (primero los del inquilino, después los del propietario).
+    private static List<PendienteContrato> CalcularPendientesDeLosDosLados(SqlConnection connection, SqlTransaction? transaction, string filtro, object parametros)
+    {
+        List<PendienteContrato> pendientes = CalcularPendientesContrato(connection, transaction, LadoInquilino, filtro, parametros);
+        pendientes.AddRange(CalcularPendientesContrato(connection, transaction, LadoPropietario, filtro, parametros));
+        return pendientes;
     }
 
     public List<PendienteContrato> ObtenerPendientesContratoInquilino(int idInquilino)
@@ -1019,11 +1072,20 @@ public class BD
         return CalcularPendientesContrato(connection, null, LadoPropietario, "p.IdPropietario = @IdPropietario", new { IdPropietario = idPropietario });
     }
 
-    // Los meses sin cargar de una propiedad, de los dos lados (un mes compartido figura una sola vez).
-    public List<PendienteContrato> ObtenerPendientesContratoPropiedad(int idPropiedad)
+    // Los meses sin cargar de un tipo de gasto de una propiedad, de los dos lados (un mes compartido figura una sola vez).
+    public List<PendienteContrato> ObtenerPendientesContratoPropiedad(int idPropiedad, string tipoGasto)
     {
         using SqlConnection connection = new(connectionString);
-        return CalcularPendientesDePropiedad(connection, idPropiedad);
+        var delTipo = new List<PendienteContrato>();
+        foreach (PendienteContrato pendiente in CalcularPendientesDePropiedad(connection, idPropiedad))
+        {
+            if (pendiente.TipoGasto == tipoGasto)
+            {
+                delTipo.Add(pendiente);
+            }
+        }
+
+        return delTipo;
     }
 
     // Filas de la pantalla "Cargar el mes": lo que falta cargar en todas las propiedades del propietario, de los dos lados,
@@ -1035,9 +1097,7 @@ public class BD
         bool esInquilino = lado == LadoInquilino;
         var parametros = new { IdPersona = idPersona };
         string filtro = esInquilino ? "c.IdInquilino = @IdPersona" : "p.IdPropietario = @IdPersona";
-        List<PendienteContrato> pendientes = CalcularPendientesContrato(connection, null, LadoInquilino, filtro, parametros)
-            .Concat(CalcularPendientesContrato(connection, null, LadoPropietario, filtro, parametros))
-            .ToList();
+        List<PendienteContrato> pendientes = CalcularPendientesDeLosDosLados(connection, null, filtro, parametros);
 
         // Montos del mes anterior para sugerir. Al inquilino solo los de meses de su contrato (no los del inquilino anterior).
         string query = esInquilino
@@ -1048,9 +1108,11 @@ public class BD
                 FROM GastosPropiedad gp
                 INNER JOIN Propiedades p ON p.IdPropiedad = gp.IdPropiedad
                 WHERE p.IdPropietario = @IdPersona AND gp.Monto > 0";
-        Dictionary<(int, int, DateTime), decimal> montos = connection.Query<(int IdPropiedad, int IdGasto, DateTime Periodo, decimal Monto)>(query, parametros)
-            .GroupBy(x => (x.IdPropiedad, x.IdGasto, PrimerDiaDelMes(x.Periodo)))
-            .ToDictionary(g => g.Key, g => g.First().Monto);
+        var montos = new Dictionary<(int, int, DateTime), decimal>();
+        foreach (var gasto in connection.Query<(int IdPropiedad, int IdGasto, DateTime Periodo, decimal Monto)>(query, parametros))
+        {
+            montos.TryAdd((gasto.IdPropiedad, gasto.IdGasto, PrimerDiaDelMes(gasto.Periodo)), gasto.Monto);
+        }
 
         return FilasCargarMes.Armar(lado, pendientes, montos);
     }
@@ -1093,9 +1155,8 @@ public class BD
             return ResultadoFilaMes.YaCargado;
         }
 
-        bool esPendiente = CalcularPendientesContrato(connection, transaction, LadoInquilino, filtro, parametros)
-            .Concat(CalcularPendientesContrato(connection, transaction, LadoPropietario, filtro, parametros))
-            .Any(p => p.IdGasto == fila.IdGasto && p.Periodo == mes);
+        bool esPendiente = CalcularPendientesDeLosDosLados(connection, transaction, filtro, parametros)
+            .FirstOrDefault(p => p.IdGasto == fila.IdGasto && p.Periodo == mes) != null;
         if (!esPendiente)
         {
             return ResultadoFilaMes.NoCorresponde;
@@ -1185,14 +1246,22 @@ public class BD
 
     private static List<PendienteContrato> CalcularPendientesDePropiedad(SqlConnection connection, int idPropiedad)
     {
-        var parametros = new { IdPropiedad = idPropiedad };
-        return CalcularPendientesContrato(connection, null, LadoInquilino, "c.IdPropiedad = @IdPropiedad", parametros)
-            .Concat(CalcularPendientesContrato(connection, null, LadoPropietario, "c.IdPropiedad = @IdPropiedad", parametros))
-            .GroupBy(x => (x.IdGasto, x.Periodo))
-            .Select(g => g.First())
-            .OrderByDescending(x => x.Periodo)
-            .ThenBy(x => x.TipoGasto)
-            .ToList();
+        var unaVezPorMes = new List<PendienteContrato>();
+        var agregados = new HashSet<(int, DateTime)>();
+        foreach (PendienteContrato pendiente in CalcularPendientesDeLosDosLados(connection, null, "c.IdPropiedad = @IdPropiedad", new { IdPropiedad = idPropiedad }))
+        {
+            if (agregados.Add((pendiente.IdGasto, pendiente.Periodo)))
+            {
+                unaVezPorMes.Add(pendiente);
+            }
+        }
+
+        Listas.OrdenarEstable(unaVezPorMes, (a, b) =>
+        {
+            int orden = b.Periodo.CompareTo(a.Periodo);
+            return orden != 0 ? orden : string.Compare(a.TipoGasto, b.TipoGasto);
+        });
+        return unaVezPorMes;
     }
 
     // El gasto ya cargado de un tipo en un mes (para corregirlo), con la parte del propietario; null si no existe.
@@ -1223,7 +1292,7 @@ public class BD
         DateTime mes = PrimerDiaDelMes(periodo);
         string filtro = (esInquilino ? "c.IdInquilino = @IdPersona" : "p.IdPropietario = @IdPersona") + " AND c.IdPropiedad = @IdPropiedad";
         bool corresponde = CalcularPendientesContrato(connection, transaction, lado, filtro, new { IdPersona = idPersona, IdPropiedad = idPropiedad })
-            .Any(x => x.IdGasto == idGasto && x.Periodo == mes);
+            .FirstOrDefault(x => x.IdGasto == idGasto && x.Periodo == mes) != null;
 
         if (!corresponde)
         {
@@ -1287,19 +1356,45 @@ public class BD
             return;
         }
 
-        List<PendienteContrato> delMes = (idInquilino.HasValue
-                ? CalcularPendientesContrato(connection, null, LadoInquilino, "c.IdInquilino = @Id", new { Id = idInquilino.Value })
-                : CalcularPendientesContrato(connection, null, LadoPropietario, "p.IdPropietario = @Id", new { Id = idPropietario!.Value }))
-            .Where(x => x.Periodo == mes)
-            .ToList();
-        if (delMes.Count == 0)
+        List<PendienteContrato> pendientes = idInquilino.HasValue
+            ? CalcularPendientesContrato(connection, null, LadoInquilino, "c.IdInquilino = @Id", new { Id = idInquilino.Value })
+            : CalcularPendientesContrato(connection, null, LadoPropietario, "p.IdPropietario = @Id", new { Id = idPropietario!.Value });
+
+        // Los servicios de este mes, agrupados por propiedad: "Luz, Gas de Av. Corrientes 1234".
+        var propiedades = new List<string>();
+        var serviciosPorPropiedad = new Dictionary<string, List<string>>();
+        foreach (PendienteContrato pendiente in pendientes)
+        {
+            if (pendiente.Periodo != mes)
+            {
+                continue;
+            }
+
+            if (!serviciosPorPropiedad.TryGetValue(pendiente.NombrePropiedad, out List<string>? servicios))
+            {
+                servicios = new List<string>();
+                serviciosPorPropiedad[pendiente.NombrePropiedad] = servicios;
+                propiedades.Add(pendiente.NombrePropiedad);
+            }
+
+            if (!servicios.Contains(pendiente.TipoGasto))
+            {
+                servicios.Add(pendiente.TipoGasto);
+            }
+        }
+
+        if (propiedades.Count == 0)
         {
             return;
         }
 
-        string detalle = string.Join("; ", delMes
-            .GroupBy(x => x.NombrePropiedad)
-            .Select(g => $"{string.Join(", ", g.Select(x => x.TipoGasto).Distinct())} de {g.Key}"));
+        var partesDetalle = new List<string>();
+        foreach (string propiedad in propiedades)
+        {
+            partesDetalle.Add($"{string.Join(", ", serviciosPorPropiedad[propiedad])} de {propiedad}");
+        }
+
+        string detalle = string.Join("; ", partesDetalle);
         string texto = $"{TextoRecordatorioFacturas}este mes tenés para cargar y pagar {detalle}. Subí la factura en Mis gastos.";
 
         connection.Execute(
@@ -1427,7 +1522,7 @@ public class BD
         }
 
         List<AjusteContrato> ajustes = ObtenerAjustes(contrato.IdContrato);
-        if (ajustes.Any(a => a.Fecha.Date == evento.Fecha.Date))
+        if (ajustes.Count(a => a.Fecha.Date == evento.Fecha.Date) > 0)
         {
             return null;
         }
@@ -1626,9 +1721,9 @@ public class BD
         Contratos? contrato = ObtenerContratoConfirmadoDePropiedad(idPropiedad);
         if (contrato != null)
         {
-            var conRegla = connection.Query<int>(
+            var conRegla = new HashSet<int>(connection.Query<int>(
                 "SELECT IdGasto FROM ContratoResponsabilidadGasto WHERE IdContrato = @IdContrato",
-                new { contrato.IdContrato }).ToHashSet();
+                new { contrato.IdContrato }));
             foreach (ReglaGasto regla in ObtenerReglasGasto(contrato.IdContrato))
             {
                 if (conRegla.Contains(regla.IdGasto))
@@ -1740,7 +1835,7 @@ public class BD
         var parametros = new { IdPropiedad = idPropiedad };
         var estados = connection.Query<string>(
             "SELECT DISTINCT Estado FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado <> 'Borrador'",
-            parametros, transaction).ToList();
+            parametros, transaction).AsList();
 
         string? error = null;
         if (estados.Contains("Confirmado"))
@@ -1761,7 +1856,7 @@ public class BD
         // Borradores: sólo los vio el propietario, se van con la propiedad.
         var archivos = connection.Query<string>(
             "SELECT ArchivoContrato FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado = 'Borrador' AND ISNULL(ArchivoContrato, '') <> ''",
-            parametros, transaction).ToList();
+            parametros, transaction).AsList();
         const string borradores = "SELECT IdContrato FROM Contratos WHERE IdPropiedad = @IdPropiedad AND Estado = 'Borrador'";
         connection.Execute($"DELETE FROM ContratoResponsabilidadGasto WHERE IdContrato IN ({borradores})", parametros, transaction);
         connection.Execute($"DELETE FROM ExtraccionesContrato WHERE IdContrato IN ({borradores})", parametros, transaction);
@@ -2072,7 +2167,9 @@ public class BD
         connection.Execute(
             @"INSERT INTO Notificaciones (IdUsuario, Texto)
               SELECT u.IdUsuario,
-                     LEFT(CONCAT('Terminó tu contrato de ', p.Direccion, ' (', @NombreMotivo, ') el ', CONVERT(varchar(10), @FechaFinReal, 103), '.',
+                     LEFT(CONCAT(CASE WHEN @FechaFinReal < c.FechaInicio
+                                      THEN CONCAT('Se canceló tu contrato de ', p.Direccion, ' (', @NombreMotivo, ') antes de empezar.')
+                                      ELSE CONCAT('Terminó tu contrato de ', p.Direccion, ' (', @NombreMotivo, ') el ', CONVERT(varchar(10), @FechaFinReal, 103), '.') END,
                                  CASE WHEN @Descripcion IS NULL THEN '' ELSE CONCAT(' ', @Descripcion) END,
                                  ' Podés ver el contrato y tus gastos en modo lectura.'), 300)
               FROM Contratos c

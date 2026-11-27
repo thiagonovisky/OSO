@@ -26,8 +26,8 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
     // Modelos a probar si el principal está saturado. Se configuran en appsettings.json (Gemini:ModelosRespaldo).
     private string[] ModelosRespaldo => configuration.GetSection("Gemini:ModelosRespaldo").Get<string[]>() ?? [];
 
-    public Task<(string? Json, string? Error)> ExtraerAsync(byte[] archivo, string mimeType, IEnumerable<string> tiposGasto) =>
-        EnviarAsync(ArmarPedido(archivo, mimeType, tiposGasto.ToList()), "el contrato");
+    public Task<(string? Json, string? Error)> ExtraerAsync(byte[] archivo, string mimeType, List<string> tiposGasto) =>
+        EnviarAsync(ArmarPedido(archivo, mimeType, tiposGasto), "el contrato");
 
     // Manda un pedido ya armado a Gemini y devuelve el texto JSON de la respuesta. queLee: "el contrato", "la factura"...
     // Lo usa también el lector de facturas, para no repetir la conexión, el tiempo máximo ni el manejo de errores.
@@ -48,7 +48,14 @@ public class ExtractorContratoGemini(IHttpClientFactory httpClientFactory, IConf
         }
 
         string cuerpo = JsonSerializer.Serialize(pedidoGemini);
-        string[] modelos = [ModeloPrincipal, .. ModelosRespaldo.Where(m => !string.IsNullOrWhiteSpace(m) && m != ModeloPrincipal)];
+        var modelos = new List<string> { ModeloPrincipal };
+        foreach (string respaldo in ModelosRespaldo)
+        {
+            if (!string.IsNullOrWhiteSpace(respaldo) && respaldo != ModeloPrincipal)
+            {
+                modelos.Add(respaldo);
+            }
+        }
 
         try
         {

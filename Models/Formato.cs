@@ -11,6 +11,9 @@ public static class Formato
 
     public static string Numero(decimal? valor, string formato = "N2") => valor.HasValue ? valor.Value.ToString(formato, Argentina) : "-";
 
+    // "Jueves 26 De Noviembre De 2026"
+    public static string FechaLarga(DateTime fecha) => Argentina.TextInfo.ToTitleCase(fecha.ToString("dddd d 'de' MMMM 'de' yyyy", Argentina));
+
     // "noviembre 2026"
     public static string Mes(DateTime fecha) => fecha.ToString("MMMM yyyy", Argentina);
 

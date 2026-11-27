@@ -1,0 +1,10 @@
+@* Encabezado de las tablas de "Mis gastos". *@
+<tr>
+    <th>Gasto</th>
+    <th>Estado</th>
+    <th>Vencimiento</th>
+    <th class="col-monto">Total</th>
+    <th class="col-monto">Tu parte</th>
+    <th class="col-monto">@(ViewBag.EsPropietario == true ? "Parte del inquilino" : "Parte del propietario")</th>
+    <th><span class="visually-hidden">Acciones</span></th>
+</tr>

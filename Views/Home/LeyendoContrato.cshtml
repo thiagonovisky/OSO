@@ -19,10 +19,10 @@
 
     <div class="form-acciones form-acciones--centro">
         <a asp-action="Contrato" asp-controller="Home" asp-route-idPropiedad="@Model.IdPropiedad" class="btn btn-secondary">Volver</a>
-        <a href="@urlRevision" class="btn btn-primary">Actualizar</a>
+        <a href="@urlRevision" class="btn btn-primary" id="actualizarRevision">Actualizar</a>
     </div>
 </div>
 
-<script>
-    setTimeout(function () { window.location.replace('@Html.Raw(urlRevision)'); }, 4000);
-</script>
+@section Scripts {
+    <script src="~/js/leyendo-contrato.js" asp-append-version="true"></script>
+}

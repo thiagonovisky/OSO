@@ -2,17 +2,13 @@
 @{
     var c = Model.Contrato;
     bool comoPropietario = ViewBag.ComoPropietario == true;
-    bool pendiente = c.Estado == "PendienteInquilino";
-    bool paraAceptar = pendiente && !comoPropietario;
-    bool terminado = c.Estado == "Finalizado";
-    string pillEstado = pendiente ? "pagar" : terminado ? "neutro" : "pagado";
-    string textoEstado = comoPropietario && pendiente ? "Esperando al inquilino" : c.EstadoParaInquilino;
+    bool paraAceptar = c.EsperaAlInquilino && !comoPropietario;
 }
 
 <div class="pagina">
     <h2 class="pagina-titulo">Contrato de alquiler</h2>
     <p class="pagina-bajada">
-        <strong>@Model.Propiedad.Direccion</strong> · <span class="estado-pill estado-pill--@pillEstado">@textoEstado</span>
+        <strong>@Model.Propiedad.Direccion</strong> · <span class="estado-pill estado-pill--@c.EstadoCss">@c.EstadoPara(comoPropietario)</span>
     </p>
 
     @if (TempData["Error"] != null)
@@ -31,17 +27,17 @@
             Tu propietario cargó este contrato y espera que lo aceptes. Revisá los datos y quién paga cada gasto; si está todo bien, aceptalo al final de la página.
         </p>
     }
-    else if (comoPropietario && pendiente)
+    else if (comoPropietario && c.EsperaAlInquilino)
     {
         <p class="aviso-pagina">
             Le enviaste este contrato al inquilino. Queda vigente cuando lo acepte; mientras tanto no se puede modificar.
         </p>
     }
 
-    @if (terminado && !comoPropietario)
+    @if (c.EstaTerminado && !comoPropietario)
     {
         <div class="alert alert-warning">
-            <strong>Este contrato terminó el @Formato.Fecha(c.FechaFinReal)</strong> · Motivo: @OSO.Models.ReglasContrato.NombreMotivoFin(c.MotivoFin).
+            <strong>@(c.CanceladoAntesDeEmpezar ? "Este contrato se canceló antes de empezar" : $"Este contrato terminó el {Formato.Fecha(c.FechaFinReal)}")</strong> · Motivo: @OSO.Models.ReglasContrato.NombreMotivoFin(c.MotivoFin).
             @if (!string.IsNullOrWhiteSpace(c.DescripcionFin))
             {
                 <br /><span>Lo que explicó el propietario: @c.DescripcionFin</span>

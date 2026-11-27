@@ -67,6 +67,9 @@ public class GastoPropiedad
     // Estado de la parte de quien mira el gasto (sin importar si la otra parte ya pagó la suya).
     public bool MiPartePagada => MontoPagado >= MontoResponsable;
 
+    // Id del formulario de pago de este gasto en "Mis gastos".
+    public string IdFormularioPago => $"pago-g-{IdGastoResponsable}";
+
     public string EstadoMiParte => MiPartePagada ? "Pagado" : FechaVencimiento.Date < DateTime.Today ? "Vencido" : "A pagar";
 
     // Clase de la etiqueta de estado (estado-pill--pagar | --vencido | --pagado).
@@ -93,5 +96,29 @@ public class GastoPropiedad
         }
 
         return null;
+    }
+
+    // A quién eligió el propietario para pagar el gasto. Null: se reparte según el contrato.
+    // Al inquilino solo se le puede asignar si la propiedad tiene uno.
+    public static string? ResponsableElegido(string? responsable, bool tieneInquilino) => responsable switch
+    {
+        "Propietario" => "Propietario",
+        "Inquilino" when tieneInquilino => "Inquilino",
+        _ => null
+    };
+
+    // Los gastos con tu parte ya pagada (pagados = true, el historial) o todavía sin pagar (pagados = false).
+    public static List<GastoPropiedad> PorPago(List<GastoPropiedad> gastos, bool pagados)
+    {
+        var resultado = new List<GastoPropiedad>();
+        foreach (GastoPropiedad gasto in gastos)
+        {
+            if (gasto.MiPartePagada == pagados)
+            {
+                resultado.Add(gasto);
+            }
+        }
+
+        return resultado;
     }
 }

@@ -1,0 +1,6 @@
+@* Botón con el lápiz: muestra el formulario de edición de ese dato (ver site.js, data-editar). *@
+@model (string IdFormulario, string QueEdita)
+
+<button type="button" class="perfil-lapiz" data-editar="@Model.IdFormulario" aria-controls="@Model.IdFormulario" aria-expanded="false" aria-label="Editar @Model.QueEdita">
+    <partial name="_IconoMenu" model="@("Editar")" />
+</button>

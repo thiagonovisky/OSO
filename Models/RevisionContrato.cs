@@ -42,6 +42,46 @@ public class RevisionContrato
     public static readonly string[] Indices = { "IPC", "ICL", "CasaPropia", "Fijo", "Otro" };
     public static readonly string[] Garantias = { "Propietaria", "Caucion", "ReciboSueldo", "Otra" };
 
+    // Todo lo que necesita la pantalla de revisión del propietario: los datos, lo que leyó la IA y qué falta para confirmar.
+    public static RevisionContrato ParaRevisar(Contratos contrato, Propiedades propiedad)
+    {
+        var bd = new BD();
+        string? json = bd.ObtenerUltimaExtraccion(contrato.IdContrato);
+        Usuario? inquilino = bd.ObtenerUsuarioPorIdInquilino(contrato.IdInquilino);
+
+        var revision = new RevisionContrato
+        {
+            Contrato = contrato,
+            Propiedad = propiedad,
+            NombreInquilino = inquilino?.NombreCompleto ?? "Inquilino",
+            Reglas = bd.ObtenerReglasGasto(contrato.IdContrato)
+        };
+
+        revision.Errores = ReglasContrato.Errores(contrato, revision.Reglas);
+        revision.Advertencias = ReglasContrato.Advertencias(contrato, revision.Reglas);
+        revision.ArmarCampos(json == null ? null : ResultadoExtraccion.Parsear(json));
+
+        if (json == null && !string.IsNullOrEmpty(contrato.ArchivoContrato))
+        {
+            revision.LecturaFallida = true;
+            revision.MotivoLecturaFallida = bd.ObtenerErrorUltimaExtraccion(contrato.IdContrato);
+        }
+
+        return revision;
+    }
+
+    // Lo que muestra la pantalla de solo lectura (contrato ya enviado o vigente): los datos y quién paga cada gasto.
+    // No lleva errores ni advertencias: ya no se puede editar, no hay nada que corregir.
+    public static RevisionContrato ParaLeer(Contratos contrato, Propiedades propiedad)
+    {
+        return new RevisionContrato
+        {
+            Contrato = contrato,
+            Propiedad = propiedad,
+            Reglas = new BD().ObtenerReglasGasto(contrato.IdContrato)
+        };
+    }
+
     public static string Fecha(DateTime? f) => f.HasValue && f.Value != default ? f.Value.ToString("yyyy-MM-dd") : string.Empty;
     private static string Num(decimal? n) => n.HasValue ? n.Value.ToString("0.###", CultureInfo.InvariantCulture) : string.Empty;
 
@@ -88,7 +128,18 @@ public class RevisionContrato
             Partes = extraccion.Partes;
         }
 
-        CamposDudosos = campos.Where(x => x.Dudoso).ToList();
-        Campos = campos.Where(x => !x.Dudoso).ToList();
+        CamposDudosos = new List<CampoRevision>();
+        Campos = new List<CampoRevision>();
+        foreach (CampoRevision campo in campos)
+        {
+            if (campo.Dudoso)
+            {
+                CamposDudosos.Add(campo);
+            }
+            else
+            {
+                Campos.Add(campo);
+            }
+        }
     }
 }

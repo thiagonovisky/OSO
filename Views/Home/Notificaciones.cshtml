@@ -1,8 +1,7 @@
 @model List<OSO.Models.Notificacion>
 @{
-    var contratosPendientes = ViewBag.ContratosPendientes as List<OSO.Models.Contratos> ?? new List<OSO.Models.Contratos>();
     var notificaciones = Model ?? new List<OSO.Models.Notificacion>();
-    int sinLeer = notificaciones.Count(n => !n.Leida);
+    int sinLeer = ViewBag.SinLeer as int? ?? 0;
 }
 
 <div class="pagina pagina--angosta">
@@ -15,11 +14,6 @@
             <ul class="notif-lista">
                 @foreach (var n in notificaciones)
                 {
-                    // El aviso "el propietario cargó el contrato de <dirección>" lleva al contrato que sigue esperando que lo acepte.
-                    var contratoDelAviso = n.Texto.StartsWith(OSO.Models.BD.TextoContratoCargado)
-                        ? contratosPendientes.FirstOrDefault(c => !string.IsNullOrEmpty(c.Direccion) && n.Texto.Contains(c.Direccion))
-                        : null;
-
                     <li class="notif @(n.Leida ? "" : "notif--nueva")">
                         <span class="notif__punto" aria-hidden="true"></span>
                         <div>
@@ -31,15 +25,16 @@
                             <time class="notif__fecha" datetime="@n.FechaCreacion.ToString("yyyy-MM-ddTHH:mm")">@n.FechaCreacion.ToString("dd/MM/yyyy HH:mm")</time>
                         </div>
                         <div class="notif__accion">
-                            @if (contratoDelAviso != null)
+                            @* El aviso "el propietario cargó el contrato de <dirección>" lleva al contrato que sigue esperando que lo acepte. *@
+                            @if (n.IdContratoParaAceptar.HasValue)
                             {
-                                <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@contratoDelAviso.IdContrato" asp-route-desde="notificaciones" class="btn btn-primary btn-sm">Ver contrato y aceptarlo</a>
+                                <a asp-action="VerContrato" asp-controller="Home" asp-route-idContrato="@n.IdContratoParaAceptar" asp-route-desde="notificaciones" class="btn btn-primary btn-sm">Ver contrato y aceptarlo</a>
                             }
-                            else if (n.Texto.StartsWith(OSO.Models.BD.TextoRecordatorioFacturas))
+                            else if (n.EsRecordatorioFacturas)
                             {
                                 <a asp-action="MisGastos" asp-controller="Home" class="btn btn-secondary btn-sm">Ir a Mis gastos</a>
                             }
-                            else if (n.IdGastoResponsable.HasValue && Context.Session.GetInt32("IdInquilino").HasValue)
+                            else if (n.IdGastoResponsable.HasValue && ViewBag.EsInquilino == true)
                             {
                                 <a asp-action="MisGastos" asp-controller="Home" class="btn btn-success btn-sm">Ir a pagar</a>
                             }

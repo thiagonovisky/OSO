@@ -55,8 +55,8 @@ public static class ReglasContrato
     private static readonly DateTime FinLey27551 = new(2023, 10, 17);
     private static readonly DateTime FinLey27737 = new(2023, 12, 28);
 
-    private static readonly string[] Indices = { "IPC", "ICL", "CasaPropia", "Fijo", "Otro" };
-    private static readonly string[] Responsables = { "Inquilino", "Propietario", "Compartido" };
+    private static readonly List<string> Indices = new() { "IPC", "ICL", "CasaPropia", "Fijo", "Otro" };
+    private static readonly List<string> Responsables = new() { "Inquilino", "Propietario", "Compartido" };
 
     public static string CalcularRegimen(DateTime fechaFirma)
     {
@@ -81,7 +81,7 @@ public static class ReglasContrato
     public const int LargoMaximoDescripcionFin = 500;
     public const int LargoMaximoDisconformidad = 1000;
 
-    public static readonly string[] MotivosFin = { FinDePlazo, "RescisionInquilino", "Acuerdo", "Incumplimiento" };
+    public static readonly List<string> MotivosFin = new() { FinDePlazo, "RescisionInquilino", "Acuerdo", "Incumplimiento" };
 
     public static string NombreMotivoFin(string? motivo) => motivo switch
     {
@@ -124,6 +124,12 @@ public static class ReglasContrato
             return $"La descripción no puede superar los {LargoMaximoDescripcionFin} caracteres.";
         }
 
+        // Si todavía no empezó, es una cancelación: la fecha real la pone el sistema (ver FechaFinCancelacion).
+        if (c.FechaInicio.Date > hoy.Date)
+        {
+            return null;
+        }
+
         if (fechaFinReal == null || fechaFinReal.Value == default)
         {
             return "Indicá la fecha real de fin del contrato.";
@@ -147,6 +153,23 @@ public static class ReglasContrato
         return null;
     }
 
+    // Fecha real de fin al terminar el contrato (ya validado con ValidarTerminacion). En fin de plazo es la de fin del
+    // contrato; si todavía no empezó, es una cancelación y la fecha la pone el sistema; si no, la que indicó el propietario.
+    public static DateTime FechaFinReal(Contratos c, string motivo, DateTime? fechaIndicada, DateTime hoy)
+    {
+        if (motivo == FinDePlazo)
+        {
+            return c.FechaFin;
+        }
+
+        return c.FechaInicio.Date > hoy.Date ? FechaFinCancelacion(c) : fechaIndicada!.Value;
+    }
+
+    // Fecha real de fin de un contrato cancelado antes de empezar: el último día del mes anterior al inicio,
+    // así no queda ningún mes (ni gasto ni vencimiento) dentro del contrato, aunque empiece a mitad de mes.
+    public static DateTime FechaFinCancelacion(Contratos c) =>
+        new DateTime(c.FechaInicio.Year, c.FechaInicio.Month, 1).AddDays(-1);
+
     // Calcula el régimen desde la fecha de firma y, si la ley lo impone, fuerza el índice y la frecuencia.
     public static void AplicarRegimen(Contratos c)
     {
@@ -168,14 +191,13 @@ public static class ReglasContrato
         _ => "Sin determinar"
     };
 
-    private static bool ExtraordinariasAlInquilino(IEnumerable<ReglaGasto> reglas) =>
-        reglas.Any(r => r.TipoGasto == TipoExtraordinarias && r.LoPagaElInquilino);
+    private static bool ExtraordinariasAlInquilino(List<ReglaGasto> reglas) =>
+        reglas.FirstOrDefault(r => r.TipoGasto == TipoExtraordinarias && r.LoPagaElInquilino) != null;
 
     // Problemas que impiden confirmar el contrato.
-    public static List<string> Errores(Contratos c, IEnumerable<ReglaGasto> reglas)
+    public static List<string> Errores(Contratos c, List<ReglaGasto> reglas)
     {
         var errores = new List<string>();
-        var listaReglas = reglas.ToList();
 
         if (c.FechaFirma == null)
         {
@@ -220,7 +242,7 @@ public static class ReglasContrato
             errores.Add("Indicá cada cuántos meses se ajusta el alquiler.");
         }
 
-        foreach (ReglaGasto regla in listaReglas)
+        foreach (ReglaGasto regla in reglas)
         {
             if (!Responsables.Contains(regla.Responsable) || regla.PorcentajeInquilino < 0 || regla.PorcentajeInquilino > 100)
             {
@@ -228,7 +250,7 @@ public static class ReglasContrato
             }
         }
 
-        if (c.FechaFirma != null && CalcularRegimen(c.FechaFirma.Value) != RegimenesLegales.Dnu70 && ExtraordinariasAlInquilino(listaReglas))
+        if (c.FechaFirma != null && CalcularRegimen(c.FechaFirma.Value) != RegimenesLegales.Dnu70 && ExtraordinariasAlInquilino(reglas))
         {
             errores.Add("Las expensas extraordinarias no pueden ir a cargo del inquilino en contratos firmados antes del DNU 70/2023: las paga el propietario.");
         }
@@ -236,17 +258,48 @@ public static class ReglasContrato
         return errores;
     }
 
+    // Toma de lo que mandó el formulario solo el responsable y el porcentaje de los tipos que ya tiene el contrato.
+    // Una regla que cambia pasa a ser "Manual".
+    public static void CopiarCambiosDeReparto(List<ReglaGasto> guardadas, List<ReglaGasto>? recibidas)
+    {
+        foreach (ReglaGasto actual in guardadas)
+        {
+            ReglaGasto? recibida = recibidas?.FirstOrDefault(r => r.IdGasto == actual.IdGasto);
+            if (recibida == null || !Responsables.Contains(recibida.Responsable))
+            {
+                continue;
+            }
+
+            decimal porcentaje = Math.Round(Math.Clamp(recibida.PorcentajeInquilino, 0m, 100m), 2);
+            bool cambio = recibida.Responsable != actual.Responsable
+                          || (recibida.Responsable == "Compartido" && porcentaje != actual.PorcentajeInquilino);
+            if (cambio)
+            {
+                actual.Responsable = recibida.Responsable;
+                actual.PorcentajeInquilino = porcentaje;
+                actual.Origen = "Manual";
+            }
+        }
+    }
+
+    // El inquilino con el que se puede hacer el contrato: si la propiedad ya tiene uno, siempre ése.
+    // Null si no está entre los posibles.
+    public static int? ElegirInquilino(Propiedades propiedad, int idElegido, List<Usuario> posibles)
+    {
+        int idInquilino = propiedad.IdInquilino ?? idElegido;
+        return posibles.FirstOrDefault(u => u.IdInquilino == idInquilino) != null ? idInquilino : null;
+    }
+
     // Avisos que no impiden confirmar.
-    public static List<string> Advertencias(Contratos c, IEnumerable<ReglaGasto> reglas)
+    public static List<string> Advertencias(Contratos c, List<ReglaGasto> reglas)
     {
         var advertencias = new List<string>();
-        var listaReglas = reglas.ToList();
 
         if (c.FechaFirma != null)
         {
             string regimen = CalcularRegimen(c.FechaFirma.Value);
 
-            if (regimen == RegimenesLegales.Dnu70 && ExtraordinariasAlInquilino(listaReglas))
+            if (regimen == RegimenesLegales.Dnu70 && ExtraordinariasAlInquilino(reglas))
             {
                 advertencias.Add("Las expensas extraordinarias quedaron a cargo del inquilino. Está permitido por el DNU 70/2023, pero conviene que ambos lo tengan claro.");
             }
@@ -257,7 +310,7 @@ public static class ReglasContrato
             }
         }
 
-        foreach (ReglaGasto regla in listaReglas)
+        foreach (ReglaGasto regla in reglas)
         {
             if (regla.Confianza is < UmbralBajaConfianza)
             {

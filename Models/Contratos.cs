@@ -40,6 +40,9 @@ public class Contratos
     // Hasta cuándo rige de verdad: la fecha real de fin si el contrato se terminó antes (o después) de lo previsto.
     public DateTime FechaFinEfectiva => FechaFinReal ?? FechaFin;
 
+    // Se terminó antes de empezar: la fecha real de fin quedó antes del inicio (ver ReglasContrato.FechaFinCancelacion).
+    public bool CanceladoAntesDeEmpezar => FechaFinReal.HasValue && FechaFinReal.Value.Date < FechaInicio.Date;
+
     // Se carga en algunas consultas (no es una columna de Contratos)
     public string? Direccion { get; set; }
 
@@ -79,14 +82,79 @@ public class Contratos
 
     public string DepositoTexto => MontoDeposito.HasValue ? $"{Formato.Numero(MontoDeposito)} {MonedaDeposito}" : "-";
 
-    // Devuelve el primer mensaje de error, o null si el contrato es válido.
-    public string? Validar(IEnumerable<ReglaGasto>? reglas = null)
+    public const decimal MontoMaximo = 9_999_999_999m;
+
+    public bool EsperaAlInquilino => Estado == "PendienteInquilino";
+    public bool EstaTerminado => Estado == "Finalizado";
+
+    // Color de la etiqueta del estado (estado-pill--...).
+    public string EstadoCss => EsperaAlInquilino ? "pagar" : EstaTerminado ? "neutro" : "pagado";
+
+    // Cómo se nombra el estado según quién lo mira.
+    public string EstadoPara(bool comoPropietario) => comoPropietario && EsperaAlInquilino ? "Esperando al inquilino" : EstadoParaInquilino;
+
+    // Valida lo que llegó del formulario de revisión y copia a este contrato solo los datos editables.
+    // Devuelve el error si no se puede guardar.
+    public string? CopiarDatosRevision(Contratos recibido)
     {
-        if (IdInquilino <= 0)
+        if (recibido.FechaInicio == default || recibido.FechaFin == default)
         {
-            return "Debe seleccionar un inquilino para crear el contrato.";
+            return "Completá las fechas de inicio y fin del contrato.";
         }
 
-        return ReglasContrato.Errores(this, reglas ?? Enumerable.Empty<ReglaGasto>()).FirstOrDefault();
+        if (recibido.FechaFin <= recibido.FechaInicio)
+        {
+            return "La fecha de fin tiene que ser posterior a la de inicio.";
+        }
+
+        if (recibido.MontoAlquiler < 0 || recibido.MontoAlquiler > MontoMaximo)
+        {
+            return "El monto del alquiler no es válido.";
+        }
+
+        if ((recibido.PorcentajeFijo ?? 0) is < 0 or > 100 || (recibido.PunitorioDiario ?? 0) is < 0 or > 100)
+        {
+            return "Los porcentajes tienen que estar entre 0 y 100.";
+        }
+
+        if ((recibido.MontoDeposito ?? 0) < 0 || (recibido.MontoDeposito ?? 0) > MontoMaximo)
+        {
+            return "El monto del depósito no es válido.";
+        }
+
+        FechaInicio = recibido.FechaInicio.Date;
+        FechaFin = recibido.FechaFin.Date;
+        MontoAlquiler = recibido.MontoAlquiler;
+        FechaFirma = recibido.FechaFirma?.Date;
+        FechaPrimerAjuste = recibido.FechaPrimerAjuste?.Date;
+        Moneda = Opciones.Buscar(RevisionContrato.Monedas, recibido.Moneda) ?? "ARS";
+        Destino = Opciones.Buscar(RevisionContrato.Destinos, recibido.Destino);
+        IndiceAjuste = Opciones.Buscar(RevisionContrato.Indices, recibido.IndiceAjuste);
+        FrecuenciaAjusteMeses = recibido.FrecuenciaAjusteMeses is >= 1 and <= 60 ? recibido.FrecuenciaAjusteMeses : null;
+        PorcentajeFijo = recibido.PorcentajeFijo;
+        DiaVencimiento = recibido.DiaVencimiento is >= 1 and <= 31 ? recibido.DiaVencimiento : null;
+        MedioPago = Recortar(recibido.MedioPago, 200);
+        PunitorioDiario = recibido.PunitorioDiario;
+        MontoDeposito = recibido.MontoDeposito;
+        MonedaDeposito = Opciones.Buscar(RevisionContrato.Monedas, recibido.MonedaDeposito);
+        TipoGarantia = Opciones.Buscar(RevisionContrato.Garantias, recibido.TipoGarantia);
+        PreavisoRescisionDias = recibido.PreavisoRescisionDias is >= 0 and <= 365 ? recibido.PreavisoRescisionDias : null;
+        CondicionesRescision = Recortar(recibido.CondicionesRescision, 1000);
+
+        // El régimen sale de la fecha de firma; si la ley impone índice y frecuencia, se pisan.
+        ReglasContrato.AplicarRegimen(this);
+        return null;
+    }
+
+    // Texto sin espacios de más y con un largo máximo; null si quedó vacío.
+    private static string? Recortar(string? valor, int largo)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return null;
+        }
+
+        string texto = valor.Trim();
+        return texto.Length > largo ? texto[..largo] : texto;
     }
 }

@@ -1,6 +1,6 @@
 @* Foto de perfil del usuario logueado, o el ícono de usuario si no tiene (o si la foto no carga). Se usa en el header y en el menú lateral. *@
 @{
-    string? foto = Context.Session.GetString("FotoPerfil");
+    string? foto = ViewBag.FotoPerfil as string;
 }
 @if (!string.IsNullOrWhiteSpace(foto))
 {

@@ -146,10 +146,16 @@ public class ResultadoExtraccion
 
         foreach (Gastos tipo in catalogo)
         {
-            GastoExtraido? extraido = r.Gastos
-                .Where(g => string.Equals(g.TipoGasto.Trim(), tipo.TipoGasto, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(g => g.Confianza)
-                .FirstOrDefault();
+            // Si la IA devolvió el mismo tipo más de una vez, se toma la lectura más segura.
+            GastoExtraido? extraido = null;
+            foreach (GastoExtraido gasto in r.Gastos)
+            {
+                bool esDelTipo = string.Equals(gasto.TipoGasto.Trim(), tipo.TipoGasto, StringComparison.OrdinalIgnoreCase);
+                if (esDelTipo && (extraido == null || gasto.Confianza > extraido.Confianza))
+                {
+                    extraido = gasto;
+                }
+            }
 
             string porDefecto = tipo.ResponsableDefault == "Inquilino" ? "Inquilino" : "Propietario";
             var regla = new ReglaGasto
@@ -161,7 +167,7 @@ public class ResultadoExtraccion
                 Origen = "Default"
             };
 
-            string? responsable = Responsables.FirstOrDefault(x => string.Equals(x, extraido?.Responsable?.Trim(), StringComparison.OrdinalIgnoreCase));
+            string? responsable = Opciones.Buscar(Responsables, extraido?.Responsable);
             if (extraido != null && responsable != null && (responsable != "Compartido" || extraido.PorcentajeInquilino.HasValue))
             {
                 regla.Responsable = responsable;
@@ -338,7 +344,7 @@ public class ResultadoExtraccion
         JsonElement? v = Valor(raiz, nombre, out JsonElement campo);
         if (v is { ValueKind: JsonValueKind.String })
         {
-            string? canonico = permitidos.FirstOrDefault(p => string.Equals(p, v.Value.GetString()?.Trim(), StringComparison.OrdinalIgnoreCase));
+            string? canonico = Opciones.Buscar(permitidos, v.Value.GetString());
             if (canonico != null)
             {
                 resultado.Valor = canonico;

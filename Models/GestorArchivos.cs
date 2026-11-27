@@ -70,4 +70,29 @@ public static class GestorArchivos
     {
         return Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", carpeta);
     }
+
+    // Fotos de los usuarios de ejemplo (versionadas en el repo): no se borran nunca.
+    private static readonly List<string> FotosDeEjemplo = new()
+    {
+        "perfil_prop@gmail.com_20261119083614524.jfif",
+        "perfil_inq@gmail.com_20261119084917425.jfif"
+    };
+
+    // Borra la foto de perfil anterior cuando el usuario sube otra.
+    public static void BorrarFotoPerfil(string? foto)
+    {
+        if (string.IsNullOrWhiteSpace(foto) || foto != Path.GetFileName(foto) || FotosDeEjemplo.Contains(foto))
+        {
+            return;
+        }
+
+        try
+        {
+            Borrar(CarpetaImagenes, foto);
+        }
+        catch (IOException)
+        {
+            // Si no se pudo borrar queda huérfana en disco; no afecta al perfil.
+        }
+    }
 }

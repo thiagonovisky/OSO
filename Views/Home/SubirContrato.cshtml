@@ -41,16 +41,6 @@
     </form>
 </div>
 
-<script>
-    let enviado = false;
-    document.getElementById('formSubirContrato').addEventListener('submit', function (e) {
-        // Evita mandarlo dos veces (doble clic o Enter), que crearía el borrador y después daría error.
-        if (enviado) {
-            e.preventDefault();
-            return;
-        }
-        enviado = true;
-        document.getElementById('btnSubir').disabled = true;
-        document.getElementById('leyendo').hidden = false;
-    });
-</script>
+@section Scripts {
+    <script src="~/js/subir-contrato.js" asp-append-version="true"></script>
+}

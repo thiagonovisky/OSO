@@ -1,146 +1,10 @@
 @model List<OSO.Models.GastoPropiedad>
 @{
-    var pendientesContrato = ViewBag.PendientesContrato as List<OSO.Models.PendienteContrato> ?? new List<OSO.Models.PendienteContrato>();
-    var gastos = Model ?? new List<OSO.Models.GastoPropiedad>();
-
-    var aPagarPendientes = pendientesContrato.Where(p => p.EsReciente).ToList();
-    var anteriores = pendientesContrato.Where(p => !p.EsReciente).ToList();
-    var aPagarGastos = gastos.Where(g => !g.MiPartePagada).ToList();
-    var historial = gastos.Where(g => g.MiPartePagada).ToList();
-    bool hayAlgo = gastos.Count > 0 || pendientesContrato.Count > 0;
+    var pendientesRecientes = ViewBag.PendientesRecientes as List<OSO.Models.PendienteContrato> ?? new List<OSO.Models.PendienteContrato>();
+    var pendientesAnteriores = ViewBag.PendientesAnteriores as List<OSO.Models.PendienteContrato> ?? new List<OSO.Models.PendienteContrato>();
+    var gastosAPagar = ViewBag.GastosAPagar as List<OSO.Models.GastoPropiedad> ?? new List<OSO.Models.GastoPropiedad>();
+    var gastosPagados = ViewBag.GastosPagados as List<OSO.Models.GastoPropiedad> ?? new List<OSO.Models.GastoPropiedad>();
     bool esPropietario = ViewBag.EsPropietario == true;
-    string otraParte = esPropietario ? "Parte del inquilino" : "Parte del propietario";
-    const int Columnas = 7;
-
-    void Encabezado()
-    {
-        <tr>
-            <th>Gasto</th>
-            <th>Estado</th>
-            <th>Vencimiento</th>
-            <th class="col-monto">Total</th>
-            <th class="col-monto">Tu parte</th>
-            <th class="col-monto">@otraParte</th>
-            <th><span class="visually-hidden">Acciones</span></th>
-        </tr>
-    }
-
-    // Tipo de gasto, mes y propiedad en una sola celda. Con un gasto ya cargado, también quién lo cargó y su factura.
-    void CeldaGasto(string tipo, DateTime periodo, string propiedad, OSO.Models.GastoPropiedad? gasto = null)
-    {
-        <td>
-            <strong>@tipo</strong>
-            <small class="celda-sub">@periodo.ToString("MMMM yyyy") en @propiedad</small>
-            @if (gasto != null && !gasto.EsIncluido)
-            {
-                <small class="celda-sub gasto-origen">
-                    @gasto.CargadoPorPara(esPropietario)
-                    @if (!string.IsNullOrEmpty(gasto.Factura))
-                    {
-                        <text> · </text><a href="@Url.Action("VerFactura", "Home", new { idGastoPropiedad = gasto.IdGastoPropiedad })" target="_blank" rel="noopener">Ver factura</a>
-                    }
-                    else
-                    {
-                        <text> · sin factura</text>
-                    }
-                </small>
-            }
-        </td>
-    }
-
-    // Cada fila a pagar tiene debajo su formulario, que se despliega con el botón "Pagar".
-    async Task FilaPendiente(OSO.Models.PendienteContrato pendiente)
-    {
-        string id = $"pago-p-{pendiente.IdPropiedad}-{pendiente.IdGasto}-{pendiente.Periodo:yyyyMM}";
-        <tr>
-            @{ CeldaGasto(pendiente.TipoGasto, pendiente.Periodo, pendiente.NombrePropiedad); }
-            <td data-label="Estado"><span class="estado-pill estado-pill--pagar">A pagar</span></td>
-            <td data-label="Vencimiento">-</td>
-            <td data-label="Total" class="col-monto celda-nota">Sin factura</td>
-            <td data-label="Tu parte" class="col-monto celda-nota">@pendiente.TextoACargo</td>
-            <td data-label="@otraParte" class="col-monto">-</td>
-            <td class="col-accion">
-                <button type="button" class="btn btn-success btn-sm" data-despliega="@id" aria-expanded="false" aria-controls="@id">Pagar</button>
-            </td>
-        </tr>
-        <tr class="fila-pago" id="@id" hidden>
-            <td colspan="@Columnas">
-                <form asp-action="PagarPendienteContrato" asp-controller="Home" method="post" enctype="multipart/form-data" class="pago-form pago-form--fila">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="idPropiedad" value="@pendiente.IdPropiedad" />
-                    <input type="hidden" name="idGasto" value="@pendiente.IdGasto" />
-                    <input type="hidden" name="periodo" value="@pendiente.Periodo.ToString("yyyy-MM-dd")" />
-                    <div class="pago-campo factura-lector">
-                        <span class="pago-form__label">1. Factura de @pendiente.TipoGasto (la IA lee el monto y queda guardada con el gasto)</span>
-                        <input type="file" name="facturaArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Factura de @pendiente.TipoGasto" />
-                        <button type="button" class="btn btn-secondary btn-sm btn-leer-factura" data-url="@Url.Action("LeerFactura", "Home")" data-tipo="@pendiente.TipoGasto">Leer monto de la factura</button>
-                        <small class="factura-estado"></small>
-                    </div>
-                    <div class="pago-campo">
-                        <span class="pago-form__label">2. @pendiente.TextoMonto.TrimEnd('$', ' ')</span>
-                        <input type="number" name="monto" min="0.01" step="0.01" placeholder="$" aria-label="@pendiente.TextoMonto" class="form-control form-control-sm" required />
-                    </div>
-                    <div class="pago-campo">
-                        <span class="pago-form__label">3. Comprobante de pago</span>
-                        <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Comprobante de pago" required />
-                    </div>
-                    <button type="submit" class="btn btn-success">Confirmar pago</button>
-                </form>
-            </td>
-        </tr>
-    }
-
-    async Task FilaGasto(OSO.Models.GastoPropiedad gasto)
-    {
-        string id = $"pago-g-{gasto.IdGastoResponsable}";
-        <tr>
-            @{ CeldaGasto(gasto.TipoGasto, gasto.Periodo, gasto.NombrePropiedad, gasto); }
-            <td data-label="Estado">
-                @if (gasto.EsIncluido)
-                {
-                    <small class="celda-sub">@gasto.Aclaracion</small>
-                }
-                else
-                {
-                    <span class="estado-pill estado-pill--@gasto.EstadoMiParteCss">@gasto.EstadoMiParte</span>
-                }
-                @if (gasto.FechaPago.HasValue && gasto.MiPartePagada && !gasto.EsIncluido)
-                {
-                    <small class="celda-sub">el @gasto.FechaPago.Value.ToString("dd/MM/yyyy")</small>
-                }
-            </td>
-            <td data-label="Vencimiento">@gasto.FechaVencimiento.ToString("dd/MM/yyyy")</td>
-            <td data-label="Total" class="col-monto">@OSO.Models.Formato.Pesos(gasto.Monto)</td>
-            <td data-label="Tu parte" class="col-monto"><span class="mi-parte">@OSO.Models.Formato.Pesos(gasto.MontoResponsable)</span></td>
-            <td data-label="@otraParte" class="col-monto">@OSO.Models.Formato.Pesos(esPropietario ? gasto.MontoInquilino : gasto.MontoPropietario)</td>
-            <td class="col-accion">
-                @if (!gasto.MiPartePagada)
-                {
-                    <button type="button" class="btn btn-success btn-sm" data-despliega="@id" aria-expanded="false" aria-controls="@id">Pagar</button>
-                }
-                else if (!string.IsNullOrWhiteSpace(gasto.Comprobante))
-                {
-                    <a href="@Url.Content("~/comprobantes/" + gasto.Comprobante)" target="_blank" class="btn btn-secondary btn-sm">Ver comprobante</a>
-                }
-            </td>
-        </tr>
-        @if (!gasto.MiPartePagada)
-        {
-            <tr class="fila-pago" id="@id" hidden>
-                <td colspan="@Columnas">
-                    <form asp-action="PagarGasto" asp-controller="Home" method="post" enctype="multipart/form-data" class="pago-form pago-form--fila">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="idGastoResponsable" value="@gasto.IdGastoResponsable" />
-                        <div class="pago-campo">
-                            <span class="pago-form__label">Comprobante de pago de @OSO.Models.Formato.Pesos(gasto.MontoResponsable - gasto.MontoPagado)</span>
-                            <input type="file" name="comprobanteArchivo" accept=".jpg,.jpeg,.png,.webp,.pdf" class="form-control form-control-sm" aria-label="Comprobante de pago" required />
-                        </div>
-                        <button type="submit" class="btn btn-success">Confirmar pago</button>
-                    </form>
-                </td>
-            </tr>
-        }
-    }
 }
 
 <h2 class="gastos-title">Mis gastos</h2>
@@ -157,18 +21,24 @@
     <p class="aviso-pagina" role="status">@TempData["Mensaje"]</p>
 }
 
-@if (hayAlgo)
+@if (ViewBag.HayGastos == true)
 {
     <div class="seccion-gastos">
     @* A pagar: lo que está sin pagar y los últimos meses de los gastos que el contrato pone a tu cargo. El monto de estos últimos lo cargás vos al pagar. *@
     <h3>A pagar</h3>
-    @if (aPagarPendientes.Count > 0 || aPagarGastos.Count > 0)
+    @if (pendientesRecientes.Count > 0 || gastosAPagar.Count > 0)
     {
         <div class="tabla-wrap"><table class="table">
-            <thead>@{ Encabezado(); }</thead>
+            <thead><partial name="_EncabezadoMisGastos" /></thead>
             <tbody>
-                @foreach (var pendiente in aPagarPendientes) { await FilaPendiente(pendiente); }
-                @foreach (var gasto in aPagarGastos) { await FilaGasto(gasto); }
+                @foreach (var pendiente in pendientesRecientes)
+                {
+                    <partial name="_FilaPendiente" model="pendiente" />
+                }
+                @foreach (var gasto in gastosAPagar)
+                {
+                    <partial name="_FilaGasto" model="gasto" />
+                }
             </tbody>
         </table></div>
     }
@@ -177,26 +47,32 @@
         <p class="seccion-gastos__vacio">No tenés nada para pagar por ahora.</p>
     }
 
-    @if (anteriores.Count > 0)
+    @if (pendientesAnteriores.Count > 0)
     {
         <details>
-            <summary><strong>Meses anteriores sin pagar (@anteriores.Count)</strong></summary>
+            <summary><strong>Meses anteriores sin pagar (@pendientesAnteriores.Count)</strong></summary>
             <div class="tabla-wrap"><table class="table">
-                <thead>@{ Encabezado(); }</thead>
+                <thead><partial name="_EncabezadoMisGastos" /></thead>
                 <tbody>
-                    @foreach (var pendiente in anteriores) { await FilaPendiente(pendiente); }
+                    @foreach (var pendiente in pendientesAnteriores)
+                    {
+                        <partial name="_FilaPendiente" model="pendiente" />
+                    }
                 </tbody>
             </table></div>
         </details>
     }
 
     <h3>Historial de pagos</h3>
-    @if (historial.Count > 0)
+    @if (gastosPagados.Count > 0)
     {
         <div class="tabla-wrap"><table class="table">
-            <thead>@{ Encabezado(); }</thead>
+            <thead><partial name="_EncabezadoMisGastos" /></thead>
             <tbody>
-                @foreach (var gasto in historial) { await FilaGasto(gasto); }
+                @foreach (var gasto in gastosPagados)
+                {
+                    <partial name="_FilaGasto" model="gasto" />
+                }
             </tbody>
         </table></div>
     }

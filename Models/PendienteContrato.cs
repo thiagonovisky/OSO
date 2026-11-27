@@ -21,7 +21,13 @@ public class PendienteContrato
     // Qué porcentaje le toca a quien mira el pendiente.
     public decimal PorcentajePropio => Lado == "Propietario" ? 100m - PorcentajeInquilino : PorcentajeInquilino;
 
-    public bool EsReciente => Periodo >= new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-(MesesRecientes - 1));
+    // Primer mes que cuenta como reciente.
+    public static DateTime DesdeReciente => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-(MesesRecientes - 1));
+
+    public bool EsReciente => Periodo >= DesdeReciente;
+
+    // Id del formulario de pago de este pendiente en "Mis gastos".
+    public string IdFormularioPago => $"pago-p-{IdPropiedad}-{IdGasto}-{Periodo:yyyyMM}";
 
     public string TextoACargo => $"{Formato.Numero(PorcentajePropio, "0.##")}% a tu cargo";
 
@@ -34,4 +40,19 @@ public class PendienteContrato
         "Propietario" => "Lo pagás vos",
         _ => $"Compartido ({Formato.Numero(PorcentajeInquilino, "0.##")}% inquilino)"
     };
+
+    // Los pendientes de los últimos meses (recientes = true) o los anteriores (recientes = false).
+    public static List<PendienteContrato> Recientes(List<PendienteContrato> pendientes, bool recientes)
+    {
+        var resultado = new List<PendienteContrato>();
+        foreach (PendienteContrato pendiente in pendientes)
+        {
+            if (pendiente.EsReciente == recientes)
+            {
+                resultado.Add(pendiente);
+            }
+        }
+
+        return resultado;
+    }
 }

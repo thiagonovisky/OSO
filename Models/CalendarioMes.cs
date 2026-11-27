@@ -20,6 +20,10 @@ public class CalendarioMes
     public DateTime Mes { get; set; }
     public DateTime MesAnterior => Mes.AddMonths(-1);
     public DateTime MesSiguiente => Mes.AddMonths(1);
+
+    public string NombreMes => NombreDelMes(Mes);
+    public string NombreMesAnterior => NombreDelMes(MesAnterior);
+    public string NombreMesSiguiente => NombreDelMes(MesSiguiente);
     public bool SoloLectura { get; set; }
 
     // Celdas vacías antes del día 1 (la semana empieza el lunes).

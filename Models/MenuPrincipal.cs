@@ -15,7 +15,7 @@ public static class MenuPrincipal
     private static readonly ItemMenu Calendario = new("Calendario", "Calendario", "Calendario", new[] { "Calendario", "AgregarEvento", "GuardarEvento" });
 
     // Pantallas que no son de ninguna sección del menú (no se marca ninguna).
-    private static readonly string[] SinSeccion = { "Bienvenida", "Perfil", "Notificaciones", "Index", "Login", "Registro", "Error" };
+    private static readonly List<string> SinSeccion = new() { "Bienvenida", "Perfil", "Notificaciones", "Index", "Login", "Registro", "Error" };
 
     // Las expensas extraordinarias las carga solo el propietario. Las facturas de servicios las carga quien las recibe.
     public static List<ItemMenu> Para(bool esPropietario) => esPropietario
@@ -31,7 +31,8 @@ public static class MenuPrincipal
             return null;
         }
 
-        ItemMenu? item = new[] { Expensas, MisGastos, CargarMes, Propiedades, Mensajeria, Calendario }.FirstOrDefault(i => i.Acciones.Contains(accion));
+        var items = new List<ItemMenu> { Expensas, MisGastos, CargarMes, Propiedades, Mensajeria, Calendario };
+        ItemMenu? item = items.FirstOrDefault(i => i.Acciones.Contains(accion));
         return item?.Accion ?? Propiedades.Accion;
     }
 }
